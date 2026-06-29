@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="用自然语言描述产品想法，深度搜索 GitHub 项目并输出证据化对比报告。">
+  <title>GitHub Deep Search</title>
+  <link rel="stylesheet" href="/static/styles.css?v=20260630-2">
+  <script src="/static/app.js?v=20260630-2" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="GitHub Deep Search 首页">
+        <span class="brand-mark" aria-hidden="true">G</span>
+        <span>GitHub Deep Search</span>
+      </a>
+      <div id="keyStatus" class="key-status" aria-live="polite">
+        <span class="status-dot pending" aria-hidden="true"></span>
+        <span>检查本地配置</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow">Real GitHub evidence only</p>
+        <h1 id="hero-title">从一个产品想法，找到真正值得研究的 GitHub 项目。</h1>
+      </div>
+      <p class="intro-copy">每次报告都来自当前输入触发的 GitHub 搜索、README/源码证据和 LLM 分析；项目不内置演示结果、假数据或静态业务规则。</p>
+    </section>
+
+    <section class="trust-strip" aria-label="可信原则">
+      <span>无内置 Demo 结果</span>
+      <span>无假仓库排行</span>
+      <span>无静态业务词表</span>
+      <span>证据优先于 Star</span>
+    </section>
+
+    <section class="workspace" aria-label="项目调研工作台">
+      <div class="query-panel">
+        <label for="query">产品想法或技术需求</label>
+        <textarea id="query" maxlength="2000" placeholder="描述你想研究的真实需求。配置 GITHUB_TOKEN 和 LLM_API_KEY 后，系统会基于当前输入执行真实搜索。"></textarea>
+
+        <div class="actions">
+          <button id="run" class="primary-button" type="button">
+            <span id="runLabel">开始真实搜索</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+
+      <aside class="run-panel" aria-label="运行状态">
+        <div>
+          <span class="panel-label">Search profile</span>
+          <strong id="profile">完整调研</strong>
+        </div>
+        <div class="hint-list">
+          <span>多路 GitHub 搜索</span>
+          <span>README 与源码证据</span>
+          <span>Top 项目差异判断</span>
+        </div>
+        <div id="statusArea" class="status-area" aria-live="polite">
+          <div class="status-copy">
+            <span id="status">等待输入</span>
+            <span id="progressValue">0%</span>
+          </div>
+          <div class="progress-track" aria-hidden="true"><div id="progressFill" class="progress-fill"></div></div>
+          <div id="steps" class="steps"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="error" class="error" role="alert"></section>
+
+    <section id="results" class="results" aria-labelledby="resultTitle">
+      <div class="result-heading">
+        <div>
+          <span class="result-kicker">Research report</span>
+          <h2 id="resultTitle">调研结论</h2>
+        </div>
+        <div class="result-actions" aria-label="结果操作">
+          <button id="copyMarkdown" type="button">复制 Markdown</button>
+          <button id="downloadJson" type="button">下载 JSON</button>
+        </div>
+      </div>
+      <article id="report" class="report"></article>
+    </section>
+  </main>
+
+  <footer>
+    <span>GitHub Deep Search</span>
+    <span>Evidence first. Stars second.</span>
+  </footer>
+</body>
+</html>

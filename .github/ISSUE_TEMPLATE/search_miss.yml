@@ -1,0 +1,35 @@
+name: Search quality miss
+description: Share a query where the results were missing, noisy, or poorly ranked.
+title: "[Search miss]: "
+labels: ["search-quality"]
+body:
+  - type: textarea
+    id: query
+    attributes:
+      label: Exact query
+      description: Paste the requirement you searched for.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What kind of project did you expect?
+      description: Link any known repositories if you have them.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What did GitHub Deep Search return?
+      description: Include the Top results or the exported Markdown/JSON if possible.
+  - type: dropdown
+    id: keys
+    attributes:
+      label: Which providers were configured?
+      options:
+        - GitHub token and LLM key
+        - GitHub token only
+        - LLM key only
+        - No external keys
+    validations:
+      required: true

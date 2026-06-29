@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible problem.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the failure and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run ...
+        2. Search for ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: query
+    attributes:
+      label: Search query or input
+      description: Include the exact prompt if this is a search-quality issue.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, Python version, browser"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell

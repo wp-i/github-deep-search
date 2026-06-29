@@ -1,0 +1,12 @@
+.env
+config/user_keys.env
+.venv/
+.browser-profile/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+tmp_*.log
