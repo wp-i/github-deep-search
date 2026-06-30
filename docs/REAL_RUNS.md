@@ -12,6 +12,7 @@ Find an open-source Python terminal UI library that supports tables, progress ba
 
 Captured assets:
 
+- [README highlight screenshot](assets/real-run-highlight.png)
 - [Ready state screenshot](assets/real-search-ready.png)
 - [Full result screenshot](assets/real-run-report.png)
 - [README-cropped result screenshot](assets/real-run-report-cropped.png)

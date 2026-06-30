@@ -1,41 +1,72 @@
-# GitHub Deep Search
+<h1 align="center">GitHub Deep Search</h1>
 
-> 输入一句产品想法，真实搜索 GitHub，快速判断有没有可复用、可借鉴、值得避开的开源项目。
+<p align="center">
+  用一句产品想法，真实搜索 GitHub，判断哪些开源项目值得复用、借鉴或避开。
+</p>
 
-**适合谁：** 正在做产品 idea 验证、技术选型、竞品调研、开源复用判断的人。
+<p align="center">
+  <a href="https://github.com/wp-i/github-deep-search/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/wp-i/github-deep-search?style=social"></a>
+  <a href="https://github.com/wp-i/github-deep-search/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/wp-i/github-deep-search/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB">
+  <img alt="FastAPI" src="https://img.shields.io/badge/Web-FastAPI-009688">
+  <img alt="License" src="https://img.shields.io/github/license/wp-i/github-deep-search">
+  <img alt="No demo data" src="https://img.shields.io/badge/No%20Demo%20Data-Real%20Search-111827">
+</p>
 
-**它不是：** 内置 Demo、假排行榜、静态关键词匹配器。报告来自当前输入触发的 GitHub 搜索、README/源码证据和 LLM 分析。
+<p align="center">
+  <a href="#一分钟跑起来">一分钟跑起来</a>
+  · <a href="#真实运行效果">真实运行效果</a>
+  · <a href="#api-key-与消耗">API Key 与消耗</a>
+  · <a href="#信任边界">信任边界</a>
+</p>
 
-![真实运行摘要](docs/assets/real-run-highlight.png)
+<p align="center">
+  <img alt="GitHub Deep Search 真实运行摘要" src="docs/assets/real-run-highlight.png">
+</p>
 
-上图来自一次真实本地运行，不是内置 Demo，也不是预置结果。
+> 上图来自一次真实本地运行，不是内置 Demo、不是预置报告、不是假仓库排行。
+
+## 它解决什么
+
+| 你原本要手动做的事 | GitHub Deep Search 做的事 |
+| --- | --- |
+| 在 GitHub 反复换关键词 | 把自然语言需求拆成结构化搜索角度 |
+| 点开仓库看 README 和源码 | 采集 README、文件树、关键源码路径证据 |
+| 判断项目能不能复用 | 输出匹配理由、差异、缺口和风险 |
+| 估算一次调研花了多少成本 | 展示 GitHub 请求数、LLM tokens 和可选美元估算 |
 
 ## 15 秒看懂
-
-输入：
 
 ```text
 我想做一个浏览器插件，可以总结网页内容，并把摘要同步到 Notion。
 ```
 
-输出：
-
-| 你关心的问题 | GitHub Deep Search 给出的结果 |
+| 输出块 | 你会看到什么 |
 | --- | --- |
-| GitHub 上有没有类似项目？ | Top 仓库、关联度、star、更新时间 |
-| 能不能直接复用？ | 直接可用 / 参考项目 / 相邻参考 |
-| 为什么这么判断？ | README、源码、路径等证据来源 |
-| 还缺什么？ | 缺口、差异、风险、需要改造的地方 |
-| 跑一次贵不贵？ | GitHub 请求数、LLM token、可选美元估算 |
+| Top 项目 | 最相关仓库、star、更新时间、关联度 |
+| 复用判断 | 直接可用 / 参考项目 / 相邻参考 |
+| 证据来源 | README、源码、路径、Topic、Issue 线索 |
+| 差异缺口 | 缺什么、哪里不匹配、需要改造什么 |
+| 消耗记录 | 本次 GitHub 请求数、LLM 输入/输出 tokens |
 
-## 真实运行结果
+## 一分钟跑起来
 
-本次真实运行：
+Clone 后进入项目目录，只需要这一行启动 Web：
 
-- 查询：`Find an open-source Python terminal UI library that supports tables, progress bars, markdown rendering, and rich text styling.`
-- Top 结果：`Textualize/rich`
-- 报告记录消耗：输入 `38,236` tokens，输出 `3,386` tokens
-- 完整截图和记录：[docs/REAL_RUNS.md](docs/REAL_RUNS.md)
+```bash
+python scripts/start_web.py
+```
+
+启动器会自动创建 `.venv`、安装依赖、创建 `config/user_keys.env`，然后启动 Web 服务。打开终端输出的地址，通常是 http://127.0.0.1:8001。
+
+## 真实运行效果
+
+| 项目 | 本次真实记录 |
+| --- | --- |
+| 查询 | `Find an open-source Python terminal UI library that supports tables, progress bars, markdown rendering, and rich text styling.` |
+| Top 结果 | `Textualize/rich` |
+| 报告消耗 | 输入 `38,236` tokens，输出 `3,386` tokens |
+| 完整记录 | [docs/REAL_RUNS.md](docs/REAL_RUNS.md) |
 
 <details>
 <summary>查看完整截图</summary>
@@ -46,17 +77,7 @@
 
 </details>
 
-## 一行启动
-
-```bash
-python scripts/start_web.py
-```
-
-打开终端输出的地址，通常是 http://127.0.0.1:8001。
-
-启动器会自动创建 `.venv`、安装依赖、创建 `config/user_keys.env`，然后启动 Web 服务。
-
-## 必须配置 API Key
+## API Key 与消耗
 
 没有 key 可以打开界面，但不会得到可信的真实调研报告。
 
@@ -68,13 +89,11 @@ LLM_MODEL=your-model-name
 TAVILY_API_KEY=
 ```
 
-- `GITHUB_TOKEN`：真实使用基本必需。未认证 GitHub 请求额度太低。
-- `LLM_API_KEY`：必需。用于需求解析、查询规划、项目比较和最终报告。
-- `TAVILY_API_KEY`：可选。用于 Web 交叉验证和补充发现。
-
-建议 GitHub token 只授予公开仓库只读权限，不要授予写权限。
-
-## 预期消耗
+| Key | 是否必需 | 用途 |
+| --- | --- | --- |
+| `GITHUB_TOKEN` | 基本必需 | 提高真实 GitHub 搜索额度，建议只授予公开仓库只读权限 |
+| `LLM_API_KEY` | 必需 | 需求解析、查询规划、项目比较、最终报告 |
+| `TAVILY_API_KEY` | 可选 | Web 交叉验证和补充发现 |
 
 Web 默认使用 `detailed + continue`，优先保证召回质量。
 
@@ -84,15 +103,14 @@ Web 默认使用 `detailed + continue`，优先保证召回质量。
 | `high` | 72 | 54 | 最多 4 credits | 30k-80k |
 | `continue` | 92 | 69 | 最多 4 credits | 40k-110k |
 
-可选美元估算：
+<details>
+<summary>查看美元估算配置</summary>
 
 ```env
 LLM_INPUT_USD_PER_1M=0
 LLM_OUTPUT_USD_PER_1M=0
 TAVILY_USD_PER_CREDIT=0.008
 ```
-
-成本公式：
 
 ```text
 input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
@@ -102,11 +120,9 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 
 价格和限额会变化，批量运行前请以自己的服务商控制台为准。
 
-## 为什么不用普通 GitHub 搜索或直接问 LLM？
+</details>
 
-普通 GitHub 搜索容易漏掉 README、代码路径、Issue 和 Topic 里的线索。直接问 LLM 很快，但常见问题是结果过时、证据不足、把“看起来像”的项目说成可用。
-
-GitHub Deep Search 做的是中间层：
+## 为什么不是普通搜索
 
 ```text
 自然语言需求
@@ -117,21 +133,23 @@ GitHub Deep Search 做的是中间层：
 => 项目对比报告
 ```
 
+普通 GitHub 搜索容易漏掉 README、代码路径、Issue 和 Topic 里的线索。直接问 LLM 很快，但常见问题是结果过时、证据不足、把“看起来像”的项目说成可用。
+
 ## 信任边界
 
-- 不内置 Demo 报告。
-- 不内置假仓库、假排行或 seeded result data。
-- 不使用静态产品领域同义词表、业务关键词包、仓库白名单或黑名单排序捷径。
-- 测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载。
-- 每份真实报告都来自当前用户输入、实时 provider 响应、仓库证据和配置的 LLM。
+| 不做什么 | 为什么重要 |
+| --- | --- |
+| 不内置 Demo 报告 | 首次体验不会被预置结果误导 |
+| 不内置假仓库、假排行或 seeded result data | 排名来自当前输入和实时 provider 响应 |
+| 不使用静态产品同义词表、业务关键词包、仓库白名单或黑名单排序捷径 | 搜索语义必须来自当前需求和真实仓库证据 |
+| 测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载 | 测试数据不会混入真实运行 |
+
+每份真实报告都来自当前用户输入、实时 provider 响应、仓库证据和配置的 LLM。
 
 ## CLI
 
 ```bash
 python -m github_deep_search "找一个可自部署的 AI Agent 可视化工作流编排工具，最好有插件机制"
-```
-
-```bash
 python -m github_deep_search "your requirement" --mode detailed --format markdown
 python -m github_deep_search "your requirement" --budget high --format json
 python -m github_deep_search "your requirement" --budget continue --format json
@@ -147,10 +165,13 @@ docker compose up --build
 
 ## Web 体验
 
-- 一行命令启动。
-- Header 显示 API key 配置状态。
-- 展示解析、搜索、证据采集、分析、报告生成进度。
-- 支持复制 Markdown 和下载 JSON。
+| 能力 | 状态 |
+| --- | --- |
+| 一行命令启动 | 已支持 |
+| API key 配置状态提示 | 已支持 |
+| 解析、搜索、证据采集、分析、报告生成进度 | 已支持 |
+| 复制 Markdown、下载 JSON | 已支持 |
+| MCP tool | 已支持 |
 
 ## 项目状态
 

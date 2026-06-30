@@ -96,29 +96,37 @@ def test_runtime_has_no_bundled_demo_or_seeded_results() -> None:
     ]
     for marker in forbidden_markers:
         assert marker not in runtime_sources
-    assert "不内置 Demo 报告。" in readme
-    assert "不内置假仓库、假排行或 seeded result data。" in readme
-    assert "测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载。" in readme
+    assert "不内置 Demo 报告" in readme
+    assert "不内置假仓库、假排行或 seeded result data" in readme
+    assert "测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载" in readme
 
 
 def test_readme_shows_real_run_preview_and_cost_boundary() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "输入一句产品想法，真实搜索 GitHub" in readme
+    assert "用一句产品想法，真实搜索 GitHub" in readme
+    assert "https://img.shields.io/github/stars/wp-i/github-deep-search?style=social" in readme
+    assert "https://github.com/wp-i/github-deep-search/actions/workflows/ci.yml/badge.svg" in readme
+    assert "No%20Demo%20Data-Real%20Search" in readme
+    assert "## 它解决什么" in readme
     assert "## 15 秒看懂" in readme
     assert "浏览器插件，可以总结网页内容，并把摘要同步到 Notion" in readme
-    assert "GitHub Deep Search 给出的结果" in readme
-    assert "## 真实运行结果" in readme
+    assert "Top 项目" in readme
+    assert "## 一分钟跑起来" in readme
+    assert "python scripts/start_web.py" in readme
+    assert "## 真实运行效果" in readme
     assert "docs/assets/real-run-highlight.png" in readme
     assert "docs/assets/real-run-report-cropped.png" in readme
-    assert "报告记录消耗" in readme
-    assert "## 必须配置 API Key" in readme
+    assert "报告消耗" in readme
+    assert "## API Key 与消耗" in readme
     assert "没有 key 可以打开界面，但不会得到可信的真实调研报告。" in readme
-    assert "`GITHUB_TOKEN`：真实使用基本必需。" in readme
-    assert "`LLM_API_KEY`：必需。" in readme
-    assert "## 预期消耗" in readme
+    assert "`GITHUB_TOKEN` | 基本必需" in readme
+    assert "`LLM_API_KEY` | 必需" in readme
     assert "GitHub 请求上限" in readme
     assert "典型 LLM tokens" in readme
+    assert "## 信任边界" in readme
+    assert "不内置 Demo 报告" in readme
+    assert "不使用静态产品同义词表" in readme
     assert Path("docs/assets/real-run-highlight.png").exists()
     assert "LLM_INPUT_USD_PER_1M" in readme
     assert Path("docs/assets/real-search-ready.png").exists()
