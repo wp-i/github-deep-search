@@ -104,22 +104,22 @@ def test_runtime_has_no_bundled_demo_or_seeded_results() -> None:
 def test_readme_shows_real_run_preview_and_cost_boundary() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "用一句自然语言产品想法，深度搜索 GitHub" in readme
-    assert "**一个很短的例子**" in readme
+    assert "输入一句产品想法，真实搜索 GitHub" in readme
+    assert "## 15 秒看懂" in readme
     assert "浏览器插件，可以总结网页内容，并把摘要同步到 Notion" in readme
-    assert "哪些 GitHub 仓库最接近？" in readme
-    assert "## 真实运行截图" in readme
-    assert "docs/assets/real-search-ready.png" in readme
+    assert "GitHub Deep Search 给出的结果" in readme
+    assert "## 真实运行结果" in readme
+    assert "docs/assets/real-run-highlight.png" in readme
     assert "docs/assets/real-run-report-cropped.png" in readme
-    assert "截图信息：" in readme
-    assert "报告记录的 LLM token 用量" in readme
+    assert "报告记录消耗" in readme
     assert "## 必须配置 API Key" in readme
-    assert "真实调研需要 provider 凭证。" in readme
+    assert "没有 key 可以打开界面，但不会得到可信的真实调研报告。" in readme
     assert "`GITHUB_TOKEN`：真实使用基本必需。" in readme
     assert "`LLM_API_KEY`：必需。" in readme
-    assert "## 预期消耗与成本" in readme
+    assert "## 预期消耗" in readme
     assert "GitHub 请求上限" in readme
     assert "典型 LLM tokens" in readme
+    assert Path("docs/assets/real-run-highlight.png").exists()
     assert "LLM_INPUT_USD_PER_1M" in readme
     assert Path("docs/assets/real-search-ready.png").exists()
     assert Path("docs/assets/real-run-report-cropped.png").exists()
