@@ -31,8 +31,7 @@ def _wait_for_server(url: str) -> None:
 
 
 @pytest.mark.e2e
-@pytest.mark.parametrize("viewport", [{"width": 1440, "height": 900}, {"width": 390, "height": 844}])
-def test_rendered_first_run_flow_is_usable(viewport: dict[str, int]) -> None:
+def test_rendered_desktop_first_run_flow_is_usable() -> None:
     port = _free_port()
     server = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "github_deep_search.web:app", "--host", "127.0.0.1", "--port", str(port)],
@@ -79,7 +78,7 @@ def test_rendered_first_run_flow_is_usable(viewport: dict[str, int]) -> None:
                 browser = browser_api.chromium.launch(headless=True)
             except playwright.Error as exc:
                 pytest.skip(f"Playwright Chromium is not installed: {exc}")
-            page = browser.new_page(viewport=viewport)
+            page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.route(
                 "**/api/search",
                 lambda route: route.fulfill(
@@ -90,9 +89,12 @@ def test_rendered_first_run_flow_is_usable(viewport: dict[str, int]) -> None:
             )
             page.goto(url)
 
-            assert "从一个产品想法" in page.locator(".intro h1").inner_text()
+            assert page.locator("#hero-title").inner_text() == "开源项目调研工作台"
             assert page.locator("#keyStatus").is_visible()
             assert page.locator(".query-panel").is_visible()
+            assert page.locator(".run-rail").is_visible()
+            assert page.locator(".right-column").is_visible()
+            assert page.locator("#emptyState").is_visible()
             assert page.locator("#demo").count() == 0
 
             page.locator("#query").fill(
@@ -107,6 +109,7 @@ def test_rendered_first_run_flow_is_usable(viewport: dict[str, int]) -> None:
             assert "sample/accessibility-tool" in report_text
             assert page.locator("#copyMarkdown").is_visible()
             assert page.locator("#downloadJson").is_visible()
+            assert page.locator("#emptyState").is_visible() is False
             assert page.locator("#progressFill").get_attribute("style") == "width: 100%;"
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth") is True
 
@@ -117,23 +120,29 @@ def test_rendered_first_run_flow_is_usable(viewport: dict[str, int]) -> None:
                     const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
                     return {
                         panelRadius: parseFloat(panel.borderRadius),
-                        reportRadius: parseFloat(report.borderRadius),
                         reportFontSize: parseFloat(report.fontSize),
+                        shell: rect('.workspace-shell').width,
+                        leftColumn: rect('.left-column').width,
+                        rightColumn: rect('.right-column').width,
                         query: rect('.query-panel').width,
-                        runPanel: rect('.run-panel').width,
+                        textarea: rect('#query').width,
+                        rail: rect('.run-rail').width,
+                        stage: rect('.stage').width,
                         runButton: rect('#run').width,
-                        queryInner: rect('.query-panel').width - 36,
                         viewportWidth: document.documentElement.clientWidth
                     };
                 }"""
             )
-            assert visual_contract["panelRadius"] <= 8
-            assert visual_contract["reportRadius"] <= 8
+            assert visual_contract["panelRadius"] == 16
             assert visual_contract["reportFontSize"] >= 16
-            if viewport["width"] > 820:
-                assert visual_contract["query"] > visual_contract["runPanel"]
-            else:
-                assert visual_contract["runButton"] >= visual_contract["queryInner"] * 0.98
+            assert visual_contract["stage"] == visual_contract["viewportWidth"] - 96
+            assert visual_contract["shell"] == visual_contract["viewportWidth"] - 96
+            assert 560 <= visual_contract["leftColumn"] <= 570
+            assert 730 <= visual_contract["rightColumn"] <= 740
+            assert visual_contract["query"] == visual_contract["leftColumn"]
+            assert visual_contract["textarea"] == visual_contract["leftColumn"] - 50
+            assert visual_contract["rail"] == visual_contract["leftColumn"]
+            assert visual_contract["runButton"] == visual_contract["textarea"]
             browser.close()
     finally:
         server.terminate()

@@ -18,6 +18,7 @@ class BudgetUsage:
     tavily_credits: int = 0
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
+    llm_token_estimated: bool = False
     estimated_usd: float = 0.0
     estimated_usd_complete: bool = True
     missing_price_components: list[str] = field(default_factory=list)

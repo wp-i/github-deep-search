@@ -18,10 +18,13 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert script.status_code == 200
 
     html = response.text
-    assert "从一个产品想法" in html
-    assert "无内置 Demo 结果" in html
-    assert "无假仓库排行" in html
-    assert "无静态业务词表" in html
+    assert "开源项目调研工作台" in html
+    assert "实时检索 GitHub" in html
+    assert "基于 GitHub、README 与源码证据检索" in html
+    assert "Real GitHub search" in html
+    assert "No demo data" in html
+    assert "等待启动调研分析" in html
+    assert 'id="profile"' not in html
     assert 'id="keyStatus"' in html
     assert 'id="query"' in html
     assert 'id="demo"' not in html
@@ -29,8 +32,10 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert 'id="progressFill"' in html
     assert 'id="copyMarkdown"' in html
     assert 'id="downloadJson"' in html
-    assert "/static/styles.css?v=20260630-2" in html
-    assert "/static/app.js?v=20260630-2" in html
+    assert 'class="run-rail"' in html
+    assert 'class="right-column"' in html
+    assert "/static/styles.css?v=20260702-03" in html
+    assert "/static/app.js?v=20260702-03" in html
 
     assert "radial-gradient" not in styles.text
     assert "border-radius: 8px" in styles.text

@@ -1109,14 +1109,14 @@ class DeepSearchEngine:
             aliases = self._feature_aliases(feature, requirement)
             if not aliases:
                 continue
-            readme_hits = [] if is_catalog else self._matching_terms(capability_readme, aliases)
             public_description = " ".join([repo.description, " ".join(repo.topics)])
-            description_hits = [] if is_catalog else self._matching_terms(public_description, aliases)
+            readme_hits = [] if is_catalog else self._matching_feature_terms(feature, capability_readme, aliases)
+            description_hits = [] if is_catalog else self._matching_feature_terms(feature, public_description, aliases)
             path_evidence: list[str] = []
             for path in ([] if is_catalog else repo.file_paths):
                 if not self._path_can_prove_capability(path):
                     continue
-                hits = self._matching_terms(path, aliases)
+                hits = self._matching_feature_terms(feature, path, aliases)
                 if hits:
                     path_evidence.append(f"{path} ({', '.join(hits[:3])})")
                 if len(path_evidence) >= 5:
@@ -1124,7 +1124,7 @@ class DeepSearchEngine:
             source_evidence: list[str] = []
             for path, text in ({} if is_catalog else repo.key_files).items():
                 evidence_text = self._readme_capability_text(text) if path.lower().endswith((".md", ".mdx")) else text
-                hits = self._matching_terms(evidence_text, aliases)
+                hits = self._matching_feature_terms(feature, evidence_text, aliases)
                 if hits:
                     source_evidence.append(f"{path} ({', '.join(hits[:3])})")
                 if len(source_evidence) >= 5:
@@ -1223,11 +1223,7 @@ class DeepSearchEngine:
         return False
 
     def _named_entities_are_all_present(self, feature: str, repo: CandidateRepository) -> bool:
-        entities = {
-            token.lower()
-            for token in re.findall(r"[A-Za-z][A-Za-z0-9_.-]{2,}", feature)
-            if any(character.isupper() or character.isdigit() for character in token)
-        }
+        entities = self._named_entity_tokens(feature)
         if len(entities) < 2:
             return True
         text = " ".join(
@@ -1241,6 +1237,14 @@ class DeepSearchEngine:
             ]
         ).lower()
         return all(self._literal_alias_present(entity, text) for entity in entities)
+
+    @staticmethod
+    def _named_entity_tokens(feature: str) -> set[str]:
+        return {
+            token.lower()
+            for token in re.findall(r"[A-Za-z][A-Za-z0-9_.-]{2,}", feature)
+            if any(character.isupper() or character.isdigit() for character in token)
+        }
 
     @staticmethod
     def _readme_capability_text(text: str) -> str:
@@ -1387,31 +1391,17 @@ class DeepSearchEngine:
 
     @staticmethod
     def _is_generic_qualifier_feature(feature: str) -> bool:
-        normalized = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(feature or "").lower())
-        generic_features = {
-            "opensource",
-            "opensourcetool",
-            "opensourceproject",
-            "open",
-            "source",
-            "tool",
-            "tools",
-            "project",
-            "projects",
-            "software",
-            "app",
-            "application",
-            "repo",
-            "repository",
-            "开源",
-            "开源工具",
-            "开源项目",
-            "工具",
-            "项目",
-            "软件",
-            "应用",
-        }
-        return normalized in generic_features
+        text = re.sub(r"\s+", "", str(feature or "").casefold())
+        if not text:
+            return False
+        ascii_text = re.sub(r"[^a-z0-9]+", "", text)
+        if re.fullmatch(
+            r"(?:open|source|opensource(?:tools?|projects?)?|tools?|projects?|software|apps?|applications?|repos?|repositories?)",
+            ascii_text,
+        ):
+            return True
+        cjk_text = re.sub(r"[^\u4e00-\u9fff]+", "", text)
+        return bool(cjk_text and re.fullmatch(r"(?:开源)?(?:工具|项目|软件|应用)?", cjk_text))
 
     @staticmethod
     def _is_broad_tool_label(feature: str) -> bool:
@@ -1510,6 +1500,37 @@ class DeepSearchEngine:
             if alias not in exact and self._semantic_alias_match(alias, lowered)
         }
         return sorted(exact | semantic, key=lambda item: (len(item), item), reverse=True)
+
+    def _matching_feature_terms(self, feature: str, text: str, aliases: set[str]) -> list[str]:
+        hits = self._matching_terms(text, aliases)
+        if not hits:
+            return []
+        feature_signals = self._semantic_signals(feature)
+        if len(feature_signals) <= 2:
+            return hits
+        evidence_signals = self._semantic_signals(text)
+        overlap = feature_signals.intersection(evidence_signals)
+        required_overlap = min(3, max(2, len(feature_signals) // 3))
+        combined_alias_signals = {
+            signal
+            for alias in hits
+            for signal in self._semantic_signals(alias)
+        }
+        named_entities = self._named_entity_tokens(feature)
+        if len(named_entities) >= 2 and named_entities.issubset(combined_alias_signals | evidence_signals):
+            return hits
+        if len(hits) >= 2 and len(combined_alias_signals) >= 2 and len(overlap) >= 2:
+            return hits
+        supported: list[str] = []
+        lowered_text = (text or "").lower()
+        for alias in hits:
+            alias_signals = self._semantic_signals(alias)
+            exact_hit = self._literal_alias_present(alias, lowered_text)
+            if exact_hit and (self._same_feature_key(feature, alias) or len(alias_signals) >= 2):
+                supported.append(alias)
+            elif len(overlap) >= required_overlap:
+                supported.append(alias)
+        return supported
 
     @staticmethod
     def _literal_alias_present(alias: str, lowered_text: str) -> bool:
@@ -2144,10 +2165,6 @@ class DeepSearchEngine:
             ):
                 continue
             adjacent_signal = self._repo_has_adjacent_signal(requirement, repo)
-            if repo.raw_score < 15 and not adjacent_signal:
-                continue
-            if repo.core_signal_score <= 0 and not adjacent_signal:
-                continue
             core_feature = self._core_requirement_feature(requirement) or (
                 requirement.must_have_features[0] if requirement.must_have_features else "核心需求"
             )
@@ -2159,6 +2176,11 @@ class DeepSearchEngine:
             )
             core_related_features = self._core_related_adjacent_features(requirement, covered_features)
             core_aligned = self._core_evidence_is_compositional(requirement, repo)
+            has_adjacent_evidence = bool(core_related_features or core_supported or core_aligned)
+            if repo.raw_score < 15 and not adjacent_signal and not has_adjacent_evidence:
+                continue
+            if repo.core_signal_score <= 0 and not adjacent_signal and not has_adjacent_evidence:
+                continue
             if covered_features and not core_related_features and not core_aligned:
                 continue
             if not covered_features and not core_supported and not core_aligned:
@@ -2456,8 +2478,9 @@ class DeepSearchEngine:
                 requirement.must_have_features[0] if requirement.must_have_features else "核心需求"
             )
             return (
-                f"本次没有找到公开内容能够确认「{self._plain_user_text(core)}」的项目。"
-                "同时也没有留下可核对的相邻项目线索，建议换一组更具体的关键词继续查找。"
+                f"本次没有找到可直接采用且能完整确认「{self._plain_user_text(core)}」的项目。"
+                "如果候选发现阶段仍有可复核仓库，报告会优先补充核心功能相近或相关方向；"
+                "本轮为空通常表示公开检索阶段没有拿到足够可核对的仓库证据。"
             )
         if all(item.is_reference_candidate for item in analyses):
             best = analyses[0]
@@ -2528,7 +2551,7 @@ class DeepSearchEngine:
 
     def _write_summary(self, analyses: list[ProjectAnalysis], opportunity: str) -> str:
         if not analyses:
-            return "本次未找到足够相关的项目线索，建议缩小需求范围后再查一次。"
+            return "本次未找到可直接采用的项目；若候选发现阶段有可复核仓库，应优先补充核心功能相近或相关方向。"
         best = analyses[0]
         if all(item.confidence_level == "lead" for item in analyses):
             return (
@@ -2577,7 +2600,7 @@ class DeepSearchEngine:
         lines.append("")
         lines.append("## 已整理的线索")
         if not analyses:
-            lines.append("- 暂无。")
+            lines.append("- 未形成可核对项目清单；这不是理想结果，应优先检查检索词、平台别名和相邻项目兜底是否生效。")
             self._append_empty_result_context(lines, requirement)
         for project_index, analysis in enumerate(analyses, start=1):
             lines.append("")
@@ -2610,7 +2633,8 @@ class DeepSearchEngine:
     @staticmethod
     def _format_token_usage(usage: BudgetUsage) -> str:
         total = usage.llm_input_tokens + usage.llm_output_tokens
-        return f"- Token：输入 {usage.llm_input_tokens}，输出 {usage.llm_output_tokens}，合计 {total}。"
+        label = "LLM Token（估算）" if usage.llm_token_estimated and total else "LLM Token"
+        return f"- {label}：输入 {usage.llm_input_tokens}，输出 {usage.llm_output_tokens}，合计 {total}。"
 
     def _append_empty_result_context(self, lines: list[str], requirement: Requirement) -> None:
         channels: list[str] = []
@@ -2635,7 +2659,7 @@ class DeepSearchEngine:
         lines.append("### 本次为什么没有列出项目")
         lines.append(f"- 已查找方向：{'、'.join(channels)}。")
         lines.append(
-            f"- 筛选原因：没有候选能用公开证据确认「{core}」；只有截图、报告、网页界面等外围能力的项目不会作为相邻项目展示。"
+            f"- 筛选原因：没有候选能用公开证据完整确认「{core}」。按核心规则，这种情况下应继续展示核心功能相近或相关方向，而不是输出空报告。"
         )
         if must_have:
             lines.append(f"- 关键缺口：{must_have}。")

@@ -203,21 +203,29 @@ class SearchSpecParser:
 
     def _literal_only_spec(self, query: str) -> SearchSpec:
         literal = self._literal_terms(query)
-        repo_queries = self._literal_queries(literal, query)
-        code_queries = self._literal_code_queries(literal)
-        topic_queries = self._topic_queries(literal)
+        clauses = self._explicit_requirement_clauses(query)
+        if len(clauses) == 1 and clauses[0].strip().lower() == str(query or "").strip().lower() and not re.search(
+            r"[\u4e00-\u9fff]", query or ""
+        ):
+            clauses = []
+        features = self._non_redundant_features(clauses) or literal[:8]
+        literal_keywords = self._merge_lists(clauses, literal, limit=16)
+        repo_queries = self._literal_queries(literal_keywords, query)
+        code_queries = self._literal_code_queries(literal_keywords)
+        topic_queries = self._topic_queries(literal_keywords)
         issue_queries = repo_queries[:6]
         web_queries = [f"site:github.com {item}" for item in repo_queries[:3]]
+        evidence_aliases = {item: self._literal_aliases(item) for item in features}
         return SearchSpec(
             raw=query,
             intent=query[:120],
-            literal_keywords=literal,
+            literal_keywords=literal_keywords,
             domains=[],
             actions=[],
             objects=[],
             outputs=[],
             interfaces=[],
-            must_have=literal[:8],
+            must_have=features,
             nice_to_have=[],
             negative_filters=[],
             search_queries=list(OrderedDict.fromkeys([*repo_queries, *code_queries, *topic_queries, *issue_queries, *web_queries])),
@@ -226,7 +234,7 @@ class SearchSpecParser:
             topic_search_queries=topic_queries,
             issue_search_queries=issue_queries,
             web_search_queries=web_queries,
-            evidence_aliases={item: self._literal_aliases(item) for item in literal[:8]},
+            evidence_aliases=evidence_aliases,
         )
 
     def _valid(self, spec: SearchSpec) -> bool:
@@ -339,7 +347,7 @@ class SearchSpecParser:
                 flags=re.IGNORECASE,
             )
             cleaned = re.sub(
-                r"^(?:支持|具备|并且|并能|而且|且能|以及|必须有|必须|尤其是|最后|最好支持|最好|有个|也有|and)\s*",
+                r"^(?:可以|可|支持|具备|并|并且|并能|而且|且能|以及|必须有|必须|尤其是|最后|最好支持|最好|有个|也有|and)\s*",
                 "",
                 cleaned,
                 flags=re.IGNORECASE,

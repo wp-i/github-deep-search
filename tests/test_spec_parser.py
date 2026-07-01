@@ -61,6 +61,28 @@ def test_literal_fallback_evidence_aliases_use_only_literal_terms() -> None:
     assert spec.web_search_queries
 
 
+def test_literal_fallback_extracts_chinese_product_capabilities() -> None:
+    parser = SearchSpecParser()
+    spec = parser._literal_only_spec("我想做一个windows10/11的谷歌浏览器插件，可以总结网页内容，并把摘要同步直接放置在桌面。")
+
+    assert "我想做一个" not in spec.must_have
+    assert spec.must_have == [
+        "windows10/11的谷歌浏览器插件",
+        "总结网页内容",
+        "把摘要同步直接放置在桌面",
+    ]
+    assert spec.evidence_aliases["windows10/11的谷歌浏览器插件"] == [
+        "windows10/11的谷歌浏览器插件",
+        "windows10",
+        "的谷歌浏览器插件",
+    ]
+    assert spec.evidence_aliases["总结网页内容"] == ["总结网页内容"]
+    assert "chrome extension" not in str(spec.evidence_aliases)
+    assert "browser extension" not in str(spec.evidence_aliases)
+    assert "desktop" not in str(spec.evidence_aliases)
+    assert spec.interfaces == []
+
+
 def test_spec_parser_rejects_missing_must_have_evidence_aliases() -> None:
     parser = SearchSpecParser()
     spec = parser._from_llm_data(

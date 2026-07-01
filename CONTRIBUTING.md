@@ -44,6 +44,8 @@ pytest -q -m e2e
 
 Do not improve result quality by adding project-specific keyword packs, blacklist terms, translation fallbacks, fixture-shaped aliases, or hard-coded business-domain expansions. If matching is wrong, improve requirement parsing, evidence collection, or the generic evidence validator.
 
+Before changing search, parsing, evidence, ranking, report, or usage accounting logic, apply the pre-change gate in [AGENTS.md](AGENTS.md). A proposal that needs static aliases, translation rescue terms, prompt-specific branches, or sample-shaped tests is invalid before code is edited.
+
 ## Pull Request Shape
 
 - Keep changes focused.

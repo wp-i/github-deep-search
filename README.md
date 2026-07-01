@@ -21,10 +21,10 @@
 </p>
 
 <p align="center">
-  <img alt="GitHub Deep Search 真实运行摘要" src="docs/assets/real-run-highlight.png">
+  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench.jpg">
 </p>
 
-> 上图来自一次真实本地运行，不是内置 Demo、不是预置报告、不是假仓库排行。
+> 上图是当前 Web 工作台截图；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。
 
 ## 它解决什么
 
@@ -59,6 +59,14 @@ python scripts/start_web.py
 
 启动器会自动创建 `.venv`、安装依赖、创建 `config/user_keys.env`，然后启动 Web 服务。打开终端输出的地址，通常是 http://127.0.0.1:8001。
 
+当前 Web 入口由 FastAPI 直接服务静态文件：
+
+- `github_deep_search/static/index.html`
+- `github_deep_search/static/styles.css`
+- `github_deep_search/static/app.js`
+
+仓库运行时不需要单独的 React/Tailwind 构建步骤，也不提交设计稿工程或 `node_modules` 产物。
+
 ## 真实运行效果
 
 | 项目 | 本次真实记录 |
@@ -71,7 +79,9 @@ python scripts/start_web.py
 <details>
 <summary>查看完整截图</summary>
 
-![GitHub Deep Search ready state](docs/assets/real-search-ready.png)
+![GitHub Deep Search Web workbench](docs/assets/web-workbench.jpg)
+
+![GitHub Deep Search real run highlight](docs/assets/real-run-highlight.png)
 
 ![GitHub Deep Search full result](docs/assets/real-run-report-cropped.png)
 
@@ -143,6 +153,7 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 | 不内置假仓库、假排行或 seeded result data | 排名来自当前输入和实时 provider 响应 |
 | 不使用静态产品同义词表、业务关键词包、仓库白名单或黑名单排序捷径 | 搜索语义必须来自当前需求和真实仓库证据 |
 | 测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载 | 测试数据不会混入真实运行 |
+| 不把弱证据包装成高置信结果 | 未确认核心能力时只保留低置信参考或相邻线索 |
 
 每份真实报告都来自当前用户输入、实时 provider 响应、仓库证据和配置的 LLM。
 
@@ -170,7 +181,9 @@ docker compose up --build
 | 一行命令启动 | 已支持 |
 | API key 配置状态提示 | 已支持 |
 | 解析、搜索、证据采集、分析、报告生成进度 | 已支持 |
+| 可靠匹配、参考项目、相邻线索分层 | 已支持 |
 | 复制 Markdown、下载 JSON | 已支持 |
+| LLM token、GitHub 请求数、可选美元估算 | 已支持 |
 | MCP tool | 已支持 |
 
 ## 项目状态

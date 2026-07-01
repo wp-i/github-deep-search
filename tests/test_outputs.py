@@ -123,6 +123,7 @@ def test_report_to_dict_contains_full_project_fields() -> None:
     assert project["lastPushedAt"] == "2026-01-15T08:30:00Z"
     assert data["raw"]["candidate_count"] == 1
     assert data["budget"] == "standard"
+    assert data["usage"]["llmTokenEstimated"] is False
     assert data["usage"]["estimatedUsdComplete"] is False
     assert data["usage"]["missingPriceComponents"] == ["llm_input_usd_per_1m"]
     assert data["requirement"]["evidenceAliases"] == {"搜索": ["search"], "截图": ["screenshot"]}
@@ -300,6 +301,24 @@ def test_deep_report_does_not_ask_user_to_switch_to_deep_mode() -> None:
     assert "得分原因：" in markdown
 
 
+def test_report_marks_estimated_llm_tokens() -> None:
+    from github_deep_search.engine import DeepSearchEngine
+
+    report = fake_report()
+    report.usage.llm_token_estimated = True
+    markdown = DeepSearchEngine()._write_report(
+        report.query,
+        report.requirement,
+        report.top_projects,
+        report.opportunity,
+        report.usage,
+        report.mode,
+        {"level": "complete", "reasons": []},
+    )
+
+    assert "LLM Token（估算）：输入 1234，输出 567，合计 1801" in markdown
+
+
 def test_no_candidate_report_states_the_gap_once() -> None:
     from github_deep_search.engine import DeepSearchEngine
 
@@ -317,9 +336,9 @@ def test_no_candidate_report_states_the_gap_once() -> None:
     )
 
     assert markdown.count("未找到") == 1
-    assert "- 暂无。" in markdown
-    assert "没有找到公开内容能够确认" in markdown
-    assert "没有留下可核对的相邻项目线索" in markdown
+    assert "- 暂无。" not in markdown
+    assert "应优先补充核心功能相近或相关方向" in markdown
+    assert "没有留下可核对的相邻项目线索" not in markdown
 
 
 def test_light_report_avoids_repeated_reference_reason_and_opportunity() -> None:

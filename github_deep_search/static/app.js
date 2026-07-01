@@ -1,5 +1,4 @@
 const searchProfile = {
-  label: "完整调研",
   mode: "detailed",
   budget: "continue",
   action: "开始真实搜索"
@@ -15,7 +14,6 @@ const runLabel = document.getElementById("runLabel");
 const statusArea = document.getElementById("statusArea");
 const statusText = document.getElementById("status");
 const progressValue = document.getElementById("progressValue");
-const profileText = document.getElementById("profile");
 const progressFill = document.getElementById("progressFill");
 const stepsElement = document.getElementById("steps");
 const errorElement = document.getElementById("error");
@@ -24,6 +22,16 @@ const reportElement = document.getElementById("report");
 const keyStatus = document.getElementById("keyStatus");
 const copyMarkdownButton = document.getElementById("copyMarkdown");
 const downloadJsonButton = document.getElementById("downloadJson");
+const emptyStateElement = document.getElementById("emptyState");
+
+function setButtonLabel(button, label) {
+  const labelElement = button.querySelector("span");
+  if (labelElement) {
+    labelElement.textContent = label;
+  } else {
+    button.textContent = label;
+  }
+}
 
 function setBusy(busy) {
   runButton.disabled = busy;
@@ -78,7 +86,8 @@ async function runSearch() {
   }
 
   errorElement.classList.remove("active");
-  profileText.textContent = searchProfile.label;
+  resultsElement.classList.remove("active");
+  if (emptyStateElement) emptyStateElement.classList.remove("hidden");
   setBusy(true);
   startProgress();
   try {
@@ -96,6 +105,7 @@ async function runSearch() {
     if (!response.ok) throw new Error(explainError(response, data));
     lastReport = data;
     reportElement.innerHTML = data.reportHtml || "";
+    if (emptyStateElement) emptyStateElement.classList.add("hidden");
     resultsElement.classList.add("active");
     finishProgress(true);
     resultsElement.scrollIntoView({behavior: "smooth", block: "start"});
@@ -123,8 +133,8 @@ async function loadStatus() {
 function copyMarkdown() {
   if (!lastReport || !lastReport.reportMarkdown) return;
   navigator.clipboard.writeText(lastReport.reportMarkdown).then(() => {
-    copyMarkdownButton.textContent = "已复制";
-    window.setTimeout(() => { copyMarkdownButton.textContent = "复制 Markdown"; }, 1400);
+    setButtonLabel(copyMarkdownButton, "已复制");
+    window.setTimeout(() => { setButtonLabel(copyMarkdownButton, "复制 Markdown"); }, 1400);
   });
 }
 

@@ -84,6 +84,7 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
             "tavilyCredits": report.usage.tavily_credits,
             "llmInputTokens": report.usage.llm_input_tokens,
             "llmOutputTokens": report.usage.llm_output_tokens,
+            "llmTokenEstimated": report.usage.llm_token_estimated,
             "estimatedUsd": report.usage.estimated_usd,
             "estimatedUsdComplete": report.usage.estimated_usd_complete,
             "missingPriceComponents": report.usage.missing_price_components,

@@ -803,6 +803,55 @@ def test_summarization_requires_summary_specific_evidence() -> None:
     assert coverage[0].covered is False
 
 
+def test_compound_requirement_is_not_proven_by_weak_platform_fragments() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="我想做一个windows10/11的谷歌浏览器插件，可以总结网页内容，并把摘要同步直接放置在桌面。",
+        intent="网页摘要桌面同步工具",
+        must_have_features=[
+            "windows10/11的谷歌浏览器插件",
+            "总结网页内容",
+            "把摘要同步直接放置在桌面",
+        ],
+        nice_to_have_features=[],
+        target_platforms=["windows10/11", "谷歌浏览器"],
+        search_queries=["windows10/11 谷歌浏览器插件 总结网页内容 摘要 同步 桌面"],
+        evidence_aliases={
+            "windows10/11的谷歌浏览器插件": ["windows10/11", "谷歌浏览器插件"],
+            "总结网页内容": ["网页", "摘要"],
+            "把摘要同步直接放置在桌面": ["摘要", "同步", "桌面"],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="desktop-player",
+        url="https://github.com/demo/desktop-player",
+        description="一个小而快并且功能强大的 Windows 动态桌面软件",
+        readme="支持视频和网页动画播放，支持 Windows10/11 系统。支持 URL 和网页文件。",
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=100,
+        recommendation="模型误判为强匹配",
+        directly_usable=True,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+    )
+
+    coverage = engine._build_evidence_coverage(repo, requirement)
+    gated, _ = engine._apply_evidence_gate(requirement, [analysis], usage)
+
+    assert all(item.status == "unknown" for item in coverage)
+    assert all(not item.covered for item in coverage)
+    assert gated[0].match_score <= 19
+    assert gated[0].directly_usable is False
+    assert gated[0].confidence_level == "reliable"
+
+
 def test_engine_does_not_invent_business_aliases_without_search_spec() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(

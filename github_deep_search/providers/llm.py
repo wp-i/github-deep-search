@@ -32,7 +32,7 @@ class LLMClient:
         await self.client.aclose()
 
     async def chat(self, system: str, user: str, temperature: float = 0.2) -> str:
-        self.usage.llm_input_tokens += estimate_tokens(system) + estimate_tokens(user)
+        estimated_input_tokens = estimate_tokens(system) + estimate_tokens(user)
         payload = {
             "model": self.model,
             "messages": [
@@ -54,11 +54,33 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            self.usage.llm_output_tokens += estimate_tokens(content)
+            usage_data = data.get("usage") if isinstance(data, dict) else None
+            prompt_tokens = self._usage_int(usage_data, "prompt_tokens")
+            completion_tokens = self._usage_int(usage_data, "completion_tokens")
+            if prompt_tokens is None or completion_tokens is None:
+                self.usage.llm_input_tokens += estimated_input_tokens
+                self.usage.llm_output_tokens += estimate_tokens(content)
+                self.usage.llm_token_estimated = True
+            else:
+                self.usage.llm_input_tokens += prompt_tokens
+                self.usage.llm_output_tokens += completion_tokens
             return content
         except Exception as exc:
+            self.usage.llm_input_tokens += estimated_input_tokens
+            self.usage.llm_token_estimated = True
             self.usage.warnings.append(f"LLM request failed: {exc}")
             return ""
+
+    @staticmethod
+    def _usage_int(usage_data: object, key: str) -> int | None:
+        if not isinstance(usage_data, dict):
+            return None
+        value = usage_data.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return None
 
     async def json_chat(self, system: str, user: str) -> dict[str, Any] | None:
         content = await self.chat(system, user)

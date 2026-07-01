@@ -32,6 +32,7 @@ def test_search_pipeline_does_not_use_hardcoded_business_word_lists() -> None:
     forbidden_markers = [
         "_generic_evidence_gate_terms",
         "_generic_feature_alias_terms",
+        "generic_features = {",
         "_awesome_list_penalty",
         "list_markers",
         "stop = {",
@@ -67,6 +68,12 @@ def test_search_pipeline_has_no_translation_fallback_or_domain_word_pack() -> No
         "waypoint " + "optimization",
         "travelling " + "salesman",
         "vehicle " + "routing",
+        "_known_literal_aliases",
+        "_literal_concepts",
+        "chrome " + "extension",
+        "browser " + "extension",
+        "manifest_" + "version",
+        "谷歌" + "浏览器",
     ]
     for marker in forbidden_markers:
         assert marker not in sources
@@ -85,6 +92,8 @@ def test_runtime_has_no_bundled_demo_or_seeded_results() -> None:
 
     assert not Path("github_deep_search/demo.py").exists()
     assert not Path("docs/assets/demo-report.svg").exists()
+    assert not Path("ui").exists()
+    assert not Path("docs/UI_REDESIGN_HANDOFF.md").exists()
     forbidden_markers = [
         "demo_report",
         "demo: true",
