@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench.jpg">
+  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench-20260702.jpg">
 </p>
 
 > 上图是当前 Web 工作台截图；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。
@@ -79,7 +79,7 @@ python scripts/start_web.py
 <details>
 <summary>查看完整截图</summary>
 
-![GitHub Deep Search Web workbench](docs/assets/web-workbench.jpg)
+![GitHub Deep Search Web workbench](docs/assets/web-workbench-20260702.jpg)
 
 ![GitHub Deep Search real run highlight](docs/assets/real-run-highlight.png)
 
