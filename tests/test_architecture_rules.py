@@ -124,8 +124,11 @@ def test_readme_shows_real_run_preview_and_cost_boundary() -> None:
     assert "## 一分钟跑起来" in readme
     assert "python scripts/start_web.py" in readme
     assert "## 真实运行效果" in readme
-    assert "docs/assets/real-run-highlight.png" in readme
-    assert "docs/assets/real-run-report-cropped.png" in readme
+    assert "默认打开页面" in readme
+    assert "搜索后结果页" in readme
+    assert "docs/assets/web-workbench-20260702.jpg" in readme
+    assert "docs/assets/web-result-20260702.jpg" in readme
+    assert "docs/assets/web-workbench.jpg" not in readme
     assert "报告消耗" in readme
     assert "## API Key 与消耗" in readme
     assert "没有 key 可以打开界面，但不会得到可信的真实调研报告。" in readme
@@ -136,8 +139,26 @@ def test_readme_shows_real_run_preview_and_cost_boundary() -> None:
     assert "## 信任边界" in readme
     assert "不内置 Demo 报告" in readme
     assert "不使用静态产品同义词表" in readme
-    assert Path("docs/assets/real-run-highlight.png").exists()
+    assert Path("docs/assets/web-workbench-20260702.jpg").exists()
+    assert Path("docs/assets/web-result-20260702.jpg").exists()
     assert "LLM_INPUT_USD_PER_1M" in readme
     assert Path("docs/assets/real-search-ready.png").exists()
     assert Path("docs/assets/real-run-report-cropped.png").exists()
     assert Path("docs/REAL_RUNS.md").exists()
+
+
+def test_readme_uses_two_primary_web_screenshots() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    primary_screenshots = [
+        "docs/assets/web-workbench-20260702.jpg",
+        "docs/assets/web-result-20260702.jpg",
+    ]
+
+    for screenshot in primary_screenshots:
+        assert readme.count(screenshot) == 1
+        assert Path(screenshot).exists()
+
+    assert readme.index(primary_screenshots[0]) < readme.index(primary_screenshots[1])
+    assert "默认打开页面" in readme
+    assert "搜索后结果页" in readme

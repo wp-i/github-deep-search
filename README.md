@@ -21,10 +21,16 @@
 </p>
 
 <p align="center">
+  <strong>默认打开页面</strong><br>
   <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench-20260702.jpg">
 </p>
 
-> 上图是当前 Web 工作台截图；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。
+<p align="center">
+  <strong>搜索后结果页</strong><br>
+  <img alt="GitHub Deep Search 搜索结果页" src="docs/assets/web-result-20260702.jpg">
+</p>
+
+> 上图展示当前 Web 工作台的默认状态和搜索完成后的报告状态；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。
 
 ## 它解决什么
 
@@ -71,21 +77,10 @@ python scripts/start_web.py
 
 | 项目 | 本次真实记录 |
 | --- | --- |
-| 查询 | `Find an open-source Python terminal UI library that supports tables, progress bars, markdown rendering, and rich text styling.` |
+| 查询 | `找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。` |
 | Top 结果 | `Textualize/rich` |
 | 报告消耗 | 输入 `38,236` tokens，输出 `3,386` tokens |
 | 完整记录 | [docs/REAL_RUNS.md](docs/REAL_RUNS.md) |
-
-<details>
-<summary>查看完整截图</summary>
-
-![GitHub Deep Search Web workbench](docs/assets/web-workbench-20260702.jpg)
-
-![GitHub Deep Search real run highlight](docs/assets/real-run-highlight.png)
-
-![GitHub Deep Search full result](docs/assets/real-run-report-cropped.png)
-
-</details>
 
 ## API Key 与消耗
 

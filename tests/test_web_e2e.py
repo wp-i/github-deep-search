@@ -44,27 +44,27 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
         payload = {
             "topProjects": [
                 {
-                    "repo": "sample/accessibility-tool",
-                    "url": "https://github.com/sample/accessibility-tool",
+                    "repo": "Textualize/rich",
+                    "url": "https://github.com/Textualize/rich",
                     "score": 78,
-                    "recommendation": "Useful as a focused implementation reference.",
+                    "recommendation": "适合作为终端 UI 与富文本输出能力的优先候选。",
                     "isReferenceCandidate": False,
                     "confidenceLevel": "reliable",
                     "referenceReason": "",
                 }
             ],
             "reportMarkdown": (
-                "# Research report\n\n"
-                "## Summary\n\nFound one strong reference project.\n\n"
-                "### 1. sample/accessibility-tool\n\n"
-                "- Address: https://github.com/sample/accessibility-tool\n"
-                "- Verdict: suitable reference.\n"
+                "# 调研结论\n\n"
+                "## 一句话判断\n\nTextualize/rich 是最相关的候选项目。\n\n"
+                "### 1. Textualize/rich\n\n"
+                "- 地址：https://github.com/Textualize/rich\n"
+                "- 判断：可作为终端 UI 能力的优先候选。\n"
             ),
             "reportHtml": (
-                "<h1>Research report</h1><h2>Summary</h2><p>Found one strong reference project.</p>"
-                "<h3>1. sample/accessibility-tool</h3>"
-                "<ul><li><a href='https://github.com/sample/accessibility-tool'>打开 GitHub 仓库</a></li>"
-                "<li>Verdict: suitable reference.</li></ul>"
+                "<h1>调研结论</h1><h2>一句话判断</h2><p>Textualize/rich 是最相关的候选项目。</p>"
+                "<h3>1. Textualize/rich</h3>"
+                "<ul><li><a href='https://github.com/Textualize/rich'>打开 GitHub 仓库</a></li>"
+                "<li>判断：可作为终端 UI 能力的优先候选。</li></ul>"
             ),
             "usage": {"elapsedMs": 1200},
             "raw": {
@@ -98,15 +98,16 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
             assert page.locator("#demo").count() == 0
 
             page.locator("#query").fill(
-                "Find a real open-source browser extension that summarizes web pages and syncs notes."
+                "找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。"
             )
-            assert "browser extension" in page.locator("#query").input_value()
+            assert "终端 UI" in page.locator("#query").input_value()
             page.locator("#run").click()
             page.locator("#results.active").wait_for()
 
             report_text = page.locator("#report").inner_text()
-            assert page.locator("#report h1").inner_text() == "Research report"
-            assert "sample/accessibility-tool" in report_text
+            assert page.locator("#report h1").inner_text() == "调研结论"
+            assert "Textualize/rich" in report_text
+            assert "优先候选" in report_text
             assert page.locator("#copyMarkdown").is_visible()
             assert page.locator("#downloadJson").is_visible()
             assert page.locator("#emptyState").is_visible() is False
