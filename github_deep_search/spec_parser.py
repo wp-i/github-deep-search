@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
+from dataclasses import replace
 from typing import Any
 
 from github_deep_search.models import SearchSpec
@@ -81,8 +82,36 @@ class SearchSpecParser:
                 spec = self._from_llm_data(query, data)
                 if spec and self._valid(spec):
                     return spec
+                if spec and attempt:
+                    anchored = self._with_anchor_queries(spec, explicit_clauses)
+                    if self._valid(anchored):
+                        return anchored
             return self._literal_only_spec(query)
         return self._literal_only_spec(query)
+
+    def _with_anchor_queries(self, spec: SearchSpec, anchors: list[str]) -> SearchSpec:
+        anchor_queries = [anchor for anchor in anchors if anchor.strip()]
+        if not anchor_queries:
+            return spec
+        repo_queries = self._merge_lists(anchor_queries, spec.repo_search_queries, limit=10)
+        issue_queries = self._merge_lists(anchor_queries, spec.issue_search_queries or spec.repo_search_queries, limit=10)
+        web_queries = self._merge_lists([f"site:github.com {item}" for item in anchor_queries[:3]], spec.web_search_queries, limit=10)
+        search_queries = self._merge_lists(
+            spec.search_queries,
+            repo_queries,
+            spec.code_search_queries,
+            spec.topic_search_queries,
+            issue_queries,
+            web_queries,
+            limit=20,
+        )
+        return replace(
+            spec,
+            search_queries=search_queries,
+            repo_search_queries=repo_queries,
+            issue_search_queries=issue_queries,
+            web_search_queries=web_queries,
+        )
 
     def _from_llm_data(self, query: str, data: dict[str, Any] | None) -> SearchSpec | None:
         if not isinstance(data, dict):
@@ -210,7 +239,7 @@ class SearchSpecParser:
             clauses = []
         features = self._non_redundant_features(clauses) or literal[:8]
         literal_keywords = self._merge_lists(clauses, literal, limit=16)
-        repo_queries = self._literal_queries(literal_keywords, query)
+        repo_queries = self._literal_queries(literal_keywords, query, features)
         code_queries = self._literal_code_queries(literal_keywords)
         topic_queries = self._topic_queries(literal_keywords)
         issue_queries = repo_queries[:6]
@@ -443,10 +472,11 @@ class SearchSpecParser:
         chunks = re.findall(r"[A-Za-z][A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", text.lower())
         return list(OrderedDict.fromkeys(chunks))[:10]
 
-    def _literal_queries(self, literal: list[str], query: str) -> list[str]:
+    def _literal_queries(self, literal: list[str], query: str, features: list[str]) -> list[str]:
         if literal:
             joined = " ".join(literal[:6])
-            return [joined, f"{joined} github", f"{joined} open source"]
+            anchors = [item for item in features if len(self._signals(item)) >= 2]
+            return list(OrderedDict.fromkeys([*anchors[:4], joined, f"{joined} github", f"{joined} open source"]))
         return [query]
 
     def _literal_code_queries(self, literal: list[str]) -> list[str]:

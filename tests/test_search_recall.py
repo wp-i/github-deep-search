@@ -65,8 +65,129 @@ def test_multilingual_queries_are_interleaved_and_repo_query_stays_broad() -> No
 
     assert planned[:4] == ["文档管理 OCR", "document management OCR", "全文搜索 标签", "document search tags"]
     assert engine._to_github_repo_query("document management system OCR full-text search Docker") == (
-        "document management in:name,description,readme"
+        "document management OCR in:name,description,readme"
     )
+
+
+def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。",
+        intent="寻找开源 Python 终端 UI 库",
+        must_have_features=["开源 Python 终端 UI 库", "表格", "进度条", "Markdown 渲染和富文本样式"],
+        nice_to_have_features=[],
+        target_platforms=["Python API"],
+        search_queries=["Python terminal UI table progress Markdown"],
+        repo_search_queries=["Python terminal UI table progress Markdown"],
+        evidence_aliases={
+            "开源 Python 终端 UI 库": ["open source Python terminal UI library", "terminal UI library", "TUI", "Python"],
+            "表格": ["table"],
+            "进度条": ["progress bar"],
+            "Markdown 渲染和富文本样式": ["Markdown", "rich text"],
+        },
+    )
+
+    planned = engine._planned_repo_search_queries(requirement, "detailed", "continue")
+
+    assert any("terminal ui library" in item.lower() for item in planned)
+    assert "python" not in planned
+    assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "Python 终端 UI in:name,description,readme"
+    assert "terminal ui library" in engine._requirement_aliases(requirement)
+    topics = engine._planned_topic_search_queries(requirement, "detailed", "continue")
+    assert "tui" in topics
+    assert "progress-bar" in topics
+
+
+def test_chinese_terminal_ui_identity_becomes_core_requirement() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。",
+        intent="寻找一个开源的 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式",
+        must_have_features=["开源 Python 终端 UI 库", "支持表格", "支持进度条", "支持 Markdown 渲染", "支持富文本样式"],
+        nice_to_have_features=[],
+        target_platforms=["Python API"],
+        search_queries=["Python terminal UI table progress Markdown"],
+        feature_concepts={
+            "literal_keywords": ["开源 Python 终端 UI 库", "表格", "进度条", "Markdown 渲染", "富文本样式"],
+            "domains": ["开源", "Python", "终端 UI", "Python 库"],
+            "actions": ["支持", "渲染", "显示"],
+            "objects": ["表格", "进度条", "Markdown", "富文本"],
+            "outputs": ["终端 UI"],
+            "interfaces": ["Python API"],
+        },
+        evidence_aliases={
+            "开源 Python 终端 UI 库": ["open source Python TUI library", "Python terminal UI library"],
+            "支持表格": ["table widget"],
+            "支持进度条": ["progress bar"],
+            "支持 Markdown 渲染": ["Markdown render"],
+            "支持富文本样式": ["rich text style"],
+        },
+    )
+
+    assert engine._core_requirement_feature(requirement) == "开源 Python 终端 UI 库"
+
+
+def test_core_alias_counts_when_domain_concepts_use_another_language() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="找一个开源 Python 终端 UI 库",
+        intent="寻找开源 Python 终端 UI 库",
+        must_have_features=["开源 Python 终端 UI 库"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["Python terminal UI library"],
+        feature_concepts={"domains": ["终端 UI", "Python 库"]},
+        evidence_aliases={"开源 Python 终端 UI 库": ["TUI", "Python terminal UI library"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="tui-lib",
+        url="https://github.com/demo/tui-lib",
+        description="A Python TUI library for terminal applications.",
+        topics=["python", "tui"],
+    )
+
+    assert engine._core_direction_score(requirement, repo) > 0
+
+
+def test_evidence_gate_accepts_current_aliases_and_plural_readme_terms() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。",
+        intent="寻找开源 Python 终端 UI 库",
+        must_have_features=["开源 Python 终端 UI 库", "支持表格", "支持进度条", "支持 Markdown 渲染", "支持富文本样式"],
+        nice_to_have_features=[],
+        target_platforms=["Python API"],
+        search_queries=["Python terminal UI table progress Markdown"],
+        feature_concepts={
+            "domains": ["终端 UI", "Python 库"],
+            "actions": ["渲染", "显示", "支持"],
+            "objects": ["表格", "进度条", "Markdown", "富文本"],
+            "interfaces": ["Python API", "终端"],
+        },
+        evidence_aliases={
+            "开源 Python 终端 UI 库": ["Python TUI library", "Python terminal UI library"],
+            "支持表格": ["table widget"],
+            "支持进度条": ["progress bar"],
+            "支持 Markdown 渲染": ["markdown"],
+            "支持富文本样式": ["rich text"],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="terminal-ui-kit",
+        url="https://github.com/demo/terminal-ui-kit",
+        description="A Python library for rich text and beautiful formatting in the terminal.",
+        language="Python",
+        topics=["python", "tui", "tables", "progress-bar", "markdown"],
+        license="MIT",
+        readme="Render pretty tables, progress bars, markdown, and rich text in terminal applications.",
+    )
+
+    coverage = {item.feature: item for item in engine._build_evidence_coverage(repo, requirement)}
+
+    assert coverage["开源 Python 终端 UI 库"].status == "supported"
+    assert coverage["支持表格"].status == "supported"
 
 
 def test_core_capability_queries_run_before_secondary_output_queries() -> None:
@@ -270,7 +391,8 @@ def test_collect_candidates_uses_all_default_github_search_channels() -> None:
     assert all(value == 12 for value in github.repo_per_pages)
     assert github.code_per_pages
     assert all(value == 5 for value in github.code_per_pages)
-    assert github.topic_per_pages == [10]
+    assert github.topic_per_pages
+    assert all(value == 10 for value in github.topic_per_pages)
     assert github.issue_per_pages == [10]
 
 

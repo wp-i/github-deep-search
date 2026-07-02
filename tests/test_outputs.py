@@ -213,8 +213,9 @@ def test_report_uses_same_three_dimensions_for_reference_candidates() -> None:
     assert "## 已整理的线索" in markdown
     assert "### 1. demo/project（参考项目） · ★ 12 · 更新 2026-01-15" in markdown
     assert "- 符合部分：" in markdown
-    assert "- 差异部分：" in markdown
     assert "- 缺失部分：" in markdown
+    assert "- 差异部分：" not in markdown
+    assert "未发现明显差异" not in markdown
 
 
 def test_report_uses_continuous_project_numbering_across_groups() -> None:
@@ -396,7 +397,7 @@ def test_light_report_centralizes_shared_reference_findings() -> None:
 
     assert "评分方式：" not in markdown
     assert markdown.count("- 符合部分：") == 2
-    assert markdown.count("- 差异部分：") == 2
+    assert markdown.count("- 差异部分：") == 0
     assert markdown.count("- 缺失部分：") == 2
     assert "README" not in markdown
     assert "源码" not in markdown
@@ -549,6 +550,32 @@ def test_low_match_report_explains_score_without_repeating_prompt() -> None:
     assert "ClipBox 热门内容和热门评论查询、截图、评论截图等 7 项仍未确认" in markdown
     assert "本次已经核对候选项目的公开说明和重点内容" in markdown
     assert "用户试用" not in markdown
+
+
+def test_report_omits_empty_difference_and_missing_rows() -> None:
+    from github_deep_search.engine import DeepSearchEngine
+
+    report = fake_report()
+    project = report.top_projects[0]
+    project.different_features = []
+    project.unknown_features = []
+    project.missing_features = []
+
+    markdown = DeepSearchEngine()._write_report(
+        report.query,
+        report.requirement,
+        [project],
+        report.opportunity,
+        report.usage,
+        "light",
+        {"level": "complete", "reasons": []},
+    )
+
+    assert "- 符合部分：" in markdown
+    assert "- 差异部分：" not in markdown
+    assert "- 缺失部分：" not in markdown
+    assert "未发现明显差异" not in markdown
+    assert "未发现明确缺失" not in markdown
 
 
 def test_next_step_does_not_turn_unknown_into_missing() -> None:

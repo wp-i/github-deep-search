@@ -83,6 +83,51 @@ def test_literal_fallback_extracts_chinese_product_capabilities() -> None:
     assert spec.interfaces == []
 
 
+def test_literal_fallback_uses_chinese_capability_anchors_before_raw_terms() -> None:
+    parser = SearchSpecParser()
+    spec = parser._literal_only_spec("找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。")
+
+    assert spec.repo_search_queries[:2] == ["开源 Python 终端 UI 库", "Markdown 渲染和富文本样式"]
+    assert "找一个开源" not in spec.repo_search_queries[:4]
+
+
+def test_parser_repairs_llm_channel_queries_with_chinese_anchors() -> None:
+    parser = SearchSpecParser()
+    query = "找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。"
+    spec = parser._from_llm_data(
+        query,
+        {
+            "intent": "寻找开源 Python 终端 UI 库",
+            "literal_keywords": ["开源 Python 终端 UI 库", "表格", "进度条", "Markdown 渲染", "富文本样式"],
+            "domains": ["terminal", "cli", "tui"],
+            "actions": ["render", "display", "support"],
+            "objects": ["table", "progress bar", "Markdown", "rich text"],
+            "outputs": ["terminal UI"],
+            "interfaces": ["Python API"],
+            "must_have": ["开源 Python 终端 UI 库", "表格", "进度条", "Markdown 渲染和富文本样式"],
+            "search_queries": ["Python terminal UI table progress Markdown"],
+            "repo_search_queries": ["Python terminal UI table progress Markdown"],
+            "code_search_queries": ["table progress markdown rich text"],
+            "topic_search_queries": ["python-tui", "python-terminal-ui"],
+            "issue_search_queries": ["Python terminal UI table progress Markdown"],
+            "evidence_aliases": {
+                "开源 Python 终端 UI 库": ["open source Python terminal UI library", "terminal UI library", "TUI"],
+                "表格": ["table"],
+                "进度条": ["progress bar"],
+                "Markdown 渲染和富文本样式": ["Markdown", "rich text"],
+            },
+        },
+    )
+
+    assert spec is not None
+    assert parser._valid(spec) is False
+
+    repaired = parser._with_anchor_queries(spec, parser._explicit_requirement_clauses(query))
+
+    assert parser._valid(repaired) is True
+    assert repaired.repo_search_queries[0] == "开源 Python 终端 UI 库"
+
+
 def test_spec_parser_rejects_missing_must_have_evidence_aliases() -> None:
     parser = SearchSpecParser()
     spec = parser._from_llm_data(

@@ -22,12 +22,12 @@
 
 <p align="center">
   <strong>默认打开页面</strong><br>
-  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench-20260702.jpg">
+  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench-20260702.png">
 </p>
 
 <p align="center">
   <strong>搜索后结果页</strong><br>
-  <img alt="GitHub Deep Search 搜索结果页" src="docs/assets/web-result-20260702.jpg">
+  <img alt="GitHub Deep Search 搜索结果页" src="docs/assets/web-result-20260702.png">
 </p>
 
 > 上图展示当前 Web 工作台的默认状态和搜索完成后的报告状态；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。

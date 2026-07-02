@@ -86,7 +86,7 @@ class DeepSearchEngine:
             analyses = self._with_reference_candidates(reliable_analyses, low_confidence_analyses, usage, requirement)
             if baseline:
                 analyses = self._preserve_baseline_results(analyses, baseline)
-            if len(analyses) < self.settings.max_deep_analyze_repos:
+            if len(analyses) < self.settings.max_deep_analyze_repos and not analyses:
                 analyses.extend(
                     self._fallback_low_similarity_leads(
                         requirement,
@@ -520,7 +520,11 @@ class DeepSearchEngine:
         limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
         queries: list[str] = []
         core_feature = self._core_requirement_feature(requirement)
-        core_aliases = sorted(self._feature_aliases(core_feature, requirement)) if core_feature else []
+        core_aliases = (
+            sorted(self._feature_aliases(core_feature, requirement), key=self._query_specificity_key)
+            if core_feature
+            else []
+        )
         planned = [*core_aliases, *requirement.code_search_queries]
         for phrase in self._merge_queries(planned, limit=limit):
             token = self._github_search_token(phrase)
@@ -550,17 +554,130 @@ class DeepSearchEngine:
                 if self._same_query_language(domain, target):
                     core_queries.append(f"{domain} {target}")
         if core_feature:
-            aliases = sorted(
-                self._feature_aliases(core_feature, requirement),
-                key=lambda item: (len(item.split()), len(item)),
-            )
+            aliases = [
+                alias
+                for alias in sorted(self._feature_aliases(core_feature, requirement), key=self._query_specificity_key)
+                if self._searchable_repo_phrase(alias, core_feature)
+            ]
             core_queries.extend(aliases)
         core_queries.extend(domains[:4])
+        channel_queries = requirement.repo_search_queries or requirement.search_queries
         planned = [
-            *core_queries,
-            *(requirement.repo_search_queries or requirement.search_queries),
+            query
+            for query in [*channel_queries, *core_queries]
+            if self._searchable_repo_phrase(query, core_feature or "", allow_single_signal=query in channel_queries)
         ]
-        return self._merge_queries(self._interleave_multilingual_queries(planned), limit=limit)
+        if not planned:
+            planned = [*channel_queries, *core_queries]
+        planned = sorted(planned, key=lambda query: self._repo_query_priority_key(query, requirement, core_feature))
+        return self._merge_queries(planned, limit=limit)
+
+    def _query_specificity_key(self, query: str) -> tuple[int, int, int, str]:
+        signals = self._semantic_signals(query)
+        words = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", str(query))
+        return (-len(signals), -len(words), -len(str(query)), str(query).lower())
+
+    def _repo_query_priority_key(
+        self,
+        query: str,
+        requirement: Requirement,
+        core_feature: str | None,
+    ) -> tuple[int, int, int, int, int, str]:
+        core_aliases = self._feature_aliases(core_feature, requirement) if core_feature else set()
+        core_match = bool(core_feature and self._matching_terms(query, core_aliases))
+        secondary_aliases = set()
+        for feature in requirement.must_have_features:
+            if core_feature and self._same_feature_key(feature, core_feature):
+                continue
+            secondary_aliases.update(self._feature_aliases(feature, requirement))
+        secondary_match = bool(secondary_aliases and self._matching_terms(query, secondary_aliases))
+        specificity = self._query_specificity_key(query)
+        return (
+            0 if core_match else 1,
+            1 if secondary_match and not core_match else 0,
+            specificity[0],
+            specificity[1],
+            specificity[2],
+            specificity[3],
+        )
+
+    def _searchable_repo_phrase(self, phrase: str, core_feature: str, allow_single_signal: bool = False) -> bool:
+        signals = self._semantic_signals(phrase)
+        meaningful = signals - self._generic_search_signals()
+        if self._same_feature_key(phrase, core_feature):
+            return len(meaningful) >= 2
+        return len(meaningful) >= (1 if allow_single_signal else 2)
+
+    @staticmethod
+    def _generic_search_signals() -> set[str]:
+        return {
+            "github",
+            "open",
+            "source",
+            "opensource",
+            "project",
+            "projects",
+            "repo",
+            "repository",
+            "repositories",
+            "tool",
+            "tools",
+            "software",
+            "system",
+            "app",
+            "apps",
+            "library",
+            "libraries",
+            "开源",
+            "项目",
+            "仓库",
+            "软件",
+            "工具",
+            "系统",
+        }
+
+    def _topic_query_variants(self, phrases: list[str]) -> list[str]:
+        variants: list[str] = []
+        generic = self._generic_search_signals()
+        for phrase in phrases:
+            tokens = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", str(phrase).lower())
+            tokens = [token for token in tokens if token not in generic]
+            if not tokens:
+                continue
+            variants.append("-".join(tokens[:4]))
+            for size in (3, 2):
+                for index in range(0, max(0, len(tokens) - size + 1)):
+                    variants.append("-".join(tokens[index : index + size]))
+            variants.extend(token for token in tokens if len(token) >= 3 or re.search(r"[\u4e00-\u9fff]", token))
+        return self._merge_queries(variants, limit=20)
+
+    def _planned_topic_search_queries(
+        self,
+        requirement: Requirement,
+        mode: Mode,
+        budget: SearchBudget = "standard",
+    ) -> list[str]:
+        limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
+        concepts = requirement.feature_concepts or {}
+        domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
+        alias_phrases = [
+            str(value).strip()
+            for values in (requirement.evidence_aliases or {}).values()
+            for value in values
+            if str(value).strip()
+        ]
+        concept_phrases = [
+            str(value).strip()
+            for group in ("literal_keywords", "domains", "objects", "outputs", "interfaces")
+            for value in concepts.get(group, [])
+            if str(value).strip()
+        ]
+        planned = [
+            *requirement.topic_search_queries,
+            *self._topic_query_variants([*alias_phrases, *concept_phrases]),
+            *domains,
+        ]
+        return self._merge_queries(planned, limit=limit)
 
     @staticmethod
     def _same_query_language(left: str, right: str) -> bool:
@@ -578,17 +695,6 @@ class DeepSearchEngine:
             if index < len(ascii_queries):
                 interleaved.append(ascii_queries[index])
         return interleaved
-
-    def _planned_topic_search_queries(
-        self,
-        requirement: Requirement,
-        mode: Mode,
-        budget: SearchBudget = "standard",
-    ) -> list[str]:
-        limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
-        concepts = requirement.feature_concepts or {}
-        domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
-        return self._merge_queries([*domains, *requirement.topic_search_queries], limit=limit)
 
     def _planned_issue_search_queries(
         self,
@@ -611,9 +717,38 @@ class DeepSearchEngine:
         words = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", query)
         if not words:
             return query
+        generic = {
+            "github",
+            "open",
+            "source",
+            "opensource",
+            "project",
+            "projects",
+            "repo",
+            "repository",
+            "tool",
+            "tools",
+            "software",
+            "system",
+            "app",
+            "apps",
+            "find",
+            "need",
+            "want",
+            "looking",
+            "开源",
+            "项目",
+            "仓库",
+            "软件",
+            "工具",
+            "系统",
+        }
+        filtered = [word for word in words if word.lower() not in generic]
+        if len(filtered) >= 2:
+            words = filtered
         # GitHub joins plain words as AND conditions. Long product sentences
         # become so restrictive that the canonical project disappears.
-        clean = " ".join(words[:2])
+        clean = " ".join(words[:3])
         return f"{clean} in:name,description,readme"
 
     def _to_github_topic_query(self, topic: str) -> str:
@@ -824,6 +959,10 @@ class DeepSearchEngine:
         if domain_aliases and domain_weak and (core_strong or core_weak):
             return 2.0
         if domain_aliases and domain_weak:
+            return 1.0
+        if domain_aliases and core_strong:
+            return 2.0
+        if domain_aliases and core_weak:
             return 1.0
         if not domain_aliases and core_strong:
             return 3.0
@@ -1141,7 +1280,11 @@ class DeepSearchEngine:
                 bool((requirement.feature_concepts or {}).get(group))
                 for group in ("domains", "actions", "objects")
             )
-            if feature == core_feature and compositional_groups >= 2:
+            if (
+                feature == core_feature
+                and compositional_groups >= 2
+                and self._core_feature_requires_compositional_evidence(requirement, feature)
+            ):
                 core_aligned = self._core_evidence_is_compositional(requirement, repo)
                 if core_aligned and not covered and not explicit_missing:
                     covered = True
@@ -1152,7 +1295,7 @@ class DeepSearchEngine:
                     source_evidence = []
                     description_hits = []
                     readme_hits = []
-            if covered and not self._named_entities_are_all_present(feature, repo):
+            if covered and not self._named_entities_are_all_present(feature, repo, aliases):
                 covered = False
                 path_evidence = []
                 source_evidence = []
@@ -1222,7 +1365,21 @@ class DeepSearchEngine:
                     return True
         return False
 
-    def _named_entities_are_all_present(self, feature: str, repo: CandidateRepository) -> bool:
+    def _core_feature_requires_compositional_evidence(self, requirement: Requirement, feature: str) -> bool:
+        concepts = requirement.feature_concepts or {}
+        matched: set[str] = set()
+        for group in ("domains", "actions", "objects"):
+            aliases = self._clean_feature_aliases({str(item) for item in concepts.get(group, [])})
+            if aliases and self._matching_terms(feature, aliases):
+                matched.add(group)
+        return len(matched) >= 2 and bool(matched.intersection({"actions", "objects"}))
+
+    def _named_entities_are_all_present(
+        self,
+        feature: str,
+        repo: CandidateRepository,
+        aliases: set[str] | None = None,
+    ) -> bool:
         entities = self._named_entity_tokens(feature)
         if len(entities) < 2:
             return True
@@ -1236,7 +1393,13 @@ class DeepSearchEngine:
                 *repo.key_files.values(),
             ]
         ).lower()
-        return all(self._literal_alias_present(entity, text) for entity in entities)
+        for entity in entities:
+            if self._literal_alias_present(entity, text):
+                continue
+            if any(entity in alias and self._literal_alias_present(alias, text) for alias in aliases or set()):
+                continue
+            return False
+        return True
 
     @staticmethod
     def _named_entity_tokens(feature: str) -> set[str]:
@@ -1364,30 +1527,44 @@ class DeepSearchEngine:
         )
         if not context_signals:
             return candidate_features[0]
-        primary_aliases = self._clean_feature_aliases(
+        domain_aliases = self._clean_feature_aliases(
             {
                 str(item)
-                for group in ("domains", "actions", "objects")
+                for group in ("domains", "interfaces")
                 for item in concepts.get(group, [])
             }
         )
+        object_aliases = self._clean_feature_aliases({str(item) for item in concepts.get("objects", [])})
+        action_aliases = self._clean_feature_aliases({str(item) for item in concepts.get("actions", [])})
         output_aliases = self._clean_feature_aliases({str(item) for item in concepts.get("outputs", [])})
-        scored_features: list[tuple[int, int, int, int, int, str]] = []
-        for feature in candidate_features:
+        scored_features: list[tuple[int, int, int, int, int, int, int, str]] = []
+        for index, feature in enumerate(candidate_features):
             feature_signals = self._semantic_signals(feature)
             feature_signals.update(
                 token[:-1] if token.endswith("s") and len(token) > 4 else token
                 for token in list(feature_signals)
             )
             overlap = len(feature_signals.intersection(context_signals))
-            primary_hits = len(self._matching_terms(feature, primary_aliases)) if primary_aliases else 0
+            domain_hits = len(self._matching_terms(feature, domain_aliases)) if domain_aliases else 0
+            object_hits = len(self._matching_terms(feature, object_aliases)) if object_aliases else 0
+            action_hits = len(self._matching_terms(feature, action_aliases)) if action_aliases else 0
             output_hits = len(self._matching_terms(feature, output_aliases)) if output_aliases else 0
+            primary_hits = domain_hits + object_hits
             output_only_penalty = 1 if output_hits and not primary_hits else 0
             scored_features.append(
-                (primary_hits, overlap, -output_only_penalty, len(feature_signals), len(feature), feature)
+                (
+                    domain_hits,
+                    object_hits,
+                    action_hits,
+                    overlap,
+                    -output_only_penalty,
+                    -index,
+                    len(feature_signals),
+                    feature,
+                )
             )
         best = max(scored_features)
-        return best[5] if best[0] > 0 or best[1] > 0 else candidate_features[0]
+        return best[7] if best[0] > 0 or best[1] > 0 or best[3] > 0 else candidate_features[0]
 
     @staticmethod
     def _is_generic_qualifier_feature(feature: str) -> bool:
@@ -1506,6 +1683,19 @@ class DeepSearchEngine:
         if not hits:
             return []
         feature_signals = self._semantic_signals(feature)
+        lowered_text = (text or "").lower()
+        trusted_exact_hits = [
+            alias
+            for alias in hits
+            if self._literal_alias_present(alias, lowered_text)
+            and self._semantic_signals(alias)
+            and not self._semantic_signals(alias).issubset(self._generic_search_signals())
+        ]
+        if trusted_exact_hits and self._different_script(feature, trusted_exact_hits[0]):
+            named_entities = self._named_entity_tokens(feature)
+            has_multi_signal_hit = any(len(self._semantic_signals(alias)) >= 2 for alias in trusted_exact_hits)
+            if not named_entities or len(trusted_exact_hits) >= 2 or has_multi_signal_hit:
+                return trusted_exact_hits
         if len(feature_signals) <= 2:
             return hits
         evidence_signals = self._semantic_signals(text)
@@ -1521,8 +1711,12 @@ class DeepSearchEngine:
             return hits
         if len(hits) >= 2 and len(combined_alias_signals) >= 2 and len(overlap) >= 2:
             return hits
+        if hits and any(self._different_script(feature, alias) for alias in hits):
+            named_entities = self._named_entity_tokens(feature)
+            has_multi_signal_hit = any(len(self._semantic_signals(alias)) >= 2 for alias in hits)
+            if not named_entities or len(hits) >= 2 or has_multi_signal_hit:
+                return hits
         supported: list[str] = []
-        lowered_text = (text or "").lower()
         for alias in hits:
             alias_signals = self._semantic_signals(alias)
             exact_hit = self._literal_alias_present(alias, lowered_text)
@@ -1533,9 +1727,14 @@ class DeepSearchEngine:
         return supported
 
     @staticmethod
+    def _different_script(left: str, right: str) -> bool:
+        return bool(re.search(r"[^\x00-\x7f]", left or "")) != bool(re.search(r"[^\x00-\x7f]", right or ""))
+
+    @staticmethod
     def _literal_alias_present(alias: str, lowered_text: str) -> bool:
         if re.fullmatch(r"[a-z0-9_.-]+", alias) and len(alias) <= 4:
-            return bool(re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", lowered_text))
+            plural = "s?" if not alias.endswith("s") else ""
+            return bool(re.search(rf"(?<![a-z0-9]){re.escape(alias)}{plural}(?![a-z0-9])", lowered_text))
         return alias in lowered_text
 
     def _contains_alias(self, text: str, aliases: set[str]) -> bool:
@@ -1561,11 +1760,15 @@ class DeepSearchEngine:
                 windows = [chunk[start : start + 220] for start in range(0, len(chunk), 160)]
             for window in windows:
                 text_signals = self._semantic_signals(window)
+                text_signals.update(token[:-1] for token in list(text_signals) if token.endswith("s") and len(token) > 4)
                 if not text_signals:
                     continue
                 overlap = alias_signals & text_signals
                 coverage = len(overlap) / max(1, len(alias_signals))
-                if len(overlap) >= 2 and (coverage >= 0.45 or (len(overlap) >= 4 and coverage >= 0.3)):
+                if (
+                    len(overlap) >= 2
+                    and (coverage >= 0.45 or (len(overlap) >= 4 and coverage >= 0.3))
+                ) or (len(overlap) >= 1 and len(alias_signals) <= 2 and coverage >= 0.5):
                     return True
         return False
 
@@ -1661,6 +1864,14 @@ class DeepSearchEngine:
             ]
         ).lower()
         aliases = set(keyword_bag(seed))
+        for key, values in (requirement.evidence_aliases or {}).items():
+            key_text = str(key).strip().lower()
+            if key_text:
+                aliases.add(key_text)
+            for value in values:
+                text = str(value).strip().lower()
+                if text:
+                    aliases.add(text)
         for values in (requirement.feature_concepts or {}).values():
             for value in values:
                 text = str(value).strip().lower()
@@ -2096,7 +2307,8 @@ class DeepSearchEngine:
         adjacent_pool = [
             item
             for item in remaining
-            if item.repo.full_name not in reference_names
+            if not selected
+            and item.repo.full_name not in reference_names
             and (
                 item.match_score >= 15
                 or self._analysis_has_adjacent_signal(item, requirement)
@@ -2702,10 +2914,10 @@ class DeepSearchEngine:
         if analysis.unknown_features and len(differences) < 3:
             unknown = self._plain_user_text("、".join(analysis.unknown_features[: 3 - len(differences)]))
             differences.append(f"尚未确认：{unknown}")
-        lines.append(f"- 差异部分：{'；'.join(differences) if differences else '未发现明显差异'}")
-        lines.append(
-            f"- 缺失部分：{self._plain_user_text('、'.join(analysis.missing_features[:4])) if analysis.missing_features else '未发现明确缺失'}"
-        )
+        if differences:
+            lines.append(f"- 差异部分：{'；'.join(differences)}")
+        if analysis.missing_features:
+            lines.append(f"- 缺失部分：{self._plain_user_text('、'.join(analysis.missing_features[:4]))}")
         lines.append(f"- 地址：{repo.url}")
 
     @staticmethod

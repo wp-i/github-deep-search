@@ -1189,9 +1189,8 @@ def test_result_tiers_fill_in_reliable_reference_adjacent_order() -> None:
 
     selected = engine._with_reference_candidates([reliable], [adjacent, partial], usage)
 
-    assert [item.repo.name for item in selected] == ["reliable", "partial", "adjacent"]
+    assert [item.repo.name for item in selected] == ["reliable", "partial"]
     assert selected[1].confidence_level == "reference"
-    assert selected[2].confidence_level == "lead"
 
 
 def test_repo_search_uses_core_evidence_aliases_without_domain_word_pack() -> None:
