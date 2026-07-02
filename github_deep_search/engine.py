@@ -554,11 +554,13 @@ class DeepSearchEngine:
                 if self._same_query_language(domain, target):
                     core_queries.append(f"{domain} {target}")
         if core_feature:
+            core_aliases = self._feature_aliases(core_feature, requirement)
             aliases = [
                 alias
-                for alias in sorted(self._feature_aliases(core_feature, requirement), key=self._query_specificity_key)
+                for alias in sorted(core_aliases, key=self._query_specificity_key)
                 if self._searchable_repo_phrase(alias, core_feature)
             ]
+            aliases.extend(self._combined_core_alias_queries(core_aliases))
             core_queries.extend(aliases)
         core_queries.extend(domains[:4])
         channel_queries = requirement.repo_search_queries or requirement.search_queries
@@ -607,6 +609,26 @@ class DeepSearchEngine:
         if self._same_feature_key(phrase, core_feature):
             return len(meaningful) >= 2
         return len(meaningful) >= (1 if allow_single_signal else 2)
+
+    def _combined_core_alias_queries(self, aliases: set[str]) -> list[str]:
+        single_signal_aliases: list[str] = []
+        multi_signal_aliases: list[str] = []
+        for alias in aliases:
+            signals = self._semantic_signals(alias) - self._generic_search_signals()
+            if len(signals) == 1 and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{1,}", alias.strip()):
+                single_signal_aliases.append(alias.strip())
+            elif len(signals) >= 1:
+                multi_signal_aliases.append(alias.strip())
+        combined: list[str] = []
+        for left_index, left in enumerate(sorted(single_signal_aliases, key=str.lower)):
+            for right in sorted(single_signal_aliases, key=str.lower)[left_index + 1 :]:
+                combined.append(f"{left} {right}")
+        for single in sorted(single_signal_aliases, key=str.lower):
+            for phrase in sorted(multi_signal_aliases, key=self._query_specificity_key):
+                if single.lower() in phrase.lower():
+                    continue
+                combined.append(f"{single} {phrase}")
+        return self._merge_queries(combined, limit=8)
 
     @staticmethod
     def _generic_search_signals() -> set[str]:
@@ -892,6 +914,7 @@ class DeepSearchEngine:
         alias_terms = self._requirement_aliases(requirement)
         concept_groups = self._requirement_concept_groups(requirement)
         domain_aliases = {item.lower() for item in (requirement.feature_concepts or {}).get("domains", [])}
+        desired_languages = self._requirement_language_constraints(requirement, candidates)
         for repo in candidates:
             strong_haystack = " ".join([repo.name, repo.description, repo.language or "", " ".join(repo.topics)])
             weak_haystack = repo.readme[:12000]
@@ -919,6 +942,15 @@ class DeepSearchEngine:
                     domain_bonus = 8
                 else:
                     domain_bonus = -60
+            language_bonus = 0
+            if desired_languages:
+                repo_language = str(repo.language or "").strip().lower()
+                if repo_language in desired_languages:
+                    language_bonus = 28
+                elif repo_language:
+                    language_bonus = -45
+                else:
+                    language_bonus = -12
             specificity_bonus = min(12, max(0, covered_groups - 2) * 4)
             repo.core_signal_score = self._core_direction_score(requirement, repo)
             core_bonus = repo.core_signal_score * 18
@@ -931,12 +963,34 @@ class DeepSearchEngine:
                 + freshness
                 + readme_bonus
                 + domain_bonus
+                + language_bonus
                 + specificity_bonus
                 + core_bonus
             )
             if self._is_catalog_repository(repo):
                 repo.raw_score = min(repo.raw_score, 15)
         return sorted(candidates, key=lambda item: item.raw_score, reverse=True)
+
+    def _requirement_language_constraints(
+        self,
+        requirement: Requirement,
+        candidates: list[CandidateRepository],
+    ) -> set[str]:
+        candidate_languages = {str(repo.language or "").strip().lower() for repo in candidates if repo.language}
+        if not candidate_languages:
+            return set()
+        concepts = requirement.feature_concepts or {}
+        text = " ".join(
+            [
+                requirement.raw,
+                requirement.intent,
+                " ".join(requirement.target_platforms),
+                " ".join(concepts.get("interfaces", [])),
+                " ".join(concepts.get("literal_keywords", [])),
+            ]
+        ).lower()
+        tokens = set(re.findall(r"[a-z][a-z0-9_.+-]{1,}", text))
+        return {language for language in candidate_languages if language in tokens}
 
     def _core_direction_score(self, requirement: Requirement, repo: CandidateRepository) -> float:
         core_feature = self._core_requirement_feature(requirement)
@@ -2285,8 +2339,11 @@ class DeepSearchEngine:
         eligible_references = [
             item
             for item in remaining
-            if item.match_score >= minimum_reference_score
-            and (item.core_confirmed or not item.core_feature)
+            if self._is_evidence_backed_reference_candidate(
+                item,
+                minimum_score=minimum_reference_score,
+                require_core_confirmed=bool(selected),
+            )
             and self._is_usable_reference_candidate(item, requirement)
         ]
         references: list[ProjectAnalysis] = []
@@ -2350,6 +2407,16 @@ class DeepSearchEngine:
                 + ", ".join(item.repo.full_name for item in adjacent)
             )
         return selected
+
+    @staticmethod
+    def _is_evidence_backed_reference_candidate(
+        analysis: ProjectAnalysis,
+        minimum_score: int,
+        require_core_confirmed: bool,
+    ) -> bool:
+        if require_core_confirmed:
+            return analysis.core_confirmed and analysis.match_score >= 20
+        return analysis.match_score >= minimum_score and (analysis.core_confirmed or not analysis.core_feature)
 
     def _fallback_low_similarity_leads(
         self,

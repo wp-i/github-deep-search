@@ -78,8 +78,9 @@ python scripts/start_web.py
 | 项目 | 本次真实记录 |
 | --- | --- |
 | 查询 | `找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。` |
-| Top 结果 | `Textualize/rich` |
-| 报告消耗 | 输入 `38,236` tokens，输出 `3,386` tokens |
+| Top 3 结果 | `Textualize/rich`、`Textualize/trogon`、`ceccopierangiolieugenio/pyTermTk` |
+| 报告消耗 | 每次导出的 JSON 会记录 GitHub 请求数与 LLM tokens，具体数值随 provider、模型和搜索预算变化 |
+| 结果来源 | 真实 GitHub 检索与证据分析，截图不是内置 demo 数据 |
 | 完整记录 | [docs/REAL_RUNS.md](docs/REAL_RUNS.md) |
 
 ## API Key 与消耗

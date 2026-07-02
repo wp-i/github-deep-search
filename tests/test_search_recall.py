@@ -90,6 +90,7 @@ def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search()
     planned = engine._planned_repo_search_queries(requirement, "detailed", "continue")
 
     assert any("terminal ui library" in item.lower() for item in planned)
+    assert any("python tui" in item.lower() for item in planned)
     assert "python" not in planned
     assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "Python 终端 UI in:name,description,readme"
     assert "terminal ui library" in engine._requirement_aliases(requirement)
@@ -148,6 +149,42 @@ def test_core_alias_counts_when_domain_concepts_use_another_language() -> None:
     )
 
     assert engine._core_direction_score(requirement, repo) > 0
+
+
+def test_ranking_prefers_requested_repository_language_from_current_requirement() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need a Python terminal UI library",
+        intent="Find Python terminal UI library",
+        must_have_features=["Python terminal UI library"],
+        nice_to_have_features=[],
+        target_platforms=["Python API"],
+        search_queries=["Python terminal UI library"],
+        feature_concepts={"interfaces": ["Python API"], "domains": ["terminal UI"]},
+        evidence_aliases={"Python terminal UI library": ["Python terminal UI library", "TUI"]},
+    )
+    python_repo = CandidateRepository(
+        owner="demo",
+        name="python-ui",
+        url="https://github.com/demo/python-ui",
+        description="Terminal UI library for Python applications.",
+        language="Python",
+        topics=["terminal-ui"],
+        readme="Terminal UI library for Python applications.",
+    )
+    other_repo = CandidateRepository(
+        owner="demo",
+        name="other-ui",
+        url="https://github.com/demo/other-ui",
+        description="Terminal UI library for command line applications.",
+        language="Go",
+        topics=["terminal-ui"],
+        readme="Terminal UI library for command line applications.",
+    )
+
+    ranked = engine._rank_candidates(requirement, [other_repo, python_repo])
+
+    assert ranked[0].full_name == "demo/python-ui"
 
 
 def test_evidence_gate_accepts_current_aliases_and_plural_readme_terms() -> None:

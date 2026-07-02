@@ -1193,6 +1193,46 @@ def test_result_tiers_fill_in_reliable_reference_adjacent_order() -> None:
     assert selected[1].confidence_level == "reference"
 
 
+def test_reliable_result_is_filled_with_core_confirmed_references_for_top3() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+
+    def project(name: str, score: int, *, core_confirmed: bool) -> ProjectAnalysis:
+        repo = CandidateRepository(
+            owner="demo",
+            name=name,
+            url=f"https://github.com/demo/{name}",
+            raw_score=score,
+        )
+        return ProjectAnalysis(
+            repo=repo,
+            match_score=score,
+            recommendation="candidate",
+            directly_usable=score >= 50,
+            covered_features=["core"],
+            missing_features=[],
+            required_changes=[],
+            risks=[],
+            evidence=[],
+            core_feature="core",
+            core_confirmed=core_confirmed,
+            evidence_coverage=[
+                EvidenceCoverage(feature="core", covered=core_confirmed, status="supported" if core_confirmed else "unknown")
+            ],
+        )
+
+    reliable = project("reliable", 100, core_confirmed=True)
+    reference = project("reference", 31, core_confirmed=True)
+    lower_reference = project("lower-reference", 21, core_confirmed=True)
+    noisy = project("noisy", 45, core_confirmed=False)
+
+    selected = engine._with_reference_candidates([reliable], [noisy, reference, lower_reference], usage)
+
+    assert [item.repo.name for item in selected] == ["reliable", "reference", "lower-reference"]
+    assert selected[1].confidence_level == "reference"
+    assert selected[2].confidence_level == "reference"
+
+
 def test_repo_search_uses_core_evidence_aliases_without_domain_word_pack() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
