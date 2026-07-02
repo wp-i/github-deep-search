@@ -31,6 +31,9 @@ class SearchSpecParser:
                     "contains only the user's core functional outcomes and hard constraints. nice_to_have contains "
                     "optional wants, uncertain phrasing, implementation guesses, credentials, providers, or runtime "
                     "assumptions unless the user explicitly says they are mandatory.\n"
+                    "- Treat feasibility comments, ease-of-implementation comments, suggested implementation routes, "
+                    "and phrases the user marks as uncertain as nice_to_have or implementation assumptions. They must "
+                    "not become the core product identity or the first search angle.\n"
                     "- Search and scoring must be anchored on must_have first. Extension or implementation details "
                     "must never become the primary project identity.\n"
                     "- Derive query wording only from the current requirement and its structured interpretation. "
@@ -65,7 +68,8 @@ class SearchSpecParser:
                     "- Do not include final recommendations or project analysis.\n"
                     "- The requirement anchors listed below are mandatory. Preserve the product identity and every "
                     "requested capability or constraint in the structured fields, must_have list, aliases, and search "
-                    "angles. Do not reduce the request to one convenient sub-feature.\n"
+                    "angles. Do not reduce the request to one convenient sub-feature. If an anchor is uncertain or "
+                    "assumptive, preserve it as a secondary/nice-to-have detail instead of a primary search anchor.\n"
                     f"Mandatory anchors: {explicit_clauses}\n"
                     f"Requirement:\n{query}"
             )
@@ -90,12 +94,18 @@ class SearchSpecParser:
         return self._literal_only_spec(query)
 
     def _with_anchor_queries(self, spec: SearchSpec, anchors: list[str]) -> SearchSpec:
-        anchor_queries = [anchor for anchor in anchors if anchor.strip()]
+        anchor_queries = [
+            anchor
+            for anchor in anchors
+            if anchor.strip() and not self._is_uncertain_or_assumptive_feature(spec.raw, anchor)
+        ]
         if not anchor_queries:
             return spec
-        repo_queries = self._merge_lists(anchor_queries, spec.repo_search_queries, limit=10)
-        issue_queries = self._merge_lists(anchor_queries, spec.issue_search_queries or spec.repo_search_queries, limit=10)
-        web_queries = self._merge_lists([f"site:github.com {item}" for item in anchor_queries[:3]], spec.web_search_queries, limit=10)
+        combined_queries = self._combined_anchor_queries(anchor_queries)
+        focused_queries = self._merge_lists(anchor_queries, combined_queries, limit=10)
+        repo_queries = self._merge_lists(focused_queries, spec.repo_search_queries, limit=10)
+        issue_queries = self._merge_lists(focused_queries, spec.issue_search_queries or spec.repo_search_queries, limit=10)
+        web_queries = self._merge_lists([f"site:github.com {item}" for item in focused_queries[:3]], spec.web_search_queries, limit=10)
         search_queries = self._merge_lists(
             spec.search_queries,
             repo_queries,
@@ -112,6 +122,18 @@ class SearchSpecParser:
             issue_search_queries=issue_queries,
             web_search_queries=web_queries,
         )
+
+    def _combined_anchor_queries(self, anchors: list[str]) -> list[str]:
+        combined: list[str] = []
+        for index, left in enumerate(anchors[:5]):
+            for right in anchors[index + 1 : index + 4]:
+                if self._same_query_language(left, right):
+                    combined.append(f"{left} {right}")
+        return list(OrderedDict.fromkeys(combined))[:6]
+
+    @staticmethod
+    def _same_query_language(left: str, right: str) -> bool:
+        return bool(re.search(r"[^\x00-\x7f]", left)) == bool(re.search(r"[^\x00-\x7f]", right))
 
     def _from_llm_data(self, query: str, data: dict[str, Any] | None) -> SearchSpec | None:
         if not isinstance(data, dict):
@@ -201,6 +223,9 @@ class SearchSpecParser:
             "估计",
             "不确定",
             "是否需要",
+            "很容易实现",
+            "容易实现",
+            "好实现",
             "maybe",
             "might",
             "may need",
@@ -208,9 +233,17 @@ class SearchSpecParser:
             "probably",
             "optional",
             "if needed",
+            "easy to implement",
+            "should be easy",
         ]
         if any(marker in lowered_feature for marker in hard_markers):
             return False
+        causal_markers = ["因为", "由于", "since", "because"]
+        implementation_markers = ["可以", "可直接", "能够", "能直接", "直接抓取", "directly", "can be"]
+        if any(marker in lowered_feature for marker in causal_markers) and any(
+            marker in lowered_feature for marker in implementation_markers
+        ):
+            return True
         if any(marker in lowered_feature for marker in uncertainty_markers):
             return True
         feature_index = lowered_query.find(lowered_feature)

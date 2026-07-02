@@ -1846,17 +1846,15 @@ class DeepSearchEngine:
             return f"{shown}等 {len(items)} 项" if len(items) > limit else shown
 
         parts: list[str] = []
-        if analysis.core_feature and not analysis.core_confirmed:
-            parts.append(f"核心能力「{analysis.core_feature}」尚未确认")
         if analysis.covered_features:
             prefix = "仅确认" if len(analysis.covered_features) <= 2 else "已确认"
             parts.append(f"{prefix}{brief(analysis.covered_features)}")
-        elif not analysis.core_feature:
-            parts.append("尚未确认核心能力")
+        elif analysis.core_feature and not analysis.core_confirmed:
+            parts.append("公开证据只支持较弱相邻关系")
+        else:
+            parts.append("项目公开内容较少")
         if analysis.missing_features:
             parts.append(f"明确缺少{brief(analysis.missing_features)}")
-        if analysis.unknown_features:
-            parts.append(f"{brief(analysis.unknown_features)}仍未确认")
         if analysis.different_features:
             parts.append("项目定位或使用方式也有差异")
         return "；".join(parts) + "。"
@@ -2471,9 +2469,14 @@ class DeepSearchEngine:
                 for feature in list(dict.fromkeys(requirement.must_have_features))
                 if feature not in covered_features
             ][:8]
-            score = max(1, min(29, int(repo.raw_score or 1)))
-            if adjacent_signal:
-                score = max(score, 15)
+            score = self._low_similarity_lead_score(
+                repo,
+                coverage,
+                covered_features,
+                core_supported=core_supported,
+                core_aligned=core_aligned,
+                adjacent_signal=adjacent_signal,
+            )
             if not covered_features and not core_supported and repo.core_signal_score < 2.0:
                 continue
             if not covered_features and not core_supported and score < 20:
@@ -2499,7 +2502,7 @@ class DeepSearchEngine:
             self._mark_low_similarity_lead(analysis)
             analysis.score_reason = (
                 f"项目名称和公开简介与「{core_feature}」方向相近，"
-                "但重点能力尚未确认，因此只作为相邻参考。"
+                "公开证据只支持较弱相邻关系，因此只作为相邻参考。"
             )
             leads.append(analysis)
             used_families.add(family)
@@ -2509,6 +2512,33 @@ class DeepSearchEngine:
                 + ", ".join(item.repo.full_name for item in leads)
             )
         return leads
+
+    def _low_similarity_lead_score(
+        self,
+        repo: CandidateRepository,
+        coverage: list[EvidenceCoverage],
+        covered_features: list[str],
+        *,
+        core_supported: bool,
+        core_aligned: bool,
+        adjacent_signal: bool,
+    ) -> int:
+        supported = sum(1 for item in coverage if item.status == "supported" or item.covered)
+        explicit = sum(1 for item in coverage if item.status in {"different", "missing"})
+        evidence_bonus = min(14, supported * 4 + explicit * 2)
+        core_bonus = 0
+        if core_supported:
+            core_bonus = 10
+        elif core_aligned:
+            core_bonus = 6
+        elif repo.core_signal_score > 0:
+            core_bonus = min(6, round(repo.core_signal_score * 2))
+        source_bonus = min(4, max(0, len(repo.found_by) - 1) * 2)
+        raw_bonus = min(5, max(0, int(repo.raw_score or 0)) // 20)
+        score = 8 + evidence_bonus + core_bonus + source_bonus + raw_bonus
+        if adjacent_signal or covered_features:
+            score = max(score, 15)
+        return max(1, min(39, score))
 
     def _analysis_has_adjacent_signal(
         self,
@@ -2838,18 +2868,14 @@ class DeepSearchEngine:
                 "目前更适合用来找灵感，不适合直接采用。"
             )
         if all(item.is_reference_candidate for item in analyses):
-            unresolved = list(dict.fromkeys([*best.missing_features, *best.unknown_features]))
             confirmed = (
                 self._plain_user_text("、".join(best.covered_features[:2]))
                 if best.covered_features
-                else "少量外围能力"
-            )
-            unresolved_text = (
-                self._plain_user_text("、".join(unresolved[:4])) if unresolved else "完整使用流程"
+                else "部分相邻线索"
             )
             return (
                 f"没有找到可直接使用的项目。最接近的 {best.repo.full_name} 为 {best.match_score}/100，"
-                f"目前只确认「{confirmed}」；「{unresolved_text}」等关键能力仍未确认。"
+                f"可作为「{confirmed}」方向的参考线索。"
             )
         if best.is_reference_candidate:
             return (
@@ -2857,7 +2883,7 @@ class DeepSearchEngine:
                 f"（关联度 {best.match_score}/100）。"
             )
         summary = f"最相关项目是 {best.repo.full_name}（关联度 {best.match_score}/100）。"
-        summary += "下面按符合、差异和缺失三方面列出判断。"
+        summary += "下面只列出有公开证据支撑的符合、明确差异和明确缺失。"
         return summary
 
     def _write_report(
@@ -2885,28 +2911,8 @@ class DeepSearchEngine:
             lines.append("")
             self._append_project_report(lines, project_index, analysis, mode)
         lines.append("")
-        lines.append("## 下一步")
-        lines.append(opportunity)
-        lines.append("")
         lines.append("## 本次消耗")
         lines.append(self._format_token_usage(usage))
-        if search_completeness:
-            level = str(search_completeness.get("level") or "complete")
-            if level != "complete":
-                lines.append("")
-                if budget == "standard":
-                    range_message = "当前模式的搜索范围已用满，结论可能不完整；可切换深度模式继续查找。"
-                elif budget == "high":
-                    range_message = (
-                        "本次深度调研已达到搜索范围上限，结论可能仍不完整；"
-                        "可缩小目标用户或核心功能后重新调研。"
-                    )
-                else:
-                    range_message = (
-                        "本次已使用最大搜索范围，结论仍可能不完整；"
-                        "建议缩小需求范围后重新调研。"
-                    )
-                lines.append(range_message)
         return "\n".join(lines)
 
     @staticmethod
@@ -2942,9 +2948,6 @@ class DeepSearchEngine:
         )
         if must_have:
             lines.append(f"- 关键缺口：{must_have}。")
-        lines.append(
-            "- 下一步建议：保留目标平台和核心动作重新查找，例如把平台名、数据对象、查询/采集动作和报告形式分别组合成更短的关键词。"
-        )
 
     def _append_project_report(
         self,
@@ -2965,9 +2968,8 @@ class DeepSearchEngine:
         lines.append(
             f"- 得分原因：{self._plain_user_text(analysis.score_reason or self._score_reason(analysis))}"
         )
-        lines.append(
-            f"- 符合部分：{self._plain_user_text('、'.join(analysis.covered_features[:5])) if analysis.covered_features else '暂未确认'}"
-        )
+        if analysis.covered_features:
+            lines.append(f"- 符合部分：{self._plain_user_text('、'.join(analysis.covered_features[:5]))}")
         differences: list[str] = []
         for item in analysis.different_features:
             differences.extend(
@@ -2978,9 +2980,6 @@ class DeepSearchEngine:
             if len(differences) >= 3:
                 break
         differences = differences[:3]
-        if analysis.unknown_features and len(differences) < 3:
-            unknown = self._plain_user_text("、".join(analysis.unknown_features[: 3 - len(differences)]))
-            differences.append(f"尚未确认：{unknown}")
         if differences:
             lines.append(f"- 差异部分：{'；'.join(differences)}")
         if analysis.missing_features:

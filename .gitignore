@@ -10,3 +10,5 @@ __pycache__/
 dist/
 build/
 tmp_*.log
+web-server.*.log
+*.exe

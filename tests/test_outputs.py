@@ -271,7 +271,7 @@ def test_report_does_not_expose_internal_runtime_warnings() -> None:
     assert "Excluded 3 low-confidence" not in markdown
     assert "搜索完整性：limited" not in markdown
     assert "GitHub 请求：" not in markdown
-    assert "## 下一步" in markdown
+    assert "## 下一步" not in markdown
     assert "## 本次消耗" in markdown
     assert "Token：输入 1234，输出 567，合计 1801" in markdown
     assert "## 本次调研" not in markdown
@@ -282,7 +282,7 @@ def test_report_does_not_expose_internal_runtime_warnings() -> None:
     assert "must_have" not in markdown
 
 
-def test_deep_report_does_not_ask_user_to_switch_to_deep_mode() -> None:
+def test_report_does_not_show_user_invisible_search_range_controls() -> None:
     from github_deep_search.engine import DeepSearchEngine
 
     report = fake_report()
@@ -297,7 +297,9 @@ def test_deep_report_does_not_ask_user_to_switch_to_deep_mode() -> None:
         "high",
     )
 
-    assert "深度调研已达到搜索范围上限" in markdown
+    assert "深度调研已达到搜索范围上限" not in markdown
+    assert "搜索范围" not in markdown
+    assert "缩小需求范围" not in markdown
     assert "切换深度模式" not in markdown
     assert "得分原因：" in markdown
 
@@ -360,7 +362,7 @@ def test_light_report_avoids_repeated_reference_reason_and_opportunity() -> None
         {"level": "complete", "reasons": []},
     )
 
-    assert markdown.count(report.opportunity) == 1
+    assert report.opportunity not in markdown
     assert reference.reference_reason not in markdown
     assert reference.recommendation not in markdown
     assert "- 下一步：" not in markdown
@@ -547,8 +549,8 @@ def test_low_match_report_explains_score_without_repeating_prompt() -> None:
     assert "评分方式：" not in markdown
     assert "考虑限制后的适用度" not in markdown
     assert "得分原因：仅确认MCP 可通过 BridgeBox 运行" in markdown
-    assert "ClipBox 热门内容和热门评论查询、截图、评论截图等 7 项仍未确认" in markdown
-    assert "本次已经核对候选项目的公开说明和重点内容" in markdown
+    assert "仍未确认" not in markdown
+    assert "本次已经核对候选项目的公开说明和重点内容" not in markdown
     assert "用户试用" not in markdown
 
 
@@ -576,6 +578,35 @@ def test_report_omits_empty_difference_and_missing_rows() -> None:
     assert "- 缺失部分：" not in markdown
     assert "未发现明显差异" not in markdown
     assert "未发现明确缺失" not in markdown
+
+
+def test_report_omits_unconfirmed_rows_and_unknown_feature_text() -> None:
+    from github_deep_search.engine import DeepSearchEngine
+
+    report = fake_report()
+    project = report.top_projects[0]
+    project.covered_features = []
+    project.unknown_features = ["评论截图", "PDF 报告"]
+    project.different_features = []
+    project.missing_features = []
+    project.score_reason = ""
+
+    markdown = DeepSearchEngine()._write_report(
+        report.query,
+        report.requirement,
+        [project],
+        report.opportunity,
+        report.usage,
+        "light",
+        {"level": "complete", "reasons": []},
+    )
+
+    assert "- 符合部分：" not in markdown
+    assert "- 差异部分：" not in markdown
+    assert "暂未确认" not in markdown
+    assert "尚未确认" not in markdown
+    assert "评论截图" not in markdown
+    assert "PDF 报告" not in markdown
 
 
 def test_next_step_does_not_turn_unknown_into_missing() -> None:

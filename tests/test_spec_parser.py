@@ -344,6 +344,58 @@ def test_uncertain_implementation_guess_is_demoted_from_must_have() -> None:
     assert parser._valid(spec) is True
 
 
+def test_feasibility_comments_do_not_drive_anchor_queries() -> None:
+    parser = SearchSpecParser()
+    query = (
+        "我想做一个浏览器插件，用来过滤平台里的广告类视频，"
+        "web 端因为平台 API 数据可以直接抓取，"
+        "通过 AI 进行解析应该很容易实现，手机端我不确定"
+    )
+    anchors = parser._explicit_requirement_clauses(query)
+    spec = parser._from_llm_data(
+        query,
+        {
+            "intent": "过滤平台广告视频的浏览器插件",
+            "literal_keywords": ["浏览器插件", "平台", "广告类视频", "API 数据", "AI 解析", "手机端"],
+            "domains": ["浏览器插件", "平台视频"],
+            "actions": ["过滤"],
+            "objects": ["广告类视频"],
+            "outputs": [],
+            "interfaces": ["浏览器插件", "手机端"],
+            "must_have": [
+                "浏览器插件",
+                "过滤平台里的广告类视频",
+                "web 端因为平台 API 数据可以直接抓取",
+                "通过 AI 进行解析应该很容易实现",
+                "手机端我不确定",
+            ],
+            "search_queries": ["浏览器插件 过滤 广告类视频"],
+            "repo_search_queries": ["浏览器插件 过滤 广告类视频"],
+            "code_search_queries": ["浏览器插件 过滤"],
+            "topic_search_queries": ["browser-extension"],
+            "issue_search_queries": ["浏览器插件 过滤 广告类视频"],
+            "evidence_aliases": {
+                "浏览器插件": ["浏览器插件", "browser extension"],
+                "过滤平台里的广告类视频": ["过滤 广告类视频"],
+                "web 端因为平台 API 数据可以直接抓取": ["API 数据抓取"],
+                "通过 AI 进行解析应该很容易实现": ["AI 解析"],
+                "手机端我不确定": ["手机端"],
+            },
+        },
+    )
+
+    assert spec is not None
+    assert spec.must_have == ["浏览器插件", "过滤平台里的广告类视频"]
+    assert "web 端因为平台 API 数据可以直接抓取" in spec.nice_to_have
+    assert "通过 AI 进行解析应该很容易实现" in spec.nice_to_have
+    assert "手机端我不确定" in spec.nice_to_have
+
+    anchored = parser._with_anchor_queries(spec, anchors)
+
+    assert any("浏览器插件" in query and "过滤平台里的广告类视频" in query for query in anchored.repo_search_queries)
+    assert not any("很容易实现" in query or "不确定" in query or "可以直接抓取" in query for query in anchored.repo_search_queries)
+
+
 def test_parser_rejects_plan_that_collapses_product_to_one_subfeature() -> None:
     parser = SearchSpecParser()
     query = (

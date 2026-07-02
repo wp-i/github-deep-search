@@ -5,7 +5,15 @@ const searchProfile = {
 };
 
 const steps = ["理解目标", "规划搜索", "收集证据", "分析项目", "生成报告"];
+const reportLoadingMessages = [
+  "正在理解需求边界",
+  "正在规划检索路径",
+  "正在收集仓库证据",
+  "正在核对项目能力",
+  "正在整理报告语言"
+];
 let timer = null;
+let progressPercent = 0;
 let lastReport = null;
 
 const queryInput = document.getElementById("query");
@@ -18,6 +26,8 @@ const progressFill = document.getElementById("progressFill");
 const stepsElement = document.getElementById("steps");
 const errorElement = document.getElementById("error");
 const resultsElement = document.getElementById("results");
+const resultTitle = document.getElementById("resultTitle");
+const resultKicker = document.getElementById("resultKicker");
 const reportElement = document.getElementById("report");
 const keyStatus = document.getElementById("keyStatus");
 const copyMarkdownButton = document.getElementById("copyMarkdown");
@@ -36,25 +46,56 @@ function setButtonLabel(button, label) {
 function setBusy(busy) {
   runButton.disabled = busy;
   runLabel.textContent = busy ? "正在调研" : searchProfile.action;
+  copyMarkdownButton.disabled = busy || !lastReport;
+  downloadJsonButton.disabled = busy || !lastReport;
 }
 
 function setProgress(percent) {
-  progressFill.style.width = `${percent}%`;
-  progressValue.textContent = `${percent}%`;
+  progressPercent = Math.max(progressPercent, Math.min(percent, 96));
+  progressFill.style.width = `${progressPercent}%`;
+  progressValue.textContent = `${progressPercent}%`;
+}
+
+function setReportLoading(stepIndex) {
+  const message = reportLoadingMessages[stepIndex] || reportLoadingMessages[reportLoadingMessages.length - 1];
+  if (resultKicker) resultKicker.textContent = "Research in progress";
+  if (resultTitle) resultTitle.textContent = `调研报告与选型建议 · ${message}`;
+  resultsElement.classList.add("active", "loading");
+  if (emptyStateElement) emptyStateElement.classList.add("hidden");
+  reportElement.innerHTML = `
+    <div class="report-loading" role="status" aria-live="polite">
+      <span class="loading-dot" aria-hidden="true"></span>
+      <strong>${message}</strong>
+      <p>结果返回前会持续更新状态，请稍候。</p>
+      <div class="skeleton-lines" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+  `;
+}
+
+function resetReportHeading() {
+  if (resultKicker) resultKicker.textContent = "Research report";
+  if (resultTitle) resultTitle.textContent = "调研报告与选型建议";
+  resultsElement.classList.remove("loading");
 }
 
 function startProgress() {
   let current = 0;
+  progressPercent = 0;
   statusArea.classList.add("active");
   statusText.textContent = steps[0];
+  setReportLoading(0);
   setProgress(10);
   stepsElement.innerHTML = steps.map((step, index) => `<span class="${index === 0 ? "active" : ""}">${step}</span>`).join("");
   timer = window.setInterval(() => {
-    current = Math.min(current + 1, steps.length - 1);
+    current = (current + 1) % steps.length;
     statusText.textContent = steps[current];
-    setProgress(Math.min(18 + current * 18, 88));
-    Array.from(stepsElement.children).forEach((node, index) => node.classList.toggle("active", index <= current));
-  }, 5500);
+    setReportLoading(current);
+    const target = Math.max(progressPercent + 1, current === steps.length - 1 ? progressPercent + 2 : 18 + current * 17);
+    setProgress(Math.min(target, 96));
+    Array.from(stepsElement.children).forEach((node, index) => node.classList.toggle("active", index <= current || progressPercent > 88));
+  }, 3200);
 }
 
 function finishProgress(success) {
@@ -62,11 +103,17 @@ function finishProgress(success) {
   timer = null;
   if (!success) {
     statusText.textContent = "调研未完成";
-    setProgress(0);
+    resetReportHeading();
+    progressPercent = 0;
+    progressFill.style.width = "0%";
+    progressValue.textContent = "0%";
     return;
   }
   statusText.textContent = "调研完成";
-  setProgress(100);
+  progressPercent = 100;
+  progressFill.style.width = "100%";
+  progressValue.textContent = "100%";
+  resetReportHeading();
   Array.from(stepsElement.children).forEach((node) => node.classList.add("active"));
 }
 
@@ -87,7 +134,8 @@ async function runSearch() {
 
   errorElement.classList.remove("active");
   resultsElement.classList.remove("active");
-  if (emptyStateElement) emptyStateElement.classList.remove("hidden");
+  resetReportHeading();
+  lastReport = null;
   setBusy(true);
   startProgress();
   try {
@@ -105,13 +153,14 @@ async function runSearch() {
     if (!response.ok) throw new Error(explainError(response, data));
     lastReport = data;
     reportElement.innerHTML = data.reportHtml || "";
-    if (emptyStateElement) emptyStateElement.classList.add("hidden");
     resultsElement.classList.add("active");
     finishProgress(true);
     resultsElement.scrollIntoView({behavior: "smooth", block: "start"});
   } catch (error) {
     errorElement.textContent = error.message || "暂时无法完成调研，请稍后重试。";
     errorElement.classList.add("active");
+    resultsElement.classList.remove("active", "loading");
+    if (emptyStateElement) emptyStateElement.classList.remove("hidden");
     finishProgress(false);
   } finally {
     setBusy(false);

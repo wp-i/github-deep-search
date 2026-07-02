@@ -34,17 +34,21 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert 'id="downloadJson"' in html
     assert 'class="run-rail"' in html
     assert 'class="right-column"' in html
-    assert "/static/styles.css?v=20260702-03" in html
-    assert "/static/app.js?v=20260702-03" in html
+    assert "/static/styles.css?v=20260703-01" in html
+    assert "/static/app.js?v=20260703-01" in html
 
     assert "radial-gradient" not in styles.text
     assert "border-radius: 8px" in styles.text
     assert "letter-spacing: 0" in styles.text
+    assert ".run-rail {\n  display: flex;" in styles.text
+    assert "margin-top: auto;" in styles.text
     assert 'mode: "detailed"' in script.text
     assert 'budget: "continue"' in script.text
     assert "loadStatus" in script.text
     assert "demo" not in script.text.lower()
     assert "复制 Markdown" in script.text
+    assert "Research in progress" in script.text
+    assert "report-loading" in script.text
     assert "error.message" in script.text
 
 

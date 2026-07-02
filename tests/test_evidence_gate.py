@@ -1376,7 +1376,7 @@ def test_fallback_low_similarity_leads_from_ranked_candidates() -> None:
     assert leads[0].covered_features == []
     assert leads[0].missing_features == []
     assert leads[0].unknown_features == ["project idea generation"]
-    assert "重点能力尚未确认" in leads[0].score_reason
+    assert "公开证据只支持较弱相邻关系" in leads[0].score_reason
 
 
 def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence() -> None:
@@ -1415,11 +1415,62 @@ def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence()
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
-    assert leads[0].match_score == 15
+    assert leads[0].match_score > 15
     assert leads[0].core_confirmed is False
     assert "short video keyword search" in leads[0].unknown_features
     assert "screenshots" in leads[0].covered_features
     assert "web report" in leads[0].covered_features
+
+
+def test_fallback_low_similarity_leads_have_evidence_sensitive_scores() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need a browser extension that filters unwanted videos on a video platform",
+        intent="Find video filtering browser extension",
+        must_have_features=["browser extension filters unwanted videos on a video platform"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["browser extension filters unwanted videos"],
+        feature_concepts={
+            "domains": ["video platform"],
+            "actions": ["filters"],
+            "objects": ["unwanted videos"],
+            "interfaces": ["browser extension"],
+        },
+        evidence_aliases={
+            "browser extension filters unwanted videos on a video platform": [
+                "browser extension filters unwanted videos",
+                "filters unwanted videos on a video platform",
+            ],
+        },
+    )
+    weak = CandidateRepository(
+        owner="demo",
+        name="video-helper",
+        url="https://github.com/demo/video-helper",
+        description="Browser extension for a video platform that filters videos.",
+        raw_score=24,
+        found_by=["github:video platform"],
+    )
+    stronger = CandidateRepository(
+        owner="demo",
+        name="video-filter-extension",
+        url="https://github.com/demo/video-filter-extension",
+        description="Browser extension for a video platform that filters unwanted videos.",
+        raw_score=24,
+        found_by=["github:video platform", "github_code:browser extension"],
+    )
+    for repo in (weak, stronger):
+        repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
+
+    leads = engine._fallback_low_similarity_leads(requirement, [weak, stronger], usage)
+
+    assert len(leads) == 2
+    scores = {item.repo.full_name: item.match_score for item in leads}
+    assert scores["demo/video-filter-extension"] > scores["demo/video-helper"]
+    assert len(set(scores.values())) == 2
+    assert all(score < 50 for score in scores.values())
 
 
 def test_fallback_low_similarity_leads_reject_generic_outputs_for_domain_request() -> None:
