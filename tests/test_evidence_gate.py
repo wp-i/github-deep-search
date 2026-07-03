@@ -1587,3 +1587,142 @@ def test_fallback_low_similarity_leads_reject_shared_platform_wrong_core_object(
 
     assert repo.core_signal_score < 2.0
     assert leads == []
+
+
+def test_domain_adjacent_project_preserved_better_than_generic_unconfirmed() -> None:
+    """A project with a real domain signal should be penalised less harshly than a generic one when core is unconfirmed."""
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="browser extension that filters unwanted videos on a video platform",
+        intent="Find video filtering browser extension",
+        must_have_features=["browser extension filters unwanted videos on a video platform"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["browser extension filters unwanted videos"],
+        feature_concepts={
+            "domains": ["video platform"],
+            "actions": ["filters"],
+            "objects": ["unwanted videos"],
+            "interfaces": ["browser extension"],
+        },
+        evidence_aliases={
+            "browser extension filters unwanted videos on a video platform": [
+                "browser extension filters unwanted videos",
+                "filters unwanted videos on a video platform",
+            ],
+        },
+    )
+
+    def analysis_for(repo: CandidateRepository) -> ProjectAnalysis:
+        return ProjectAnalysis(
+            repo=repo,
+            match_score=70,
+            recommendation="candidate",
+            directly_usable=True,
+            covered_features=["browser extension"],
+            missing_features=[],
+            required_changes=[],
+            risks=[],
+            evidence=[],
+            core_feature="browser extension filters unwanted videos on a video platform",
+            core_confirmed=False,
+            evidence_coverage=engine._build_evidence_coverage(repo, requirement),
+        )
+
+    domain_adjacent = CandidateRepository(
+        owner="demo",
+        name="video-helper",
+        url="https://github.com/demo/video-helper",
+        description="Browser extension for a video platform.",
+        raw_score=30,
+    )
+    generic = CandidateRepository(
+        owner="demo",
+        name="generic-extension",
+        url="https://github.com/demo/generic-extension",
+        description="Generic browser extension template.",
+        raw_score=30,
+    )
+
+    gated, _ = engine._apply_evidence_gate(
+        requirement,
+        [analysis_for(domain_adjacent), analysis_for(generic)],
+        usage,
+    )
+    by_name = {item.repo.name: item for item in gated}
+
+    assert by_name["video-helper"].match_score > by_name["generic-extension"].match_score
+
+
+def test_score_granularity_avoids_collisions_from_source_depth() -> None:
+    """Projects with the same coverage status but different evidence depths should score differently."""
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need summarization and export to PDF.",
+        intent="Find summarizer",
+        must_have_features=["summarize web pages", "export PDF"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["summarize web pages export PDF"],
+        evidence_aliases={
+            "summarize web pages": ["summarize"],
+            "export PDF": ["pdf export"],
+        },
+    )
+
+    def analysis(repo: CandidateRepository) -> ProjectAnalysis:
+        return ProjectAnalysis(
+            repo=repo,
+            match_score=80,
+            recommendation="candidate",
+            directly_usable=True,
+            covered_features=[],
+            missing_features=[],
+            required_changes=[],
+            risks=[],
+            evidence=[],
+            evidence_coverage=engine._build_evidence_coverage(repo, requirement),
+        )
+
+    source_repo = CandidateRepository(
+        owner="demo",
+        name="source",
+        url="https://github.com/demo/source",
+        readme="Summarize web pages and export PDF.",
+        key_files={"src/pdf.ts": "export function pdfExport() {}"},
+    )
+    readme_repo = CandidateRepository(
+        owner="demo",
+        name="readme",
+        url="https://github.com/demo/readme",
+        readme="Summarize web pages and export PDF.",
+    )
+    claim_repo = CandidateRepository(
+        owner="demo",
+        name="claim",
+        url="https://github.com/demo/claim",
+        readme="",
+    )
+
+    source_analysis = analysis(source_repo)
+    readme_analysis = analysis(readme_repo)
+    claim_analysis = analysis(claim_repo)
+    claim_analysis.evidence_coverage = [
+        EvidenceCoverage(feature="summarize web pages", covered=True, status="supported"),
+        EvidenceCoverage(feature="export PDF", covered=True, status="supported"),
+    ]
+
+    gated, _ = engine._apply_evidence_gate(
+        requirement,
+        [source_analysis, readme_analysis, claim_analysis],
+        usage,
+    )
+    scores = [item.match_score for item in gated]
+
+    assert len(set(scores)) == len(scores)
+    source_score = next(item.match_score for item in gated if item.repo.name == "source")
+    readme_score = next(item.match_score for item in gated if item.repo.name == "readme")
+    claim_score = next(item.match_score for item in gated if item.repo.name == "claim")
+    assert source_score > readme_score > claim_score

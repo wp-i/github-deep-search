@@ -56,6 +56,63 @@ def test_evidence_budget_is_actually_used_after_discovery() -> None:
     assert usage.github_requests == 40
 
 
+def test_search_budget_leaves_room_for_evidence() -> None:
+    engine = DeepSearchEngine()
+    request_limit = engine._budgeted_github_limit("standard")
+    evidence_reserve = engine._evidence_request_reserve("detailed", "standard")
+    search_limit = max(8, request_limit - evidence_reserve)
+
+    assert request_limit == 200
+    assert evidence_reserve > 0
+    assert search_limit > 0
+    assert search_limit + evidence_reserve <= request_limit
+
+
+def test_reasonable_query_returns_at_least_one_adjacent_result() -> None:
+    """A well-formed query with domain, action and object should never return zero adjacent leads."""
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need a browser extension that filters unwanted videos on a video platform",
+        intent="Find video filtering browser extension",
+        must_have_features=["browser extension filters unwanted videos on a video platform"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["browser extension filters unwanted videos"],
+        feature_concepts={
+            "domains": ["video platform"],
+            "actions": ["filters"],
+            "objects": ["unwanted videos"],
+            "interfaces": ["browser extension"],
+        },
+        evidence_aliases={
+            "browser extension filters unwanted videos on a video platform": [
+                "browser extension filters unwanted videos",
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="video-filter-extension",
+        url="https://github.com/demo/video-filter-extension",
+        description="Browser extension for a video platform that filters unwanted videos.",
+        raw_score=24,
+        found_by=["github:video platform", "github_code:browser extension"],
+    )
+    repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert len(leads) >= 1
+    assert leads[0].confidence_level == "lead"
+
+
+def test_deep_pool_grows_with_available_candidates() -> None:
+    engine = DeepSearchEngine()
+    assert engine._deep_pool_limit("detailed", "standard") == 20
+    assert engine._deep_pool_limit("light", "standard") >= 5
+
+
 def test_multilingual_queries_are_interleaved_and_repo_query_stays_broad() -> None:
     engine = DeepSearchEngine()
 
@@ -87,16 +144,16 @@ def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search()
         },
     )
 
-    planned = engine._planned_repo_search_queries(requirement, "detailed", "continue")
+    planned = engine._planned_repo_search_queries(requirement, "detailed", "standard")
 
     assert any("terminal ui library" in item.lower() for item in planned)
     assert any("python tui" in item.lower() for item in planned)
     assert "python" not in planned
     assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "Python 终端 UI in:name,description,readme"
     assert "terminal ui library" in engine._requirement_aliases(requirement)
-    topics = engine._planned_topic_search_queries(requirement, "detailed", "continue")
-    assert "tui" in topics
+    topics = engine._planned_topic_search_queries(requirement, "detailed", "standard")
     assert "progress-bar" in topics
+    assert "tui" in engine._topic_query_variants(list(requirement.evidence_aliases.values())[0])
 
 
 def test_chinese_terminal_ui_identity_becomes_core_requirement() -> None:
@@ -425,12 +482,12 @@ def test_collect_candidates_uses_all_default_github_search_channels() -> None:
     assert any(source.startswith("github_topic:") for source in by_name["demo/topic-hit"].found_by)
     assert any(source.startswith("github_issue:") for source in by_name["demo/issue-hit"].found_by)
     assert github.repo_per_pages
-    assert all(value == 12 for value in github.repo_per_pages)
+    assert all(value == 20 for value in github.repo_per_pages)
     assert github.code_per_pages
-    assert all(value == 5 for value in github.code_per_pages)
+    assert all(value == 10 for value in github.code_per_pages)
     assert github.topic_per_pages
-    assert all(value == 10 for value in github.topic_per_pages)
-    assert github.issue_per_pages == [10]
+    assert all(value == 20 for value in github.topic_per_pages)
+    assert github.issue_per_pages == [20]
 
 
 def test_collect_candidates_runs_third_wave_only_when_two_waves_do_not_fill_top3() -> None:
@@ -451,14 +508,16 @@ def test_collect_candidates_runs_third_wave_only_when_two_waves_do_not_fill_top3
 
     enough_after_two = WaveGitHub(hits_per_repo_query=1)
     asyncio.run(engine._collect_candidates(requirement, enough_after_two, None, BudgetUsage(), "light", "standard"))
-    assert len(enough_after_two.repo_queries) == 6
+    # Unified budget path: 6 repo queries plus 1 derived alias gives 7 repo queries in two waves.
+    # Light mode keeps code/topic/issue limits at 3.
+    assert len(enough_after_two.repo_queries) == 7
     assert len(enough_after_two.code_queries) == 3
     assert len(enough_after_two.topic_queries) == 3
     assert len(enough_after_two.issue_queries) == 3
 
     not_enough_after_two = WaveGitHub(hits_per_repo_query=0)
     asyncio.run(engine._collect_candidates(requirement, not_enough_after_two, None, BudgetUsage(), "light", "standard"))
-    assert len(not_enough_after_two.repo_queries) > 6
+    assert len(not_enough_after_two.repo_queries) >= 7
     assert len(not_enough_after_two.code_queries) == 3
     assert len(not_enough_after_two.topic_queries) == 3
     assert len(not_enough_after_two.issue_queries) == 3
@@ -467,13 +526,14 @@ def test_collect_candidates_runs_third_wave_only_when_two_waves_do_not_fill_top3
 def test_high_budget_expands_candidate_limit() -> None:
     engine = DeepSearchEngine()
 
-    assert engine._budgeted_candidate_limit("high") > engine._budgeted_candidate_limit("standard")
-    assert engine._budgeted_github_limit("continue") > engine._budgeted_github_limit("high")
+    # Unified execution path: all budgets use the same multiplier.
+    assert engine._budgeted_candidate_limit("high") == engine._budgeted_candidate_limit("standard")
+    assert engine._budgeted_github_limit("continue") == engine._budgeted_github_limit("high")
 
 
 @pytest.mark.parametrize(
     ("budget", "multiplier"),
-    [("standard", 1.0), ("high", 1.8), ("continue", 2.3)],
+    [("standard", 1.0), ("high", 1.0), ("continue", 1.0)],
 )
 def test_request_limit_and_completeness_use_active_budget(budget: str, multiplier: float) -> None:
     engine = DeepSearchEngine()

@@ -48,9 +48,14 @@ class GitHubClient:
             response = await self.client.get(path, params=params)
             if response.status_code in {403, 429}:
                 retry_after = response.headers.get("retry-after")
-                message = f"GitHub rate limit or secondary limit hit: {response.status_code}"
+                message = (
+                    "GitHub Search API secondary rate limit reached "
+                    f"(HTTP {response.status_code}). Searches have been paused. "
+                    "Please wait about one hour before running another query, "
+                    "or reduce MAX_GITHUB_REQUESTS to stay within the 30 requests/minute limit."
+                )
                 if retry_after:
-                    message += f", retry-after={retry_after}s"
+                    message += f" Retry-after header suggests {retry_after}s."
                 self.usage.warnings.append(message)
                 return None
             response.raise_for_status()

@@ -210,10 +210,8 @@ class DeepSearchEngine:
                 await llm.close()
 
     def _budget_multiplier(self, budget: SearchBudget) -> float:
-        if budget == "high":
-            return 1.8
-        if budget == "continue":
-            return 2.3
+        # Unified execution path: no mode/budget specific scaling.
+        # MAX_GITHUB_REQUESTS is the single knob controlling search depth.
         return 1.0
 
     def _valid_baseline(
@@ -241,8 +239,8 @@ class DeepSearchEngine:
         if mode == "light":
             base = max(self.settings.max_deep_analyze_repos * 2, 5)
         else:
-            base = max(self.settings.max_deep_analyze_repos * 3, 8)
-        return min(12, max(base, int(base * self._budget_multiplier(budget))))
+            base = max(self.settings.max_deep_analyze_repos * 7, 20)
+        return min(20, max(base, int(base * self._budget_multiplier(budget))))
 
     def _evidence_request_reserve(self, mode: Mode, budget: SearchBudget) -> int:
         """Requests discovery cannot borrow: README plus focused checks for final candidates."""
@@ -271,14 +269,14 @@ class DeepSearchEngine:
         issue_queries = self._interleave_multilingual_queries(
             self._planned_issue_search_queries(requirement, mode, budget)
         )
-        queries_per_wave = max(3, int(3 * self._budget_multiplier(budget)))
+        queries_per_wave = max(6, int(6 * self._budget_multiplier(budget)))
         request_limit = self._budgeted_github_limit(budget)
         evidence_reserve = self._evidence_request_reserve(mode, budget)
         search_request_limit = max(8, request_limit - evidence_reserve)
-        repo_per_page = 12
-        code_per_page = 5
-        topic_per_page = 10
-        issue_per_page = 10
+        repo_per_page = 20
+        code_per_page = 10
+        topic_per_page = 20
+        issue_per_page = 20
 
         for wave_index in range(2):
             await self._collect_github_wave(
@@ -679,7 +677,8 @@ class DeepSearchEngine:
         mode: Mode,
         budget: SearchBudget = "standard",
     ) -> list[str]:
-        limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
+        base = 3 if mode == "light" else 8
+        limit = max(base, int(base * self._budget_multiplier(budget)))
         concepts = requirement.feature_concepts or {}
         domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
         alias_phrases = [
@@ -1517,6 +1516,21 @@ class DeepSearchEngine:
             repo.raw_score = repo.raw_score * 0.65 + repo.evidence_score * 35
         return sorted(repos, key=lambda item: item.raw_score, reverse=True)
 
+    @staticmethod
+    def _evidence_strength(item: EvidenceCoverage) -> float:
+        """Continuous weight by evidence source so source > path > readme > claim only."""
+        if item.status == "supported" or item.covered:
+            if item.source_evidence:
+                return 1.0
+            if item.path_evidence:
+                return 0.95
+            if item.readme_evidence:
+                return 0.90
+            return 0.70
+        if item.status == "different":
+            return 0.45
+        return 0.0
+
     def _evidence_score(
         self,
         coverage: list[EvidenceCoverage],
@@ -2152,14 +2166,7 @@ class DeepSearchEngine:
             evidence_fit = round(
                 100
                 * sum(
-                    weight
-                    * (
-                        1.0
-                        if item.status == "supported"
-                        else 0.45
-                        if item.status == "different"
-                        else 0.0
-                    )
+                    weight * self._evidence_strength(item)
                     for item, weight in zip(coverage, weights)
                 )
                 / total_weight
@@ -2179,14 +2186,7 @@ class DeepSearchEngine:
                 and (core_coverage.status == "supported" or core_coverage.covered)
             )
             confirmed_weight = sum(
-                weight
-                * (
-                    1.0
-                    if item.status == "supported"
-                    else 0.45
-                    if item.status == "different"
-                    else 0.0
-                )
+                weight * self._evidence_strength(item)
                 for item, weight in zip(coverage, weights)
             )
             confirmed_cap = round(20 + 80 * confirmed_weight / total_weight)
@@ -2202,7 +2202,11 @@ class DeepSearchEngine:
             elif core_feature and not core_supported:
                 # Keep relative ordering for adjacent projects, but make sure
                 # peripheral features can never promote them to reliable results.
-                functional_score = min(49, max(1, round(functional_score * 0.60)))
+                # Projects that still carry a domain signal are penalized less
+                # harshly than completely generic projects.
+                has_domain_signal = analysis.repo.core_signal_score >= 2.0
+                penalty_factor = 0.75 if has_domain_signal else 0.60
+                functional_score = min(49, max(1, round(functional_score * penalty_factor)))
                 supported_non_core = sum(
                     1
                     for item in coverage
@@ -2330,9 +2334,46 @@ class DeepSearchEngine:
             if len(selected) >= max_results:
                 break
         slots = max(0, max_results - len(selected))
-        if slots <= 0 or not low_confidence:
-            return selected
         remaining = [item for item in low_confidence if not self._is_catalog_candidate(item)]
+
+        # If a selected reliable candidate fails core confirmation, allow a
+        # core-confirmed reference candidate from the low-confidence pool to
+        # displace the weakest unconfirmed reliable result, as long as the
+        # replacement scores higher and does not duplicate a family already used.
+        if selected and remaining:
+            unconfirmed_selected = [
+                item for item in selected if item.core_feature and not item.core_confirmed
+            ]
+            core_confirmed_alternatives = [
+                item
+                for item in remaining
+                if item.core_confirmed
+                and item.match_score >= 35
+                and self._is_usable_reference_candidate(item, requirement)
+            ]
+            if unconfirmed_selected and core_confirmed_alternatives:
+                core_confirmed_alternatives = sorted(
+                    core_confirmed_alternatives, key=lambda candidate: candidate.match_score, reverse=True
+                )
+                selected_by_family = {self._project_family_key(item): item for item in selected}
+                for target in sorted(unconfirmed_selected, key=lambda candidate: candidate.match_score):
+                    if not core_confirmed_alternatives:
+                        break
+                    replacement = core_confirmed_alternatives[0]
+                    replacement_family = self._project_family_key(replacement)
+                    if replacement_family in selected_by_family and selected_by_family[replacement_family] is not target:
+                        continue
+                    if replacement.match_score > target.match_score:
+                        selected_by_family.pop(self._project_family_key(target), None)
+                        selected_by_family[replacement_family] = replacement
+                        self._mark_reference_candidate(replacement)
+                        selected.remove(target)
+                        selected.append(replacement)
+                        core_confirmed_alternatives.pop(0)
+                        remaining.remove(replacement)
+
+        if slots <= 0 or not remaining:
+            return selected
         minimum_reference_score = 35 if selected else 20
         eligible_references = [
             item

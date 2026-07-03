@@ -77,7 +77,7 @@ def get_settings() -> Settings:
         llm_reasoning_effort=os.getenv("LLM_REASONING_EFFORT") or None,
         max_github_requests=_int_env("MAX_GITHUB_REQUESTS", 40),
         max_tavily_credits=_int_env("MAX_TAVILY_CREDITS", 4),
-        max_candidates=_int_env("MAX_CANDIDATES", 30),
+        max_candidates=_int_env("MAX_CANDIDATES", 80),
         max_deep_analyze_repos=_int_env("MAX_DEEP_ANALYZE_REPOS", 3),
         task_deadline_seconds=_int_env("TASK_DEADLINE_SECONDS", 70),
         llm_input_usd_per_1m=_float_env("LLM_INPUT_USD_PER_1M", 0.0),
