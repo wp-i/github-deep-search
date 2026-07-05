@@ -11,15 +11,13 @@ from github_deep_search.serializers import report_to_dict
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Lightweight GitHub deep search")
     parser.add_argument("query", help="Natural-language requirement")
-    parser.add_argument("--mode", choices=["light", "detailed"], default="detailed")
-    parser.add_argument("--budget", choices=["standard", "high", "continue"], default="continue")
     parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     return parser.parse_args()
 
 
 async def main_async() -> None:
     args = parse_args()
-    report = await deep_search(args.query, args.mode, args.budget)
+    report = await deep_search(args.query)
     if args.format == "json":
         print(
             json.dumps(

@@ -156,9 +156,8 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 
 ```bash
 python -m github_deep_search "找一个可自部署的 AI Agent 可视化工作流编排工具，最好有插件机制"
-python -m github_deep_search "your requirement" --mode detailed --format markdown
-python -m github_deep_search "your requirement" --budget high --format json
-python -m github_deep_search "your requirement" --budget continue --format json
+python -m github_deep_search "your requirement" --format markdown
+python -m github_deep_search "your requirement" --format json
 ```
 
 ## Docker

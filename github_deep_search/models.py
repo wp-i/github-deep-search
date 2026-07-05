@@ -4,10 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
-Mode = Literal["light", "detailed"]
-SearchBudget = Literal["standard", "high", "continue"]
-
-
 @dataclass
 class BudgetUsage:
     github_requests: int = 0
@@ -162,8 +158,6 @@ class ProjectAnalysis:
 @dataclass
 class SearchReport:
     query: str
-    mode: Mode
-    budget: SearchBudget
     requirement: Requirement
     top_projects: list[ProjectAnalysis]
     opportunity: str

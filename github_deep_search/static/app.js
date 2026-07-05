@@ -1,6 +1,4 @@
 const searchProfile = {
-  mode: "detailed",
-  budget: "continue",
   action: "开始真实搜索"
 };
 
@@ -142,7 +140,7 @@ async function runSearch() {
     const response = await fetch("/api/search", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({query, mode: searchProfile.mode, budget: searchProfile.budget})
+      body: JSON.stringify({query})
     });
     let data = null;
     try {

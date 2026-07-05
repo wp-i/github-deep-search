@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import asyncio
 import os
-import re
-from collections import OrderedDict
 from pathlib import Path
 
 import uvicorn
@@ -14,46 +11,17 @@ from pydantic import BaseModel, Field
 
 from github_deep_search.config import get_settings
 from github_deep_search.engine import deep_search
-from github_deep_search.models import Mode, SearchBudget, SearchReport
 from github_deep_search.serializers import report_to_dict
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-BASELINE_CACHE_SIZE = 12
 
 app = FastAPI(title="GitHub Deep Search", version="0.2.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-_baseline_reports: OrderedDict[str, SearchReport] = OrderedDict()
-_baseline_lock = asyncio.Lock()
-
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
-    mode: Mode = "detailed"
-    budget: SearchBudget = "continue"
-
-
-def _query_key(query: str) -> str:
-    return re.sub(r"\s+", " ", query).strip().casefold()
-
-
-async def _get_baseline(query: str) -> SearchReport | None:
-    key = _query_key(query)
-    async with _baseline_lock:
-        report = _baseline_reports.get(key)
-        if report is not None:
-            _baseline_reports.move_to_end(key)
-        return report
-
-
-async def _remember_baseline(report: SearchReport) -> None:
-    key = _query_key(report.query)
-    async with _baseline_lock:
-        _baseline_reports[key] = report
-        _baseline_reports.move_to_end(key)
-        while len(_baseline_reports) > BASELINE_CACHE_SIZE:
-            _baseline_reports.popitem(last=False)
 
 
 @app.get("/", response_class=FileResponse)
@@ -76,12 +44,7 @@ async def api_status() -> JSONResponse:
 
 @app.post("/api/search")
 async def api_search(request: SearchRequest) -> JSONResponse:
-    baseline = None
-    if request.budget != "standard" or request.mode == "detailed":
-        baseline = await _get_baseline(request.query)
-    report = await deep_search(request.query, request.mode, request.budget, baseline=baseline)
-    if request.mode == "light" and request.budget == "standard":
-        await _remember_baseline(report)
+    report = await deep_search(request.query)
     return JSONResponse(report_to_dict(report, include_html=True))
 
 

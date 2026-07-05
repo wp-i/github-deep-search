@@ -11,8 +11,6 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
     report_markdown = _report_markdown_with_project_metadata(report)
     data: dict[str, Any] = {
         "summary": report.summary,
-        "mode": report.mode,
-        "budget": report.budget,
         "requirement": {
             "raw": report.requirement.raw,
             "intent": report.requirement.intent,

@@ -1247,7 +1247,7 @@ def test_repo_search_uses_core_evidence_aliases_without_domain_word_pack() -> No
         },
     )
 
-    queries = engine._planned_repo_search_queries(requirement, "light", "standard")
+    queries = engine._planned_repo_search_queries(requirement)
 
     assert "constraint solver" in queries
     assert "task scheduler" in queries

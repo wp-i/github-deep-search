@@ -75,7 +75,7 @@ def get_settings() -> Settings:
         llm_model=os.getenv("LLM_MODEL") or "gpt-5-mini",
         llm_thinking=os.getenv("LLM_THINKING") or None,
         llm_reasoning_effort=os.getenv("LLM_REASONING_EFFORT") or None,
-        max_github_requests=_int_env("MAX_GITHUB_REQUESTS", 40),
+        max_github_requests=_int_env("MAX_GITHUB_REQUESTS", 200),
         max_tavily_credits=_int_env("MAX_TAVILY_CREDITS", 4),
         max_candidates=_int_env("MAX_CANDIDATES", 80),
         max_deep_analyze_repos=_int_env("MAX_DEEP_ANALYZE_REPOS", 3),

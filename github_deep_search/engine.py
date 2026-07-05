@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 import json
 import math
 import re
@@ -14,10 +13,8 @@ from github_deep_search.models import (
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
-    Mode,
     ProjectAnalysis,
     Requirement,
-    SearchBudget,
     SearchReport,
 )
 from github_deep_search.providers.github import GitHubClient
@@ -37,13 +34,10 @@ class DeepSearchEngine:
     async def run(
         self,
         query: str,
-        mode: Mode = "detailed",
-        budget: SearchBudget = "continue",
-        baseline: SearchReport | None = None,
     ) -> SearchReport:
         started = time.perf_counter()
         usage = BudgetUsage()
-        request_limit = self._budgeted_github_limit(budget)
+        request_limit = self.settings.max_github_requests
         github = GitHubClient(self.settings.github_token, usage, request_limit=request_limit)
         tavily = TavilyClient(self.settings.tavily_api_key, usage) if self.settings.tavily_api_key else None
         llm = (
@@ -59,23 +53,17 @@ class DeepSearchEngine:
             else None
         )
         try:
-            baseline = self._valid_baseline(query, mode, budget, baseline)
-            if baseline:
-                requirement = copy.deepcopy(baseline.requirement)
-            else:
-                spec = await SearchSpecParser().parse(query, llm)
-                requirement = spec.to_requirement()
-            candidates = await self._collect_candidates(requirement, github, tavily, usage, mode, budget)
+            spec = await SearchSpecParser().parse(query, llm)
+            requirement = spec.to_requirement()
+            candidates = await self._collect_candidates(requirement, github, tavily, usage)
             discovery_requests = usage.github_requests
-            if baseline:
-                candidates = self._include_baseline_candidates(candidates, baseline)
             ranked = self._rank_candidates(requirement, candidates)
-            await self._hydrate_readmes(ranked, github, usage, mode, budget)
+            await self._hydrate_readmes(ranked, github, usage)
             readme_requests = usage.github_requests - discovery_requests
             reranked = self._rank_candidates(requirement, ranked)
-            deep_pool_limit = self._deep_pool_limit(mode, budget)
+            deep_pool_limit = self._deep_pool_limit()
             deep_repos = reranked[:deep_pool_limit]
-            await self._hydrate_source_evidence(deep_repos, github, usage, requirement, mode, budget)
+            await self._hydrate_source_evidence(deep_repos, github, usage, requirement)
             source_requests = usage.github_requests - discovery_requests - readme_requests
             deep_repos = self._rerank_by_evidence(deep_repos, requirement)
             analyses = await self._analyze_top_projects(requirement, deep_repos, llm)
@@ -84,8 +72,6 @@ class DeepSearchEngine:
             reliable_analyses = [item for item in analyses if item.match_score >= 50]
             low_confidence = [item.repo.full_name for item in low_confidence_analyses]
             analyses = self._with_reference_candidates(reliable_analyses, low_confidence_analyses, usage, requirement)
-            if baseline:
-                analyses = self._preserve_baseline_results(analyses, baseline)
             if len(analyses) < self.settings.max_deep_analyze_repos and not analyses:
                 analyses.extend(
                     self._fallback_low_similarity_leads(
@@ -129,15 +115,11 @@ class DeepSearchEngine:
                 analyses,
                 opportunity,
                 usage,
-                mode,
                 search_completeness,
-                budget,
             )
             summary = self._write_summary(analyses, opportunity)
             return SearchReport(
                 query=query,
-                mode=mode,
-                budget=budget,
                 requirement=requirement,
                 top_projects=analyses,
                 opportunity=opportunity,
@@ -146,7 +128,6 @@ class DeepSearchEngine:
                 usage=usage,
                 raw={
                     "candidate_count": len(candidates),
-                    "budget": budget,
                     "ranked_count": len(ranked),
                     "deep_pool_count": len(deep_repos),
                     "top_projects_returned": len(analyses),
@@ -177,7 +158,7 @@ class DeepSearchEngine:
                         "issue": len(requirement.issue_search_queries),
                         "web": len(requirement.web_search_queries),
                     },
-                    "planned_repo_queries_used": self._planned_repo_search_queries(requirement, mode, budget),
+                    "planned_repo_queries_used": self._planned_repo_search_queries(requirement),
                     "top_ranked_candidates": [
                         {
                             "repo": item.full_name,
@@ -199,7 +180,6 @@ class DeepSearchEngine:
                     "evidence_gate": evidence_gate_stats,
                     "low_confidence_filtered_count": len(low_confidence_not_returned),
                     "low_confidence_candidate_count": len(low_confidence),
-                    "baseline_reused": bool(baseline),
                 },
             )
         finally:
@@ -209,44 +189,20 @@ class DeepSearchEngine:
             if llm:
                 await llm.close()
 
-    def _budget_multiplier(self, budget: SearchBudget) -> float:
-        # Unified execution path: no mode/budget specific scaling.
-        # MAX_GITHUB_REQUESTS is the single knob controlling search depth.
-        return 1.0
+    def _budgeted_github_limit(self) -> int:
+        return self.settings.max_github_requests
 
-    def _valid_baseline(
-        self,
-        query: str,
-        mode: Mode,
-        budget: SearchBudget,
-        baseline: SearchReport | None,
-    ) -> SearchReport | None:
-        if (mode != "detailed" and budget == "standard") or baseline is None:
-            return None
-        normalized_query = re.sub(r"\s+", " ", query).strip().casefold()
-        normalized_baseline = re.sub(r"\s+", " ", baseline.query).strip().casefold()
-        if normalized_query != normalized_baseline:
-            return None
-        return baseline
+    def _budgeted_candidate_limit(self) -> int:
+        return self.settings.max_candidates
 
-    def _budgeted_github_limit(self, budget: SearchBudget) -> int:
-        return max(1, int(self.settings.max_github_requests * self._budget_multiplier(budget)))
+    def _deep_pool_limit(self) -> int:
+        return 20
 
-    def _budgeted_candidate_limit(self, budget: SearchBudget) -> int:
-        return max(1, int(self.settings.max_candidates * self._budget_multiplier(budget)))
-
-    def _deep_pool_limit(self, mode: Mode, budget: SearchBudget = "standard") -> int:
-        if mode == "light":
-            base = max(self.settings.max_deep_analyze_repos * 2, 5)
-        else:
-            base = max(self.settings.max_deep_analyze_repos * 7, 20)
-        return min(20, max(base, int(base * self._budget_multiplier(budget))))
-
-    def _evidence_request_reserve(self, mode: Mode, budget: SearchBudget) -> int:
+    def _evidence_request_reserve(self) -> int:
         """Requests discovery cannot borrow: README plus focused checks for final candidates."""
         result_count = self.settings.max_deep_analyze_repos
-        readme_count = self._deep_pool_limit(mode, budget) + 2
-        files_per_repo = 1 if mode == "light" else 2
+        readme_count = self._deep_pool_limit() + 2
+        files_per_repo = 2
         return readme_count + result_count * (1 + files_per_repo)
 
     def _merge_queries(self, queries: list[str], limit: int = 6) -> list[str]:
@@ -258,20 +214,18 @@ class DeepSearchEngine:
         github: GitHubClient,
         tavily: TavilyClient | None,
         usage: BudgetUsage,
-        mode: Mode,
-        budget: SearchBudget,
     ) -> list[CandidateRepository]:
         repos: OrderedDict[str, CandidateRepository] = OrderedDict()
-        candidate_limit = self._budgeted_candidate_limit(budget)
-        repo_queries = self._planned_repo_search_queries(requirement, mode, budget)
-        code_queries = self._planned_code_search_queries(requirement, mode, budget)
-        topic_queries = self._planned_topic_search_queries(requirement, mode, budget)
+        candidate_limit = self._budgeted_candidate_limit()
+        repo_queries = self._planned_repo_search_queries(requirement)
+        code_queries = self._planned_code_search_queries(requirement)
+        topic_queries = self._planned_topic_search_queries(requirement)
         issue_queries = self._interleave_multilingual_queries(
-            self._planned_issue_search_queries(requirement, mode, budget)
+            self._planned_issue_search_queries(requirement)
         )
-        queries_per_wave = max(6, int(6 * self._budget_multiplier(budget)))
-        request_limit = self._budgeted_github_limit(budget)
-        evidence_reserve = self._evidence_request_reserve(mode, budget)
+        queries_per_wave = 6
+        request_limit = self._budgeted_github_limit()
+        evidence_reserve = self._evidence_request_reserve()
         search_request_limit = max(8, request_limit - evidence_reserve)
         repo_per_page = 20
         code_per_page = 10
@@ -328,7 +282,7 @@ class DeepSearchEngine:
 
         if tavily:
             planned_web_queries = requirement.web_search_queries or requirement.search_queries
-            web_limit = int((2 if mode == "light" else 4) * self._budget_multiplier(budget))
+            web_limit = 4
             web_queries = planned_web_queries[:web_limit]
             for search_query in web_queries:
                 if usage.tavily_credits >= self.settings.max_tavily_credits:
@@ -514,8 +468,8 @@ class DeepSearchEngine:
                     candidates.append(repo)
         return candidates
 
-    def _planned_code_search_queries(self, requirement: Requirement, mode: Mode, budget: SearchBudget = "standard") -> list[str]:
-        limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
+    def _planned_code_search_queries(self, requirement: Requirement) -> list[str]:
+        limit = 5
         queries: list[str] = []
         core_feature = self._core_requirement_feature(requirement)
         core_aliases = (
@@ -533,11 +487,9 @@ class DeepSearchEngine:
     def _planned_repo_search_queries(
         self,
         requirement: Requirement,
-        mode: Mode,
-        budget: SearchBudget = "standard",
     ) -> list[str]:
         """Put narrow core-capability angles before secondary output/interface queries."""
-        limit = max(10, int((7 if mode == "light" else 10) * self._budget_multiplier(budget)))
+        limit = 10
         core_feature = self._core_requirement_feature(requirement)
         concepts = requirement.feature_concepts or {}
         domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
@@ -674,11 +626,8 @@ class DeepSearchEngine:
     def _planned_topic_search_queries(
         self,
         requirement: Requirement,
-        mode: Mode,
-        budget: SearchBudget = "standard",
     ) -> list[str]:
-        base = 3 if mode == "light" else 8
-        limit = max(base, int(base * self._budget_multiplier(budget)))
+        limit = 8
         concepts = requirement.feature_concepts or {}
         domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
         alias_phrases = [
@@ -720,10 +669,8 @@ class DeepSearchEngine:
     def _planned_issue_search_queries(
         self,
         requirement: Requirement,
-        mode: Mode,
-        budget: SearchBudget = "standard",
     ) -> list[str]:
-        limit = int((3 if mode == "light" else 5) * self._budget_multiplier(budget))
+        limit = 5
         return self._merge_queries(requirement.issue_search_queries or requirement.repo_search_queries, limit=limit)
 
     def _github_search_token(self, phrase: str) -> str:
@@ -787,92 +734,6 @@ class DeepSearchEngine:
                     repos[key].found_by.append(source)
             return
         repos[key] = repo
-
-    def _include_baseline_candidates(
-        self,
-        candidates: list[CandidateRepository],
-        baseline: SearchReport,
-    ) -> list[CandidateRepository]:
-        merged: OrderedDict[str, CandidateRepository] = OrderedDict(
-            (repo.full_name.lower(), repo) for repo in candidates if repo.owner and repo.name
-        )
-        for analysis in baseline.top_projects:
-            seed = copy.deepcopy(analysis.repo)
-            key = seed.full_name.lower()
-            if key in merged:
-                current = merged[key]
-                for source in seed.found_by:
-                    if source not in current.found_by:
-                        current.found_by.append(source)
-                current.readme = current.readme or seed.readme
-                current.file_paths = current.file_paths or seed.file_paths
-                current.key_files = current.key_files or seed.key_files
-                current.source_evidence = current.source_evidence or seed.source_evidence
-                current.evidence_coverage = current.evidence_coverage or seed.evidence_coverage
-                seed = current
-            else:
-                merged[key] = seed
-            if seed.readme:
-                self._readme_cache[key] = seed.readme
-            if seed.file_paths:
-                self._tree_cache[key] = list(seed.file_paths)
-            for path, text in seed.key_files.items():
-                self._file_cache[(key, path)] = text
-        return list(merged.values())
-
-    def _preserve_baseline_results(
-        self,
-        current: list[ProjectAnalysis],
-        baseline: SearchReport,
-    ) -> list[ProjectAnalysis]:
-        by_name = {item.repo.full_name.lower(): item for item in current}
-        pinned: list[str] = []
-        for previous in baseline.top_projects:
-            key = previous.repo.full_name.lower()
-            if not previous.is_reference_candidate and previous.match_score >= 50:
-                pinned.append(key)
-            if key in by_name:
-                item = by_name[key]
-                item.match_score = max(item.match_score, previous.match_score)
-                item.covered_features = list(dict.fromkeys([*item.covered_features, *previous.covered_features]))[:8]
-                item.missing_features = [
-                    feature for feature in item.missing_features if feature not in item.covered_features
-                ][:8]
-                if not previous.is_reference_candidate and previous.match_score >= 50:
-                    item.is_reference_candidate = False
-                    item.confidence_level = "reliable"
-                    item.reference_reason = ""
-                if previous.directly_usable:
-                    item.directly_usable = True
-                continue
-            by_name[key] = copy.deepcopy(previous)
-
-        ordered = sorted(by_name.values(), key=lambda item: item.match_score, reverse=True)
-        if any(not item.is_reference_candidate and item.match_score >= 50 for item in ordered):
-            ordered = [
-                item
-                for item in ordered
-                if not item.is_reference_candidate or item.match_score >= 35
-            ]
-        selected = ordered[: self.settings.max_deep_analyze_repos]
-        selected_names = {item.repo.full_name.lower() for item in selected}
-        for key in pinned:
-            if key in selected_names or key not in by_name:
-                continue
-            replace_index = next(
-                (
-                    index
-                    for index in range(len(selected) - 1, -1, -1)
-                    if selected[index].repo.full_name.lower() not in pinned
-                ),
-                None,
-            )
-            if replace_index is None:
-                continue
-            selected_names.discard(selected[replace_index].repo.full_name.lower())
-            selected[replace_index] = by_name[key]
-            selected_names.add(key)
-        return sorted(selected, key=lambda item: item.match_score, reverse=True)
 
     def _source_mix(self, candidates: list[CandidateRepository]) -> dict[str, int]:
         mix = {"github_repo": 0, "github_code": 0, "github_topic": 0, "github_issue": 0, "tavily": 0, "other": 0}
@@ -1127,12 +988,10 @@ class DeepSearchEngine:
         ranked: list[CandidateRepository],
         github: GitHubClient,
         usage: BudgetUsage,
-        mode: Mode,
-        budget: SearchBudget,
     ) -> None:
-        limit = self._deep_pool_limit(mode, budget) + 2
-        request_limit = self._budgeted_github_limit(budget)
-        source_reserve = self.settings.max_deep_analyze_repos * (2 if mode == "light" else 3)
+        limit = self._deep_pool_limit() + 2
+        request_limit = self._budgeted_github_limit()
+        source_reserve = self.settings.max_deep_analyze_repos * 3
         for repo in ranked[:limit]:
             if usage.github_requests >= request_limit - source_reserve:
                 usage.warnings.append("GitHub request budget reached before fetching all READMEs.")
@@ -1151,30 +1010,27 @@ class DeepSearchEngine:
         github: GitHubClient,
         usage: BudgetUsage,
         requirement: Requirement,
-        mode: Mode,
-        budget: SearchBudget,
     ) -> None:
         repo_limit = self.settings.max_deep_analyze_repos
-        max_files = 1 if mode == "light" else 2
+        max_files = 2
         for repo in repos[:repo_limit]:
-            if usage.github_requests >= self._budgeted_github_limit(budget):
+            if usage.github_requests >= self._budgeted_github_limit():
                 usage.warnings.append("GitHub request budget reached before source evidence checks.")
                 break
-            await self._fetch_source_evidence_into(repo, github, requirement, mode, max_files=max_files)
+            await self._fetch_source_evidence_into(repo, github, requirement, max_files=max_files)
 
     async def _fetch_source_evidence_into(
         self,
         repo: CandidateRepository,
         github: GitHubClient,
         requirement: Requirement,
-        mode: Mode,
         max_files: int | None = None,
     ) -> None:
         repo_key = repo.full_name.lower()
         if repo_key not in self._tree_cache:
             self._tree_cache[repo_key] = await github.fetch_tree_paths(repo)
         repo.file_paths = self._tree_cache[repo_key]
-        selected_paths = self._select_key_paths(repo.file_paths, requirement, mode)
+        selected_paths = self._select_key_paths(repo.file_paths, requirement)
         if max_files is not None:
             selected_paths = selected_paths[:max_files]
         for path in selected_paths:
@@ -1185,9 +1041,9 @@ class DeepSearchEngine:
         repo.evidence_coverage = self._build_evidence_coverage(repo, requirement)
         repo.source_evidence = self._build_source_evidence(repo, requirement)
 
-    def _select_key_paths(self, paths: list[str], requirement: Requirement, mode: Mode) -> list[str]:
+    def _select_key_paths(self, paths: list[str], requirement: Requirement) -> list[str]:
         aliases = self._requirement_aliases(requirement)
-        max_files = 5 if mode == "light" else 8
+        max_files = 8
         weighted: list[tuple[int, str]] = []
         config_names = {
             "package.json",
@@ -2934,9 +2790,7 @@ class DeepSearchEngine:
         analyses: list[ProjectAnalysis],
         opportunity: str,
         usage: BudgetUsage,
-        mode: Mode,
         search_completeness: dict[str, object] | None = None,
-        budget: SearchBudget = "standard",
     ) -> str:
         lines: list[str] = []
         lines.append("# 调研结论")
@@ -2950,7 +2804,7 @@ class DeepSearchEngine:
             self._append_empty_result_context(lines, requirement)
         for project_index, analysis in enumerate(analyses, start=1):
             lines.append("")
-            self._append_project_report(lines, project_index, analysis, mode)
+            self._append_project_report(lines, project_index, analysis)
         lines.append("")
         lines.append("## 本次消耗")
         lines.append(self._format_token_usage(usage))
@@ -2995,7 +2849,6 @@ class DeepSearchEngine:
         lines: list[str],
         index: int,
         analysis: ProjectAnalysis,
-        mode: Mode,
     ) -> None:
         repo = analysis.repo
         label = ""
@@ -3067,8 +2920,5 @@ class DeepSearchEngine:
 
 async def deep_search(
     query: str,
-    mode: Mode = "detailed",
-    budget: SearchBudget = "continue",
-    baseline: SearchReport | None = None,
 ) -> SearchReport:
-    return await DeepSearchEngine().run(query, mode, budget, baseline=baseline)
+    return await DeepSearchEngine().run(query)

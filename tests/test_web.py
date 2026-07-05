@@ -42,8 +42,6 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert "letter-spacing: 0" in styles.text
     assert ".run-rail {\n  display: flex;" in styles.text
     assert "margin-top: auto;" in styles.text
-    assert 'mode: "detailed"' in script.text
-    assert 'budget: "continue"' in script.text
     assert "loadStatus" in script.text
     assert "demo" not in script.text.lower()
     assert "复制 Markdown" in script.text
@@ -71,45 +69,18 @@ def test_status_reports_key_presence(monkeypatch) -> None:
     }
 
 
-def test_deep_web_request_reuses_default_report_as_baseline(monkeypatch) -> None:
-    calls: list[tuple[str, str, str, object | None]] = []
+def test_web_search_calls_deep_search_with_query(monkeypatch) -> None:
+    calls: list[str] = []
 
-    async def fake_deep_search(query: str, mode: str, budget: str, baseline=None):
-        report = SimpleNamespace(query=query, marker=f"{mode}/{budget}")
-        calls.append((query, mode, budget, baseline))
-        return report
-
-    monkeypatch.setattr(web, "deep_search", fake_deep_search)
-    monkeypatch.setattr(
-        web,
-        "report_to_dict",
-        lambda report, include_html=False: {"reportHtml": f"<p>{report.marker}</p>"},
-    )
-    web._baseline_reports.clear()
-    client = TestClient(web.app)
-    payload = {"query": "find an accessible diagram editor", "mode": "light", "budget": "standard"}
-
-    assert client.post("/api/search", json=payload).status_code == 200
-    payload["budget"] = "high"
-    assert client.post("/api/search", json=payload).status_code == 200
-
-    assert calls[0][3] is None
-    assert calls[1][3] is not None
-    assert calls[1][3].marker == "light/standard"
-
-
-def test_web_request_defaults_to_expanded_complete_research(monkeypatch) -> None:
-    calls: list[tuple[str, str, str]] = []
-
-    async def fake_deep_search(query: str, mode: str, budget: str, baseline=None):
-        calls.append((query, mode, budget))
-        return SimpleNamespace(query=query, marker="complete")
+    async def fake_deep_search(query: str):
+        calls.append(query)
+        return SimpleNamespace(query=query)
 
     monkeypatch.setattr(web, "deep_search", fake_deep_search)
     monkeypatch.setattr(web, "report_to_dict", lambda report, include_html=False: {"reportHtml": "<p>ok</p>"})
     client = TestClient(web.app)
 
-    response = client.post("/api/search", json={"query": "find a useful project"})
+    response = client.post("/api/search", json={"query": "find an accessible diagram editor"})
 
     assert response.status_code == 200
-    assert calls == [("find a useful project", "detailed", "continue")]
+    assert calls == ["find an accessible diagram editor"]

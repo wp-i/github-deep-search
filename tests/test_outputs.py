@@ -78,8 +78,6 @@ def fake_report() -> SearchReport:
     )
     return SearchReport(
         query="测试需求",
-        mode="light",
-        budget="standard",
         requirement=requirement,
         top_projects=[analysis],
         opportunity="存在一定机会",
@@ -122,7 +120,6 @@ def test_report_to_dict_contains_full_project_fields() -> None:
     assert project["stars"] == 12
     assert project["lastPushedAt"] == "2026-01-15T08:30:00Z"
     assert data["raw"]["candidate_count"] == 1
-    assert data["budget"] == "standard"
     assert data["usage"]["llmTokenEstimated"] is False
     assert data["usage"]["estimatedUsdComplete"] is False
     assert data["usage"]["missingPriceComponents"] == ["llm_input_usd_per_1m"]
@@ -166,7 +163,7 @@ def test_rendered_report_links_repository_urls() -> None:
 def test_cli_json_uses_full_serializer(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     from github_deep_search import __main__ as cli
 
-    async def fake_deep_search(query: str, mode: str, budget: str = "standard") -> SearchReport:
+    async def fake_deep_search(query: str) -> SearchReport:
         return fake_report()
 
     monkeypatch.setattr(cli, "deep_search", fake_deep_search)
@@ -206,7 +203,6 @@ def test_report_uses_same_three_dimensions_for_reference_candidates() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        report.mode,
         {"level": "complete", "reasons": []},
     )
 
@@ -236,7 +232,6 @@ def test_report_uses_continuous_project_numbering_across_groups() -> None:
         [reliable, reference],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -262,7 +257,6 @@ def test_report_does_not_expose_internal_runtime_warnings() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        report.mode,
         {"level": "limited", "reasons": ["GitHub request limit reached"]},
     )
 
@@ -292,9 +286,7 @@ def test_report_does_not_show_user_invisible_search_range_controls() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        report.mode,
         {"level": "limited", "reasons": ["GitHub request limit reached"]},
-        "high",
     )
 
     assert "深度调研已达到搜索范围上限" not in markdown
@@ -315,7 +307,6 @@ def test_report_marks_estimated_llm_tokens() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        report.mode,
         {"level": "complete", "reasons": []},
     )
 
@@ -334,7 +325,6 @@ def test_no_candidate_report_states_the_gap_once() -> None:
         [],
         opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -358,7 +348,6 @@ def test_light_report_avoids_repeated_reference_reason_and_opportunity() -> None
         [reference],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -393,7 +382,6 @@ def test_light_report_centralizes_shared_reference_findings() -> None:
         [first, second],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -415,7 +403,6 @@ def test_detailed_report_does_not_expose_parser_concept_groups() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        "detailed",
         {"level": "complete", "reasons": []},
     )
 
@@ -439,7 +426,6 @@ def test_report_groups_low_similarity_leads_separately() -> None:
         report.top_projects,
         report.opportunity,
         report.usage,
-        report.mode,
         {"level": "complete", "reasons": []},
     )
 
@@ -471,7 +457,6 @@ def test_three_project_report_is_plain_and_quick_to_scan() -> None:
         projects,
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -495,7 +480,6 @@ def test_report_rephrases_common_technical_terms() -> None:
         [project],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -542,7 +526,6 @@ def test_low_match_report_explains_score_without_repeating_prompt() -> None:
         [project],
         opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -569,7 +552,6 @@ def test_report_omits_empty_difference_and_missing_rows() -> None:
         [project],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 
@@ -597,7 +579,6 @@ def test_report_omits_unconfirmed_rows_and_unknown_feature_text() -> None:
         [project],
         report.opportunity,
         report.usage,
-        "light",
         {"level": "complete", "reasons": []},
     )
 

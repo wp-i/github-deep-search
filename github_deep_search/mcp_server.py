@@ -16,11 +16,9 @@ mcp = FastMCP("github-deep-search")
 
 
 @mcp.tool()
-async def github_deep_search(query: str, mode: str = "detailed", budget: str = "continue", max_results: int = 3) -> dict:
+async def github_deep_search(query: str, max_results: int = 3) -> dict:
     """Search and analyze GitHub open source projects for a natural-language requirement."""
-    normalized_mode = "detailed" if mode == "detailed" else "light"
-    normalized_budget = budget if budget in {"standard", "high", "continue"} else "continue"
-    report = await deep_search(query, normalized_mode, normalized_budget)  # type: ignore[arg-type]
+    report = await deep_search(query)  # type: ignore[arg-type]
     data = report_to_dict(report)
     data["topProjects"] = data["topProjects"][:max_results]
     return data

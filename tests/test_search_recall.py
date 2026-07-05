@@ -46,20 +46,20 @@ def test_evidence_budget_is_actually_used_after_discovery() -> None:
         for index in range(10)
     ]
 
-    asyncio.run(engine._hydrate_readmes(repos, FakeGithub(), usage, "light", "standard"))
+    asyncio.run(engine._hydrate_readmes(repos, FakeGithub(), usage))
     readme_count = len(engine._readme_cache)
-    asyncio.run(engine._hydrate_source_evidence(repos, FakeGithub(), usage, requirement, "light", "standard"))
+    asyncio.run(engine._hydrate_source_evidence(repos, FakeGithub(), usage, requirement))
 
-    assert readme_count == 8
+    assert readme_count == 10
     assert len(engine._tree_cache) == 3
     assert len(engine._file_cache) == 3
-    assert usage.github_requests == 40
+    assert usage.github_requests == 42
 
 
 def test_search_budget_leaves_room_for_evidence() -> None:
     engine = DeepSearchEngine()
-    request_limit = engine._budgeted_github_limit("standard")
-    evidence_reserve = engine._evidence_request_reserve("detailed", "standard")
+    request_limit = engine._budgeted_github_limit()
+    evidence_reserve = engine._evidence_request_reserve()
     search_limit = max(8, request_limit - evidence_reserve)
 
     assert request_limit == 200
@@ -109,8 +109,7 @@ def test_reasonable_query_returns_at_least_one_adjacent_result() -> None:
 
 def test_deep_pool_grows_with_available_candidates() -> None:
     engine = DeepSearchEngine()
-    assert engine._deep_pool_limit("detailed", "standard") == 20
-    assert engine._deep_pool_limit("light", "standard") >= 5
+    assert engine._deep_pool_limit() == 20
 
 
 def test_multilingual_queries_are_interleaved_and_repo_query_stays_broad() -> None:
@@ -144,14 +143,14 @@ def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search()
         },
     )
 
-    planned = engine._planned_repo_search_queries(requirement, "detailed", "standard")
+    planned = engine._planned_repo_search_queries(requirement)
 
     assert any("terminal ui library" in item.lower() for item in planned)
     assert any("python tui" in item.lower() for item in planned)
     assert "python" not in planned
     assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "Python 终端 UI in:name,description,readme"
     assert "terminal ui library" in engine._requirement_aliases(requirement)
-    topics = engine._planned_topic_search_queries(requirement, "detailed", "standard")
+    topics = engine._planned_topic_search_queries(requirement)
     assert "progress-bar" in topics
     assert "tui" in engine._topic_query_variants(list(requirement.evidence_aliases.values())[0])
 
@@ -305,7 +304,7 @@ def test_core_capability_queries_run_before_secondary_output_queries() -> None:
         },
     )
 
-    planned = engine._planned_repo_search_queries(requirement, "detailed", "continue")
+    planned = engine._planned_repo_search_queries(requirement)
 
     assert "星河平台 评论" in planned
     assert "StarRiver comments" in planned
@@ -471,7 +470,7 @@ def test_collect_candidates_uses_all_default_github_search_channels() -> None:
     )
 
     github = FakeGitHub()
-    candidates = asyncio.run(engine._collect_candidates(requirement, github, None, usage, "light", "standard"))
+    candidates = asyncio.run(engine._collect_candidates(requirement, github, None, usage))
 
     by_name = {repo.full_name: repo for repo in candidates}
     assert "demo/repo-hit-0" in by_name
@@ -507,38 +506,34 @@ def test_collect_candidates_runs_third_wave_only_when_two_waves_do_not_fill_top3
     )
 
     enough_after_two = WaveGitHub(hits_per_repo_query=1)
-    asyncio.run(engine._collect_candidates(requirement, enough_after_two, None, BudgetUsage(), "light", "standard"))
+    asyncio.run(engine._collect_candidates(requirement, enough_after_two, None, BudgetUsage()))
     # Unified budget path: 6 repo queries plus 1 derived alias gives 7 repo queries in two waves.
-    # Light mode keeps code/topic/issue limits at 3.
+    # Unified limits: code=5, topic=8, issue=5.
     assert len(enough_after_two.repo_queries) == 7
-    assert len(enough_after_two.code_queries) == 3
-    assert len(enough_after_two.topic_queries) == 3
-    assert len(enough_after_two.issue_queries) == 3
+    assert len(enough_after_two.code_queries) == 5
+    assert len(enough_after_two.topic_queries) == 8
+    assert len(enough_after_two.issue_queries) == 5
 
     not_enough_after_two = WaveGitHub(hits_per_repo_query=0)
-    asyncio.run(engine._collect_candidates(requirement, not_enough_after_two, None, BudgetUsage(), "light", "standard"))
+    asyncio.run(engine._collect_candidates(requirement, not_enough_after_two, None, BudgetUsage()))
     assert len(not_enough_after_two.repo_queries) >= 7
-    assert len(not_enough_after_two.code_queries) == 3
-    assert len(not_enough_after_two.topic_queries) == 3
-    assert len(not_enough_after_two.issue_queries) == 3
+    assert len(not_enough_after_two.code_queries) == 5
+    assert len(not_enough_after_two.topic_queries) == 8
+    assert len(not_enough_after_two.issue_queries) == 5
 
 
-def test_high_budget_expands_candidate_limit() -> None:
+def test_unified_budget_limits() -> None:
     engine = DeepSearchEngine()
 
-    # Unified execution path: all budgets use the same multiplier.
-    assert engine._budgeted_candidate_limit("high") == engine._budgeted_candidate_limit("standard")
-    assert engine._budgeted_github_limit("continue") == engine._budgeted_github_limit("high")
+    # Unified execution path: no budget distinction.
+    assert engine._budgeted_candidate_limit() == engine.settings.max_candidates
+    assert engine._budgeted_github_limit() == engine.settings.max_github_requests
 
 
-@pytest.mark.parametrize(
-    ("budget", "multiplier"),
-    [("standard", 1.0), ("high", 1.0), ("continue", 1.0)],
-)
-def test_request_limit_and_completeness_use_active_budget(budget: str, multiplier: float) -> None:
+def test_request_limit_and_completeness() -> None:
     engine = DeepSearchEngine()
-    active_limit = engine._budgeted_github_limit(budget)  # type: ignore[arg-type]
-    assert active_limit == int(engine.settings.max_github_requests * multiplier)
+    active_limit = engine._budgeted_github_limit()
+    assert active_limit == engine.settings.max_github_requests
 
     below_limit = BudgetUsage(github_requests=active_limit - 1)
     at_limit = BudgetUsage(github_requests=active_limit)
@@ -588,158 +583,11 @@ def test_repo_evidence_cache_avoids_duplicate_fetches() -> None:
 
     asyncio.run(engine._fetch_readme_into(repo, github))
     asyncio.run(engine._fetch_readme_into(repo, github))
-    asyncio.run(engine._fetch_source_evidence_into(repo, github, requirement, "light"))
-    asyncio.run(engine._fetch_source_evidence_into(repo, github, requirement, "light"))
+    asyncio.run(engine._fetch_source_evidence_into(repo, github, requirement))
+    asyncio.run(engine._fetch_source_evidence_into(repo, github, requirement))
 
     assert github.readme_calls == 1
     assert github.tree_calls == 1
     assert github.file_calls == 1
 
 
-def test_deep_results_preserve_reliable_default_result() -> None:
-    engine = DeepSearchEngine()
-    requirement = Requirement(
-        raw="find an accessible diagram editor",
-        intent="find an accessible diagram editor",
-        must_have_features=["screen reader support"],
-        nice_to_have_features=[],
-        target_platforms=["web"],
-        search_queries=["accessible diagram editor"],
-    )
-
-    def analysis(name: str, score: int) -> ProjectAnalysis:
-        repo = CandidateRepository(owner="demo", name=name, url=f"https://github.com/demo/{name}")
-        return ProjectAnalysis(
-            repo=repo,
-            match_score=score,
-            recommendation="Useful comparison",
-            directly_usable=score >= 80,
-            covered_features=["screen reader support"],
-            missing_features=[],
-            required_changes=[],
-            risks=[],
-            evidence=["public documentation"],
-            evidence_coverage=[EvidenceCoverage(feature="screen reader support", covered=True)],
-        )
-
-    default_project = analysis("default-hit", 75)
-    baseline = SearchReport(
-        query=requirement.raw,
-        mode="light",
-        budget="standard",
-        requirement=requirement,
-        top_projects=[default_project],
-        opportunity="",
-        summary="",
-        report_markdown="",
-        usage=BudgetUsage(),
-    )
-    current = [analysis("deep-a", 92), analysis("deep-b", 86), analysis("deep-c", 81)]
-
-    selected = engine._preserve_baseline_results(current, baseline)
-
-    assert len(selected) == 3
-    assert "demo/default-hit" in {item.repo.full_name for item in selected}
-    assert next(item for item in selected if item.repo.name == "default-hit").match_score == 75
-
-
-def test_deep_score_does_not_decrease_for_same_reliable_project() -> None:
-    engine = DeepSearchEngine()
-    requirement = Requirement(
-        raw="find a local weather station",
-        intent="find a local weather station",
-        must_have_features=["offline readings"],
-        nice_to_have_features=[],
-        target_platforms=[],
-        search_queries=["local weather station"],
-    )
-    repo = CandidateRepository(owner="demo", name="weather", url="https://github.com/demo/weather")
-    previous = ProjectAnalysis(
-        repo=repo,
-        match_score=78,
-        recommendation="Useful",
-        directly_usable=False,
-        covered_features=["offline readings"],
-        missing_features=[],
-        required_changes=[],
-        risks=[],
-        evidence=[],
-    )
-    current = ProjectAnalysis(
-        repo=repo,
-        match_score=62,
-        recommendation="Useful",
-        directly_usable=False,
-        covered_features=["offline readings"],
-        missing_features=[],
-        required_changes=[],
-        risks=[],
-        evidence=[],
-        is_reference_candidate=True,
-        confidence_level="reference",
-        reference_reason="Partial match",
-    )
-    baseline = SearchReport(
-        query=requirement.raw,
-        mode="light",
-        budget="standard",
-        requirement=requirement,
-        top_projects=[previous],
-        opportunity="",
-        summary="",
-        report_markdown="",
-        usage=BudgetUsage(),
-    )
-
-    selected = engine._preserve_baseline_results([current], baseline)
-
-    assert selected[0].match_score == 78
-    assert selected[0].is_reference_candidate is False
-    assert selected[0].confidence_level == "reliable"
-
-
-def test_deep_does_not_keep_zero_score_references_after_reliable_baseline_is_added() -> None:
-    engine = DeepSearchEngine()
-    requirement = Requirement(
-        raw="find a project",
-        intent="find a project",
-        must_have_features=["feature"],
-        nice_to_have_features=[],
-        target_platforms=[],
-        search_queries=["feature project"],
-    )
-
-    def project(name: str, score: int, reference: bool) -> ProjectAnalysis:
-        return ProjectAnalysis(
-            repo=CandidateRepository(owner="demo", name=name, url=f"https://github.com/demo/{name}"),
-            match_score=score,
-            recommendation="",
-            directly_usable=False,
-            covered_features=["feature"],
-            missing_features=[],
-            required_changes=[],
-            risks=[],
-            evidence=[],
-            is_reference_candidate=reference,
-            confidence_level="reference" if reference else "reliable",
-        )
-
-    reliable = project("default", 72, False)
-    baseline = SearchReport(
-        query=requirement.raw,
-        mode="light",
-        budget="standard",
-        requirement=requirement,
-        top_projects=[reliable],
-        opportunity="",
-        summary="",
-        report_markdown="",
-        usage=BudgetUsage(),
-    )
-
-    selected = engine._preserve_baseline_results(
-        [project("weak-a", 0, True), project("weak-b", 0, True)],
-        baseline,
-    )
-
-    assert [item.repo.full_name for item in selected] == ["demo/default"]

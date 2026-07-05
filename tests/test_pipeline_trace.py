@@ -536,7 +536,7 @@ def test_pipeline_trace_full_flow() -> None:
     # Stage 3: Candidate collection
     github = TraceGitHub()
     candidates = asyncio.run(
-        engine._collect_candidates(requirement, github, None, BudgetUsage(), "light", "standard")
+        engine._collect_candidates(requirement, github, None, BudgetUsage())
     )
 
     verify_candidate_collection(candidates, report)

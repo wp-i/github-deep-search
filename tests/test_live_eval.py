@@ -14,7 +14,6 @@ def test_live_light_eval_returns_structured_projects() -> None:
     report = asyncio.run(
         deep_search(
             "Find an open source browser extension that summarizes web pages and syncs notes to Notion.",
-            "light",
         )
     )
 
