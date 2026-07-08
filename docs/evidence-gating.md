@@ -8,7 +8,7 @@ Evidence gating is a deterministic verification step. It must not understand pro
 - `SearchSpecParser` is the first gate for diverse user input. It must preserve the current request while converting long, conversational, or multi-step workflows into repository-searchable capabilities, actions, objects, interfaces, outputs, and evidence aliases.
 - `SearchSpec.repo_search_queries`, `SearchSpec.code_search_queries`, `SearchSpec.topic_search_queries`, `SearchSpec.issue_search_queries`, and `SearchSpec.web_search_queries` own channel-specific search planning.
 - `SearchSpec.evidence_aliases` owns the concrete README/source/path phrases that can prove each `must_have`.
-- The engine owns generic evidence collection, alias sanitization, matching, scoring penalties, and reference-candidate fallback.
+- The engine owns generic evidence collection, alias sanitization, matching, scoring penalties, and adjacent/reference candidate tiering.
 - `must_have` owns the user's core desired outcome and hard constraints. `nice_to_have` owns optional additions, uncertain wording, and implementation guesses.
 
 ## Non-Negotiable Rule
@@ -34,6 +34,7 @@ Correct fixes:
 - For numbered or manual-operation workflows, preserve the user's steps as anchors, but do not force them to become literal `must_have` items when the LLM has inferred a better repository-searchable workflow capability.
 - Keep deterministic validators domain-neutral: normalize strings, deduplicate, enforce shape, and match supplied evidence aliases.
 - Return results in three tiers: reliable matches, evidence-backed partial matches, then relatively closest adjacent projects.
+- Adjacent/reference project handling must be an evidence-gated tier, not a repeated fallback patch. If a bad example fails, trace the failing stage and fix that stage directly.
 - Treat an unconfirmed core requirement as a strong score reduction and an adjacent-result label, not as a deletion rule. Never present an unconfirmed core requirement as supported.
 - Adjacent projects may be retained only when they are close to the core requirement. If the requirement names a domain/platform, the adjacent project must match that domain/platform before output/interface evidence can keep it visible. It must remain a low-score lead and keep the core capability unconfirmed.
 - A project that matches only extension details or implementation guesses is not a meaningful adjacent project. Provider credentials, API keys, deployment guesses, UI format, or optional integrations cannot compensate for an unconfirmed core outcome.

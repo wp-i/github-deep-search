@@ -1440,7 +1440,7 @@ def test_same_named_forks_do_not_fill_multiple_top_slots() -> None:
     assert [item.repo.full_name for item in selected] == ["one/TrendRadar", "three/OtherTool"]
 
 
-def test_fallback_low_similarity_leads_keep_core_evidence_backing() -> None:
+def test_adjacent_low_confidence_leads_keep_core_evidence_backing() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1460,14 +1460,14 @@ def test_fallback_low_similarity_leads_keep_core_evidence_backing() -> None:
         raw_score=21,
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
     assert leads[0].is_reference_candidate is True
 
 
-def test_fallback_low_similarity_leads_reject_description_only_adjacent_signal() -> None:
+def test_adjacent_low_confidence_leads_reject_description_only_adjacent_signal() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1487,12 +1487,12 @@ def test_fallback_low_similarity_leads_reject_description_only_adjacent_signal()
         raw_score=21,
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert leads == []
 
 
-def test_fallback_low_similarity_leads_keep_planned_discovery_evidence_only_as_lead() -> None:
+def test_adjacent_low_confidence_leads_keep_planned_discovery_evidence_only_as_lead() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1519,7 +1519,7 @@ def test_fallback_low_similarity_leads_keep_planned_discovery_evidence_only_as_l
         found_by=["github_topic:browser-workflow-automation"],
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
@@ -1529,7 +1529,7 @@ def test_fallback_low_similarity_leads_keep_planned_discovery_evidence_only_as_l
     assert leads[0].unknown_features == requirement.must_have_features
 
 
-def test_fallback_low_similarity_leads_reject_unplanned_discovery_without_evidence() -> None:
+def test_adjacent_low_confidence_leads_reject_unplanned_discovery_without_evidence() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1555,7 +1555,7 @@ def test_fallback_low_similarity_leads_reject_unplanned_discovery_without_eviden
         found_by=["github:browser tasks"],
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert leads == []
 
@@ -1586,7 +1586,7 @@ def test_single_signal_discovery_source_does_not_keep_adjacent_lead() -> None:
         found_by=["github_topic:app"],
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert leads == []
 
@@ -1617,7 +1617,7 @@ def test_multi_signal_repo_discovery_source_can_keep_adjacent_lead() -> None:
         found_by=["github:automated domain task in:name,description,readme"],
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
@@ -1650,7 +1650,7 @@ def test_multi_signal_web_discovery_source_can_keep_adjacent_lead() -> None:
         found_by=["tavily:automated domain task completion"],
     )
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
@@ -1737,7 +1737,7 @@ def test_planned_discovery_analysis_still_needs_minimum_adjacent_score() -> None
     assert selected == []
 
 
-def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence() -> None:
+def test_adjacent_low_confidence_leads_accept_domain_adjacent_feature_evidence() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1769,7 +1769,7 @@ def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence()
     )
     repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
@@ -1780,7 +1780,7 @@ def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence()
     assert "web report" in leads[0].covered_features
 
 
-def test_fallback_low_similarity_leads_have_evidence_sensitive_scores() -> None:
+def test_adjacent_low_confidence_leads_have_evidence_sensitive_scores() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1822,7 +1822,7 @@ def test_fallback_low_similarity_leads_have_evidence_sensitive_scores() -> None:
     for repo in (weak, stronger):
         repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [weak, stronger], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [weak, stronger], usage)
 
     assert len(leads) == 2
     scores = {item.repo.full_name: item.match_score for item in leads}
@@ -1831,7 +1831,7 @@ def test_fallback_low_similarity_leads_have_evidence_sensitive_scores() -> None:
     assert all(score < 50 for score in scores.values())
 
 
-def test_fallback_low_similarity_leads_reject_generic_outputs_for_domain_request() -> None:
+def test_adjacent_low_confidence_leads_reject_generic_outputs_for_domain_request() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1863,12 +1863,12 @@ def test_fallback_low_similarity_leads_reject_generic_outputs_for_domain_request
     )
     repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert leads == []
 
 
-def test_fallback_low_similarity_leads_reject_weak_core_signal_without_feature_evidence() -> None:
+def test_adjacent_low_confidence_leads_reject_weak_core_signal_without_feature_evidence() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1907,12 +1907,12 @@ def test_fallback_low_similarity_leads_reject_weak_core_signal_without_feature_e
     )
     repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert leads == []
 
 
-def test_fallback_low_similarity_leads_reject_shared_platform_wrong_core_object() -> None:
+def test_adjacent_low_confidence_leads_reject_shared_platform_wrong_core_object() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1941,7 +1941,7 @@ def test_fallback_low_similarity_leads_reject_shared_platform_wrong_core_object(
     )
     repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert repo.core_signal_score < 2.0
     assert isinstance(leads, list)

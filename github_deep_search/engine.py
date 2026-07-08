@@ -75,7 +75,7 @@ class DeepSearchEngine:
             analyses = self._with_reference_candidates(reliable_analyses, low_confidence_analyses, usage, requirement)
             if len(analyses) < self.settings.max_deep_analyze_repos and not analyses:
                 analyses.extend(
-                    self._fallback_low_similarity_leads(
+                    self._adjacent_low_confidence_leads(
                         requirement,
                         reranked,
                         usage,
@@ -1812,7 +1812,7 @@ class DeepSearchEngine:
             directly_usable=score >= 85 and len(missing) == 0,
             covered_features=covered[:8],
             missing_features=missing[:8],
-            required_changes=self._fallback_changes(missing),
+            required_changes=self._default_required_changes(missing),
             risks=risks,
             evidence=evidence,
             evidence_coverage=repo.evidence_coverage,
@@ -2265,7 +2265,7 @@ class DeepSearchEngine:
         )
         return has_core and self._supported_evidence_count(analysis.evidence_coverage) >= 2
 
-    def _fallback_low_similarity_leads(
+    def _adjacent_low_confidence_leads(
         self,
         requirement: Requirement,
         repos: list[CandidateRepository],
@@ -2363,7 +2363,7 @@ class DeepSearchEngine:
             used_families.add(family)
         if leads:
             usage.warnings.append(
-                "Added fallback low-similarity leads from ranked candidates: "
+                "Added adjacent low-confidence leads from ranked candidates: "
                 + ", ".join(item.repo.full_name for item in leads)
             )
         return leads
@@ -2652,7 +2652,7 @@ class DeepSearchEngine:
         if "作为参考候选评估，不建议直接采用" not in analysis.required_changes:
             analysis.required_changes.append("作为参考候选评估，不建议直接采用")
 
-    def _fallback_changes(self, missing: list[str]) -> list[str]:
+    def _default_required_changes(self, missing: list[str]) -> list[str]:
         if not missing:
             return ["先本地运行并验证主要流程，再决定是否集成"]
         return [f"补齐功能：{item}" for item in missing[:5]]
@@ -2763,7 +2763,7 @@ class DeepSearchEngine:
         lines.append("")
         lines.append("## 已整理的线索")
         if not analyses:
-            lines.append("- 未形成可核对项目清单；这不是理想结果，应优先检查检索词、平台别名和相邻项目兜底是否生效。")
+            lines.append("- 未形成可核对项目清单；这不是理想结果，应优先追溯 SearchSpec 解析、检索渠道和证据门槛。")
             self._append_empty_result_context(lines, requirement)
         for project_index, analysis in enumerate(analyses, start=1):
             lines.append("")

@@ -61,9 +61,15 @@ def test_rule_gate_forbids_static_language_patch_tables() -> None:
 
     contributing = Path("CONTRIBUTING.md").read_text(encoding="utf-8")
     evidence_gating = Path("docs/evidence-gating.md").read_text(encoding="utf-8")
+    real_runs = Path("docs/REAL_RUNS.md").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
     assert "The same rule applies to tests" in contributing
+    assert "trace -> locate the earliest incorrect stage -> make the minimal root-cause change -> verify with real tests" in contributing
     assert "fixture, golden report, or assertion" in evidence_gating
     assert "static report rewrites" in evidence_gating
+    assert "not a repeated fallback patch" in evidence_gating
+    assert "not by adding compensating branches, downstream rescue logic, or test-only expectations" in real_runs
+    assert "追溯流程、定位最早错误阶段、做最小根因修改、用真实测试验证" in readme
 
 
 def test_parser_runtime_has_no_static_natural_language_filters() -> None:
@@ -112,6 +118,33 @@ def test_runtime_pipeline_has_no_static_semantic_patch_tables() -> None:
     ]
     for marker in forbidden_markers:
         assert marker not in runtime_sources
+
+
+def test_runtime_and_tests_do_not_reintroduce_compensating_fallback_patches() -> None:
+    sources = "\n".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in [
+            "github_deep_search/engine.py",
+            "github_deep_search/providers/llm.py",
+            "tests/test_evidence_gate.py",
+            "tests/test_search_recall.py",
+            "tests/test_spec_parser.py",
+        ]
+    )
+
+    forbidden_markers = [
+        "fallback_low_similarity",
+        "_fallback_changes",
+        "fallback low-similarity",
+        "heuristic fallback",
+        "相邻项目兜底",
+        "兜底是否生效",
+        "temporary compensation",
+        "downstream rescue",
+        "test-only rewrites",
+    ]
+    for marker in forbidden_markers:
+        assert marker not in sources
 
 
 def test_search_pipeline_has_no_configured_query_expansion_path() -> None:

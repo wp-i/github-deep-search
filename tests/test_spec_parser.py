@@ -48,7 +48,7 @@ def test_spec_parser_removes_contained_duplicate_features_without_domain_rules()
     ) == ["mobile offline classification", "bird call recording", "species result"]
 
 
-def test_literal_fallback_evidence_aliases_use_only_literal_terms() -> None:
+def test_literal_spec_evidence_aliases_use_only_literal_terms() -> None:
     parser = SearchSpecParser()
     spec = parser._literal_only_spec("deadline widget")
 
@@ -61,7 +61,7 @@ def test_literal_fallback_evidence_aliases_use_only_literal_terms() -> None:
     assert spec.web_search_queries
 
 
-def test_literal_fallback_preserves_user_phrasing_without_static_cleanup() -> None:
+def test_literal_spec_preserves_user_phrasing_without_static_cleanup() -> None:
     parser = SearchSpecParser()
     spec = parser._literal_only_spec("我想做一个windows10/11的谷歌浏览器插件，可以总结网页内容，并把摘要同步直接放置在桌面。")
 
@@ -78,7 +78,7 @@ def test_literal_fallback_preserves_user_phrasing_without_static_cleanup() -> No
     assert spec.interfaces == []
 
 
-def test_literal_fallback_uses_clause_anchors_before_raw_terms() -> None:
+def test_literal_spec_uses_clause_anchors_before_raw_terms() -> None:
     parser = SearchSpecParser()
     spec = parser._literal_only_spec("找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。")
 
@@ -288,7 +288,7 @@ def test_parser_prompt_requires_current_requirement_grounding() -> None:
     assert not any(("English " + "angles") in prompt for prompt in llm.prompts)
 
 
-def test_invalid_llm_plan_falls_back_to_literal_spec_without_translation_pass() -> None:
+def test_invalid_llm_plan_uses_literal_spec_without_translation_pass() -> None:
     class InvalidLLM:
         def __init__(self) -> None:
             self.prompts: list[str] = []

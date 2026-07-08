@@ -101,7 +101,7 @@ def test_reasonable_query_returns_at_least_one_adjacent_result() -> None:
     )
     repo.evidence_coverage = engine._build_evidence_coverage(repo, requirement)
 
-    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
     assert len(leads) >= 1
     assert leads[0].confidence_level == "lead"

@@ -101,5 +101,5 @@ class LLMClient:
                     return json.loads(cleaned[start : end + 1])
                 except json.JSONDecodeError:
                     pass
-        self.usage.warnings.append("LLM did not return valid JSON; using heuristic fallback.")
+        self.usage.warnings.append("LLM did not return valid JSON; using the literal request plan.")
         return None
