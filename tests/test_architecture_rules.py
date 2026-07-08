@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -39,6 +40,78 @@ def test_search_pipeline_does_not_use_hardcoded_business_word_lists() -> None:
     ]
     for marker in forbidden_markers:
         assert marker not in sources
+
+
+def test_rule_gate_forbids_static_language_patch_tables() -> None:
+    agents = Path("AGENTS.md").read_text(encoding="utf-8")
+
+    required_rule_text = [
+        "fixed phrase",
+        "wording pattern",
+        "language marker",
+        "Static natural-language cleanup regexes",
+        "in any language",
+        "Static stopword, weak-word, generic-word, catalog-word, report-artifact-word",
+        "fixed word or regex",
+        "Test-only static phrases",
+        "sample-specific ranking behavior",
+    ]
+    for marker in required_rule_text:
+        assert marker in agents
+
+    contributing = Path("CONTRIBUTING.md").read_text(encoding="utf-8")
+    evidence_gating = Path("docs/evidence-gating.md").read_text(encoding="utf-8")
+    assert "The same rule applies to tests" in contributing
+    assert "fixture, golden report, or assertion" in evidence_gating
+    assert "static report rewrites" in evidence_gating
+
+
+def test_parser_runtime_has_no_static_natural_language_filters() -> None:
+    parser_source = Path("github_deep_search/spec_parser.py").read_text(encoding="utf-8")
+
+    forbidden_markers = [
+        "_strip_requirement_preamble",
+        "_is_filler_requirement_clause",
+        "_is_uncertain_or_assumptive_feature",
+        "hard_markers",
+        "uncertainty_markers",
+        "causal_markers",
+        "implementation_markers",
+        "replacements = {",
+    ]
+    for marker in forbidden_markers:
+        assert marker not in parser_source
+    assert re.search(r"[\u4e00-\u9fff]", parser_source) is None
+
+
+def test_runtime_pipeline_has_no_static_semantic_patch_tables() -> None:
+    runtime_sources = "\n".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in [
+            "github_deep_search/engine.py",
+            "github_deep_search/spec_parser.py",
+        ]
+    )
+
+    forbidden_markers = [
+        "negative_before",
+        "negative_after",
+        "strong_markers",
+        "restricted_markers",
+        "does not support",
+        "not supported",
+        "not available",
+        "awesome list",
+        "curated list",
+        "newsletter",
+        "browser extension",
+        "chrome extension",
+        "open source technical research analyst",
+        "open source\", max_results",
+        "replacements = {",
+    ]
+    for marker in forbidden_markers:
+        assert marker not in runtime_sources
 
 
 def test_search_pipeline_has_no_configured_query_expansion_path() -> None:

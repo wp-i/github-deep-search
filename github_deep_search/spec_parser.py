@@ -15,7 +15,7 @@ SPEC_GROUPS = ["literal_keywords", "domains", "actions", "objects", "outputs", "
 class SearchSpecParser:
     async def parse(self, query: str, llm: LLMClient | None) -> SearchSpec:
         if llm:
-            explicit_clauses = self._explicit_requirement_clauses(query)
+            explicit_clauses = self._planning_anchors(query)
             system_prompt = "You parse product-search requirements into a strict search specification. Return JSON only."
             user_prompt = (
                     "Return JSON with keys: intent, literal_keywords, domains, actions, objects, outputs, "
@@ -31,9 +31,22 @@ class SearchSpecParser:
                     "contains only the user's core functional outcomes and hard constraints. nice_to_have contains "
                     "optional wants, uncertain phrasing, implementation guesses, credentials, providers, or runtime "
                     "assumptions unless the user explicitly says they are mandatory.\n"
+                    "- Each must_have item must be an independently verifiable repository capability or complete "
+                    "workflow outcome. Do not split a helper input, framing sentence, or dependent setup step into "
+                    "a standalone core feature unless repository evidence could prove it independently. For workflow "
+                    "requests, keep the action, object, platform/context, and expected output together when they only "
+                    "make sense as one capability.\n"
+                    "- For numbered or manual-operation workflows, do not copy the numbered steps verbatim into "
+                    "must_have unless a step is itself the repository capability. Infer the repository-searchable "
+                    "automation capability or workflow outcome that would satisfy the steps, and keep the steps "
+                    "represented through actions, objects, outputs, interfaces, queries, and evidence aliases.\n"
+                    "- For multi-step workflows, domains/actions/objects/outputs/interfaces must describe the "
+                    "interpreted workflow. Leaving all of those groups empty means the plan is invalid.\n"
                     "- Treat feasibility comments, ease-of-implementation comments, suggested implementation routes, "
                     "and phrases the user marks as uncertain as nice_to_have or implementation assumptions. They must "
                     "not become the core product identity or the first search angle.\n"
+                    "- If the user asks whether an open-source tool exists, that availability constraint belongs in "
+                    "nice_to_have or search planning. The core capability still needs to describe what the tool does.\n"
                     "- Search and scoring must be anchored on must_have first. Extension or implementation details "
                     "must never become the primary project identity.\n"
                     "- Derive query wording only from the current requirement and its structured interpretation. "
@@ -54,6 +67,8 @@ class SearchSpecParser:
                     "fallback terms.\n"
                     "- Every must_have item must have a matching evidence_aliases key. The key text must exactly match "
                     "the corresponding must_have string.\n"
+                    "- evidence_aliases must not contain extra core capability keys that are missing from must_have. "
+                    "If a capability needs aliases, it belongs in must_have or nice_to_have explicitly.\n"
                     "- Keep must_have items non-overlapping. If one item already contains another item as the same "
                     "capability, keep only the more specific item.\n"
                     "- For non-English requirements, repository and issue queries must preserve important words from "
@@ -73,13 +88,19 @@ class SearchSpecParser:
                     f"Mandatory anchors: {explicit_clauses}\n"
                     f"Requirement:\n{query}"
             )
-            for attempt in range(2):
+            for attempt in range(3):
                 prompt = user_prompt
                 if attempt:
                     prompt += (
                         "\nThe previous plan failed grounding validation. Re-plan from this requirement only. "
                         "Ensure the original-language repository and issue queries contain important terms copied "
                         "from the requirement, while keeping every channel semantically consistent. "
+                        "Do not copy framing fragments as standalone capabilities. If the request is a workflow, "
+                        "express the repository-searchable capability as a complete outcome with its action, object, "
+                        "context, and output, then populate domains/actions/objects/outputs/interfaces from the same "
+                        "current request. If the previous plan copied numbered/manual steps verbatim, replace that "
+                        "with the interpreted automation or workflow capability while preserving the step objects and "
+                        "outputs in the structured fields and search queries. "
                         f"Every one of these anchors must remain represented: {explicit_clauses}."
                     )
                 data = await llm.json_chat(system_prompt, prompt)
@@ -94,11 +115,7 @@ class SearchSpecParser:
         return self._literal_only_spec(query)
 
     def _with_anchor_queries(self, spec: SearchSpec, anchors: list[str]) -> SearchSpec:
-        anchor_queries = [
-            anchor
-            for anchor in anchors
-            if anchor.strip() and not self._is_uncertain_or_assumptive_feature(spec.raw, anchor)
-        ]
+        anchor_queries = [anchor for anchor in anchors if anchor.strip()]
         if not anchor_queries:
             return spec
         combined_queries = self._combined_anchor_queries(anchor_queries)
@@ -175,6 +192,7 @@ class SearchSpecParser:
             or self._list(data.get("implementation_assumptions"))
             or self._list(data.get("extension_requirements"))
         )
+        raw_must_have, evidence_aliases = self._align_numbered_step_features(query, raw_must_have, evidence_aliases)
         must_have, demoted = self._split_core_and_extension_features(query, raw_must_have)
         nice_to_have = self._non_redundant_features([*raw_nice_to_have, *demoted])
         return SearchSpec(
@@ -200,68 +218,137 @@ class SearchSpecParser:
 
     def _split_core_and_extension_features(self, query: str, features: list[str]) -> tuple[list[str], list[str]]:
         core: list[str] = []
-        extension: list[str] = []
+        steps = self._numbered_requirement_clauses(self._structured_requirement_body(query))
         for feature in features:
-            if self._is_uncertain_or_assumptive_feature(query, feature):
-                extension.append(feature)
-            else:
-                core.append(feature)
-        return self._non_redundant_features(core), self._non_redundant_features(extension)
+            if self._outside_structured_requirement_body(query, feature):
+                if steps and self._numbered_step_is_represented(steps, feature):
+                    core.append(feature)
+                continue
+            core.append(feature)
+        return self._non_redundant_features(core), []
 
-    def _is_uncertain_or_assumptive_feature(self, query: str, feature: str) -> bool:
-        feature_text = str(feature or "").strip()
-        if not feature_text:
-            return False
-        lowered_feature = feature_text.lower()
-        lowered_query = str(query or "").lower()
-        hard_markers = ["必须", "必需", "一定要", "required", "must", "mandatory"]
-        uncertainty_markers = [
-            "可能",
-            "也许",
-            "大概",
-            "猜想",
-            "估计",
-            "不确定",
-            "是否需要",
-            "很容易实现",
-            "容易实现",
-            "好实现",
-            "maybe",
-            "might",
-            "may need",
-            "perhaps",
-            "probably",
-            "optional",
-            "if needed",
-            "easy to implement",
-            "should be easy",
-        ]
-        if any(marker in lowered_feature for marker in hard_markers):
-            return False
-        causal_markers = ["因为", "由于", "since", "because"]
-        implementation_markers = ["可以", "可直接", "能够", "能直接", "直接抓取", "directly", "can be"]
-        if any(marker in lowered_feature for marker in causal_markers) and any(
-            marker in lowered_feature for marker in implementation_markers
+    def _align_numbered_step_features(
+        self,
+        query: str,
+        features: list[str],
+        evidence_aliases: dict[str, list[str]],
+    ) -> tuple[list[str], dict[str, list[str]]]:
+        steps = self._numbered_requirement_clauses(self._structured_requirement_body(query))
+        if not steps:
+            return features, evidence_aliases
+        candidate_features = self._non_redundant_features(
+            [
+                *features,
+                *[
+                    key
+                    for key in evidence_aliases
+                    if key not in features and not self._outside_structured_requirement_body(query, key)
+                ],
+            ]
+        )
+        if candidate_features and self._numbered_steps_are_represented(steps, candidate_features) and not self._has_split_step_fragments(
+            steps, candidate_features
         ):
-            return True
-        if any(marker in lowered_feature for marker in uncertainty_markers):
-            return True
-        feature_index = lowered_query.find(lowered_feature)
-        if feature_index < 0:
-            compact_feature = re.sub(r"\s+", "", lowered_feature)
-            compact_query = re.sub(r"\s+", "", lowered_query)
-            feature_index = compact_query.find(compact_feature)
-            if feature_index < 0:
+            return self._ensure_aliases_for_features(candidate_features, evidence_aliases)
+
+        aligned_features: list[str] = []
+        aligned_aliases: dict[str, list[str]] = {}
+        for step in steps:
+            normalized_step = re.sub(r"\s+", "", step.casefold())
+            contained = [
+                feature
+                for feature in candidate_features
+                if self._normalized_contains(normalized_step, feature)
+            ]
+            exact = [
+                feature
+                for feature in contained
+                if re.sub(r"\s+", "", feature.casefold()) == normalized_step
+            ]
+            if exact:
+                feature = exact[0]
+            elif len(contained) >= 2:
+                feature = step
+            elif contained:
+                feature = contained[0]
+            else:
+                feature = step
+            aligned_features.append(feature)
+            aliases = [feature]
+            if feature == step:
+                aliases.append(step)
+            for key, values in evidence_aliases.items():
+                normalized_key = re.sub(r"\s+", "", str(key).casefold())
+                if normalized_key and (
+                    normalized_key == re.sub(r"\s+", "", feature.casefold())
+                    or normalized_key in normalized_step
+                    or self._normalized_contains(normalized_key, step)
+                ):
+                    aliases.append(key)
+                    aliases.extend(values)
+            aligned_aliases[feature] = list(OrderedDict.fromkeys(item for item in aliases if item))[:12]
+        return self._non_redundant_features(aligned_features), aligned_aliases
+
+    def _numbered_steps_are_represented(self, steps: list[str], features: list[str]) -> bool:
+        feature_signals = [self._anchor_signals(feature) for feature in features]
+        for step in steps:
+            signals = self._anchor_signals(step)
+            if not signals:
+                continue
+            required = min(2, max(1, len(signals) // 4))
+            if not any(len(signals.intersection(candidate)) >= required for candidate in feature_signals):
                 return False
-            before = compact_query[max(0, feature_index - 18) : feature_index]
-            feature_local = compact_query[feature_index : feature_index + len(compact_feature)]
-        else:
-            before = lowered_query[max(0, feature_index - 36) : feature_index]
-            feature_local = lowered_query[feature_index : feature_index + len(lowered_feature)]
-        local = before + feature_local
-        if any(marker in local for marker in hard_markers):
+        return True
+
+    def _numbered_step_is_represented(self, steps: list[str], feature: str) -> bool:
+        feature_signals = self._anchor_signals(feature)
+        if not feature_signals:
             return False
-        return any(marker in local for marker in uncertainty_markers)
+        for step in steps:
+            signals = self._anchor_signals(step)
+            if not signals:
+                continue
+            required = min(2, max(1, len(signals) // 4))
+            if len(signals.intersection(feature_signals)) >= required:
+                return True
+        return False
+
+    def _has_split_step_fragments(self, steps: list[str], features: list[str]) -> bool:
+        for step in steps:
+            normalized_step = re.sub(r"\s+", "", step.casefold())
+            exact = False
+            contained = 0
+            for feature in features:
+                normalized_feature = re.sub(r"\s+", "", feature.casefold())
+                if not normalized_feature:
+                    continue
+                if normalized_feature == normalized_step:
+                    exact = True
+                    break
+                if normalized_feature in normalized_step:
+                    contained += 1
+            if not exact and contained >= 2:
+                return True
+        return False
+
+    @staticmethod
+    def _normalized_contains(container: str, value: str) -> bool:
+        normalized = re.sub(r"\s+", "", str(value or "").casefold())
+        return bool(normalized and normalized in container)
+
+    def _ensure_aliases_for_features(
+        self,
+        features: list[str],
+        evidence_aliases: dict[str, list[str]],
+    ) -> tuple[list[str], dict[str, list[str]]]:
+        aliases: dict[str, list[str]] = {}
+        for feature in features:
+            values = [feature]
+            for key, key_values in evidence_aliases.items():
+                if self._norm_key(key) == self._norm_key(feature):
+                    values.extend(key_values)
+            aliases[feature] = list(OrderedDict.fromkeys(item for item in values if item))[:12]
+        return features, aliases
 
     def _literal_only_spec(self, query: str) -> SearchSpec:
         literal = self._literal_terms(query)
@@ -312,7 +399,17 @@ class SearchSpecParser:
             return False
         if spec.must_have and not self._evidence_aliases_cover_must_have(spec):
             return False
+        if not spec.must_have:
+            return False
+        if not self._evidence_aliases_match_must_have(spec):
+            return False
+        if self._splits_numbered_requirement_steps(spec.raw, spec.must_have):
+            return False
         if not spec.literal_keywords and not any([spec.domains, spec.actions, spec.objects, spec.outputs]):
+            return False
+        if self._requires_structured_interpretation(spec.raw) and not any(
+            [spec.domains, spec.actions, spec.objects, spec.outputs, spec.interfaces]
+        ):
             return False
         raw_signals = self._signals(spec.raw)
         if not raw_signals:
@@ -353,81 +450,139 @@ class SearchSpecParser:
             ]
         )
         structured_signals = self._anchor_signals(structured)
+        primary_signals = self._anchor_signals(
+            " ".join(
+                [
+                    spec.intent,
+                    *spec.domains,
+                    *spec.actions,
+                    *spec.objects,
+                    *spec.outputs,
+                    *spec.interfaces,
+                    *spec.must_have,
+                ]
+            )
+        )
+        secondary_signals = self._anchor_signals(" ".join(spec.nice_to_have))
         discovery_signals = self._anchor_signals(
             " ".join([*spec.repo_search_queries, *spec.issue_search_queries])
         )
-        for clause in self._explicit_requirement_clauses(spec.raw):
+        for clause in self._planning_anchors(spec.raw):
             clause_signals = self._anchor_signals(clause)
-            required_overlap = min(2, len(clause_signals))
+            required_overlap = min(8, max(2, len(clause_signals) // 4))
             if clause_signals and len(clause_signals.intersection(structured_signals)) < required_overlap:
                 return False
-            if self._is_uncertain_or_assumptive_feature(spec.raw, clause):
+            secondary_overlap = len(clause_signals.intersection(secondary_signals))
+            primary_overlap = len(clause_signals.intersection(primary_signals))
+            if clause_signals and secondary_overlap >= required_overlap and primary_overlap < required_overlap:
+                continue
+            combined_primary_secondary = clause_signals.intersection(primary_signals | secondary_signals)
+            if secondary_overlap and primary_overlap >= 2 and len(combined_primary_secondary) >= required_overlap:
                 continue
             if clause_signals and len(clause_signals.intersection(discovery_signals)) < required_overlap:
                 return False
         return True
 
+    def _requires_structured_interpretation(self, query: str) -> bool:
+        clauses = self._explicit_requirement_clauses(query)
+        return len(clauses) >= 2 and len(self._anchor_signals(query)) >= 6
+
+    def _planning_anchors(self, query: str) -> list[str]:
+        text = re.sub(r"\s+", " ", str(query or "")).strip()
+        if not text:
+            return []
+        text = self._structured_requirement_body(text)
+        numbered = self._numbered_requirement_clauses(text)
+        if numbered:
+            return numbered
+        return [text] if len(text) >= 2 else []
+
     def _anchor_signals(self, text: str) -> set[str]:
         signals = set(re.findall(r"[a-z][a-z0-9_.-]{2,}", (text or "").lower()))
         for run in re.findall(r"[\u4e00-\u9fff]{2,}", text or ""):
             signals.update(run[index : index + 2] for index in range(len(run) - 1))
-        weak = {
-            "一个",
-            "一种",
-            "一款",
-            "需要",
-            "支持",
-            "系统",
-            "功能",
-            "能力",
-            "数据",
-            "可以",
-            "进行",
-        }
-        return {item for item in signals if item not in weak}
+        return signals
 
     def _explicit_requirement_clauses(self, query: str) -> list[str]:
         """Extract user-written product/capability anchors without domain assumptions."""
         text = re.sub(r"\s+", " ", str(query or "")).strip()
         if not text:
             return []
-        text = re.sub(r"\bwith\b", ",", text, flags=re.IGNORECASE)
-        text = re.sub(r"(?<=。)(?=最后|最好|尤其|必须|有个|也有)", "，", text)
+        text = self._structured_requirement_body(text)
+        numbered = self._numbered_requirement_clauses(text)
+        if numbered:
+            return numbered
         parts = re.split(r"[：:，,、；;。！？!?\n]", text)
         clauses: list[str] = []
         for part in parts:
-            cleaned = part.strip(" .。")
-            cleaned = re.sub(
-                r"^(?:我(?:想|需要|要)|我们(?:想|需要|要)|寻找|找|做)(?:做|找)?(?:一个|一款|一种)?",
-                "",
-                cleaned,
-            )
-            cleaned = re.sub(
-                r"^(?:i\s+(?:need|want)|we\s+(?:need|want)|looking\s+for)(?:\s+an?|\s+the)?\s+",
-                "",
-                cleaned,
-                flags=re.IGNORECASE,
-            )
-            cleaned = re.sub(
-                r"^(?:可以|可|支持|具备|并|并且|并能|而且|且能|以及|必须有|必须|尤其是|最后|最好支持|最好|有个|也有|and)\s*",
-                "",
-                cleaned,
-                flags=re.IGNORECASE,
-            )
-            cleaned = re.sub(r"^通过关键词进行", "", cleaned)
-            cleaned = re.sub(r"^生成一份", "生成", cleaned)
-            cleaned = re.sub(r"^记录相关关键词下的", "关键词", cleaned)
-            cleaned = re.sub(r"可以通过(.+?)直接运行$", r"可通过\1运行", cleaned)
-            cleaned = re.sub(r"pdf", "PDF", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"mcp", "MCP", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"top\s*10", "Top 10", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"^\d+[.)、)]\s*", "", part.strip(" .。"))
+            cleaned = cleaned.strip(" .。:：")
             if len(cleaned) >= 2:
                 clauses.append(cleaned)
         return list(OrderedDict.fromkeys(clauses))[:10]
 
+    def _numbered_requirement_clauses(self, text: str) -> list[str]:
+        markers = list(re.finditer(r"(?:^|[\s，,；;。:：])\d+[)、.)]\s*", text))
+        if not markers:
+            return []
+        clauses: list[str] = []
+        for index, marker in enumerate(markers):
+            start = marker.end()
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
+            clause = text[start:end].strip(" \t\r\n，,；;。")
+            if len(clause) >= 2:
+                clauses.append(clause)
+        return list(OrderedDict.fromkeys(clauses))[:10]
+
+    @staticmethod
+    def _structured_requirement_body(text: str) -> str:
+        value = str(text or "").strip()
+        match = re.search(r"[：:]", value)
+        if not match:
+            return value
+        before = value[: match.start()].strip()
+        after = value[match.end() :].strip()
+        if not before or not after:
+            return value
+        has_list_body = bool(re.search(r"(?:^|[\s，,；;。])\d+[)、.)]", after))
+        return after if has_list_body else value
+
+    def _outside_structured_requirement_body(self, query: str, feature: str) -> bool:
+        body = self._structured_requirement_body(query)
+        if body == str(query or "").strip():
+            return False
+        normalized_feature = re.sub(r"\s+", "", str(feature or "").casefold())
+        if not normalized_feature:
+            return True
+        normalized_body = re.sub(r"\s+", "", body.casefold())
+        return normalized_feature not in normalized_body
+
     def _evidence_aliases_cover_must_have(self, spec: SearchSpec) -> bool:
         alias_keys = {self._norm_key(key) for key, values in spec.evidence_aliases.items() if values}
         return all(self._norm_key(feature) in alias_keys for feature in spec.must_have)
+
+    def _evidence_aliases_match_must_have(self, spec: SearchSpec) -> bool:
+        feature_keys = {self._norm_key(feature) for feature in spec.must_have}
+        alias_keys = {self._norm_key(key) for key, values in spec.evidence_aliases.items() if values}
+        return bool(feature_keys) and feature_keys == alias_keys
+
+    def _splits_numbered_requirement_steps(self, query: str, features: list[str]) -> bool:
+        steps = self._numbered_requirement_clauses(self._structured_requirement_body(query))
+        if not steps:
+            return False
+        step_signals = [(step, self._anchor_signals(step)) for step in steps]
+        for feature in features:
+            normalized_feature = re.sub(r"\s+", "", str(feature or "").casefold())
+            feature_signals = self._anchor_signals(feature)
+            if not normalized_feature or not feature_signals:
+                continue
+            for step, signals in step_signals:
+                normalized_step = re.sub(r"\s+", "", step.casefold())
+                if normalized_feature == normalized_step:
+                    break
+                if normalized_feature in normalized_step:
+                    return True
+        return False
 
     def _norm_key(self, value: str) -> str:
         return re.sub(r"\s+", " ", str(value).strip().lower())
@@ -498,6 +653,8 @@ class SearchSpecParser:
         exact = str(text).strip()
         if not exact:
             return []
+        if re.search(r"[，,；;。！？!?]", exact):
+            return [exact]
         parts = self._literal_terms(exact)
         return list(OrderedDict.fromkeys([exact, *parts]))[:8]
 
@@ -509,7 +666,7 @@ class SearchSpecParser:
         if literal:
             joined = " ".join(literal[:6])
             anchors = [item for item in features if len(self._signals(item)) >= 2]
-            return list(OrderedDict.fromkeys([*anchors[:4], joined, f"{joined} github", f"{joined} open source"]))
+            return list(OrderedDict.fromkeys([*anchors[:4], joined]))
         return [query]
 
     def _literal_code_queries(self, literal: list[str]) -> list[str]:

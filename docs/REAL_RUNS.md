@@ -28,4 +28,6 @@ Trust boundary:
 - These screenshots are documentation evidence of a real run, not an in-app demo mode.
 - The runtime does not read these image files.
 - The runtime does not contain bundled reports, fake repositories, seeded rankings, repository allowlists, or static product-domain keyword packs.
+- Runtime parsing starts from the current user request and the configured LLM-generated `SearchSpec`; saved captures must not become prompt examples, static aliases, or expected-result fixtures.
+- Re-running a capture requires user-provided `GITHUB_TOKEN` and LLM credentials, plus network reachability to GitHub and the configured LLM endpoint.
 - Future screenshots should include the query, capture date, result list, and exported usage metadata so users can judge freshness and cost.

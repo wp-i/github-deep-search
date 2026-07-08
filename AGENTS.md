@@ -4,6 +4,10 @@ This repository has non-negotiable architecture rules. They are not optional
 review notes and they are not test-only expectations. Apply this gate before
 choosing an implementation strategy or editing files.
 
+These rules override local implementation convenience. If a change would make a
+sample look better by teaching the runtime a fixed phrase, wording pattern, or
+language marker, the change is forbidden even when the phrase looks generic.
+
 ## Mandatory Pre-Change Gate
 
 Before changing any search, parsing, evidence, ranking, report, or cost/usage
@@ -13,8 +17,10 @@ logic, the agent must:
 2. State the proposed implementation category in the working update:
    parsing, evidence collection, generic validation, ranking/reporting, UI, or
    usage accounting.
-3. Check the proposal against the forbidden-change list below.
-4. If the proposal fails the gate, reject that approach before editing and
+3. Trace the failing behavior through the flow: user input -> LLM `SearchSpec`
+   parsing -> search planning -> repository evidence -> ranking/reporting.
+4. Check the proposal against the forbidden-change list below.
+5. If the proposal fails the gate, reject that approach before editing and
    choose a compliant design.
 
 Do not proceed directly from a failing user-facing example to a fixture-shaped
@@ -28,10 +34,19 @@ parsing, evidence, ranking, or report pipeline:
 - Product-specific keyword packs.
 - Static synonym or alias tables.
 - Translation fallback terms or bilingual rescue maps.
+- Static natural-language cleanup regexes for prompt preambles, filler wording,
+  uncertainty markers, negation markers, optionality markers, or feasibility
+  comments in any language.
+- Static stopword, weak-word, generic-word, catalog-word, report-artifact-word,
+  output-type-word, or broad-tool-word lists used to change parsing, search,
+  evidence, ranking, filtering, confidence, or report conclusions.
 - Repository allowlists, denylists, or sample-specific ranking boosts.
 - Query-specific branches for known prompts.
 - Fixture-shaped tests that pass only because the implementation knows the
   sample topic.
+- Test-only static phrases, aliases, expected reports, or assertions that force
+  the runtime back toward fixed-word cleanup, fixed report rewriting, or
+  sample-specific ranking behavior.
 
 If a design needs one of these, the design is invalid before any code is
 written.
@@ -62,6 +77,17 @@ When behavior is wrong, use one of these directions:
 - Improve `SearchSpecParser` prompt/schema validation so the LLM produces
   better current-request `must_have`, `nice_to_have`, queries, and
   `evidence_aliases`.
+- Validate parser structure without teaching the runtime natural-language
+  phrase meanings. Allowed deterministic parser checks are structural shape,
+  field presence, deduplication, exact key coverage, punctuation/list splitting,
+  and normalization. They must not decide that a phrase is filler, optional,
+  negative, generic, broad, catalog-like, or output-only because it matches a
+  fixed word or regex.
+- For numbered or manual-operation workflows, preserve user-written steps as
+  anchors, but allow the LLM to infer the repository-searchable capability. Do
+  not force raw numbered steps back into `must_have` when the generated
+  `SearchSpec` already represents the workflow with grounded actions, objects,
+  outputs, queries, and evidence aliases.
 - Improve evidence collection from repository metadata, README, paths, and
   source files without adding product-domain knowledge.
 - Improve domain-neutral validation: normalization, deduplication, locality,

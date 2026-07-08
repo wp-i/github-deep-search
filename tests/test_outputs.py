@@ -418,6 +418,7 @@ def test_report_groups_low_similarity_leads_separately() -> None:
     lead.is_reference_candidate = True
     lead.confidence_level = "lead"
     lead.reference_reason = "低相似线索：缺少核心证据"
+    lead.covered_features = ["弱相邻片段"]
     report.top_projects = [lead]
 
     markdown = DeepSearchEngine()._write_report(
@@ -431,6 +432,8 @@ def test_report_groups_low_similarity_leads_separately() -> None:
 
     assert "相邻方向" in markdown
     assert "### 1. demo/project" in markdown
+    assert "- 符合部分：" not in markdown
+    assert "弱相邻片段" not in markdown
 
 
 def test_three_project_report_is_plain_and_quick_to_scan() -> None:
@@ -464,11 +467,11 @@ def test_three_project_report_is_plain_and_quick_to_scan() -> None:
     assert markdown.count("- 符合部分：") == 3
     assert markdown.count("- 差异部分：") == 3
     assert markdown.count("- 缺失部分：") == 3
-    for technical_term in ["README", "源码", "路径证据", "请求预算", "must_have", "MCP", "元仓库", "RAG"]:
+    for technical_term in ["README", "源码", "路径证据", "请求预算", "must_have"]:
         assert technical_term not in markdown
 
 
-def test_report_rephrases_common_technical_terms() -> None:
+def test_report_preserves_evidence_text_without_static_rephrase_table() -> None:
     from github_deep_search.engine import DeepSearchEngine
 
     report = fake_report()
@@ -483,13 +486,9 @@ def test_report_rephrases_common_technical_terms() -> None:
         {"level": "complete", "reasons": []},
     )
 
-    assert "元仓库" not in markdown
-    assert "实际代码" not in markdown
-    assert "MCP" not in markdown
-    assert "API" not in markdown
-    assert "RAG" not in markdown
-    assert "项目入口" in markdown
-    assert "配套工具" in markdown
+    assert "项目为元仓库，实际代码在 core；MCP 服务器使用 API 和 RAG" in markdown
+    assert "项目入口" not in markdown
+    assert "配套工具" not in markdown
 
 
 def test_low_match_report_explains_score_without_repeating_prompt() -> None:

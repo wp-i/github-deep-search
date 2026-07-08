@@ -5,6 +5,7 @@ Evidence gating is a deterministic verification step. It must not understand pro
 ## Ownership
 
 - The LLM/parser owns requirement understanding.
+- `SearchSpecParser` is the first gate for diverse user input. It must preserve the current request while converting long, conversational, or multi-step workflows into repository-searchable capabilities, actions, objects, interfaces, outputs, and evidence aliases.
 - `SearchSpec.repo_search_queries`, `SearchSpec.code_search_queries`, `SearchSpec.topic_search_queries`, `SearchSpec.issue_search_queries`, and `SearchSpec.web_search_queries` own channel-specific search planning.
 - `SearchSpec.evidence_aliases` owns the concrete README/source/path phrases that can prove each `must_have`.
 - The engine owns generic evidence collection, alias sanitization, matching, scoring penalties, and reference-candidate fallback.
@@ -13,20 +14,24 @@ Evidence gating is a deterministic verification step. It must not understand pro
 ## Non-Negotiable Rule
 
 Do not improve tests or search quality by adding sample-specific aliases, synonyms, feature keyword tables, translation mappings, cross-language expansion terms, or business word lists to the search/filter/evidence pipeline.
+This applies equally to development fixes and test fixes: a test fixture, golden report, or assertion that encodes sample-specific wording is the same architectural violation as adding the table to runtime code.
 
 Bad examples:
 
-- Adding a hard-coded alias table for deadlines, completion toggles, browser extensions, Notion sync, rounded corners, or any other fixture topic.
+- Adding a hard-coded alias table for any fixture topic.
 - Adding query-specific branches for known test prompts.
 - Adding a fallback translation pass or hard-coded bilingual term map to rescue one language or domain.
 - Treating a passing live sample as proof that engine-side business synonyms are acceptable.
 - Adding stopword, blacklist, curated-list, or ranking-penalty word tables that encode product-domain judgment in Python code.
+- Adding fixture-shaped assertions or golden outputs that require static report rewrites, static word deletion, or sample-topic aliases to pass.
 
 Correct fixes:
 
 - Improve the `SearchSpecParser` prompt/schema so the LLM emits better `evidence_aliases`.
+- Fix parser flow bugs that discard valid LLM interpretation or fall back to literal phrasing when the LLM already produced a grounded `SearchSpec`.
 - Validate that every `must_have` has evidence aliases.
 - Parse core and extension separately: core outcomes and hard constraints go to `must_have`; optional additions, provider choices, credentials, and uncertain implementation guesses go to `nice_to_have`.
+- For numbered or manual-operation workflows, preserve the user's steps as anchors, but do not force them to become literal `must_have` items when the LLM has inferred a better repository-searchable workflow capability.
 - Keep deterministic validators domain-neutral: normalize strings, deduplicate, enforce shape, and match supplied evidence aliases.
 - Return results in three tiers: reliable matches, evidence-backed partial matches, then relatively closest adjacent projects.
 - Treat an unconfirmed core requirement as a strong score reduction and an adjacent-result label, not as a deletion rule. Never present an unconfirmed core requirement as supported.
@@ -41,3 +46,11 @@ Correct fixes:
 - When returning an empty project list, include a concise user-facing explanation of searched channels, why candidates were filtered, and the next search strategy.
 
 Hard-coded infrastructure constants are allowed only when they are not product-domain judgment, for example API paths, default request limits, output field names, or UI labels. Product meaning must come from the current user input, generated `SearchSpec`, and repository evidence. Moving a fixture-shaped keyword table from Python into JSON, a translation fallback, a prompt example, or a test fixture does not make it acceptable.
+
+## Runtime Prerequisites
+
+Real evidence gating depends on real discovery. A normal run needs:
+
+- GitHub API access and a configured read-only `GITHUB_TOKEN`.
+- An OpenAI-compatible LLM configured through `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL`.
+- Network reachability to the chosen providers. The project does not bundle a VPN; users should configure normal proxy environment variables when their network cannot reach GitHub or the selected LLM endpoint.

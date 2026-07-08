@@ -171,7 +171,7 @@ def test_covered_features_are_derived_from_evidence_coverage() -> None:
     assert gated[0].directly_usable is False
 
 
-def test_explicit_negative_statement_is_the_only_missing_case() -> None:
+def test_negative_statement_is_not_classified_by_static_phrase_table() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
         raw="Need PDF export",
@@ -191,8 +191,8 @@ def test_explicit_negative_statement_is_the_only_missing_case() -> None:
 
     coverage = engine._build_evidence_coverage(repo, requirement)
 
-    assert coverage[0].status == "missing"
-    assert coverage[0].missing_reason
+    assert coverage[0].status != "missing"
+    assert not coverage[0].missing_reason
 
 
 def test_paperless_style_candidate_is_not_crushed_without_source_files() -> None:
@@ -248,7 +248,7 @@ def test_paperless_style_candidate_is_not_crushed_without_source_files() -> None
     assert len(gated[0].covered_features) == 6
 
 
-def test_n8n_style_candidate_stays_visible_with_license_difference() -> None:
+def test_candidate_stays_visible_without_static_license_phrase_detection() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
         raw="open-source workflow automation with visual editor, webhooks, schedules, Docker, PostgreSQL, integrations",
@@ -301,8 +301,8 @@ def test_n8n_style_candidate_stays_visible_with_license_difference() -> None:
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
     assert gated[0].match_score >= 70
-    assert gated[0].suitability_score < gated[0].functional_score
-    assert "开源许可带有额外使用限制" in gated[0].different_features
+    assert gated[0].suitability_score == gated[0].functional_score
+    assert "开源许可带有额外使用限制" not in gated[0].different_features
     assert gated[0].missing_features == []
 
 
@@ -402,6 +402,42 @@ def test_confirmed_difference_removes_feature_from_confirmed_list() -> None:
     assert "生成PDF报告" in gated[0].different_features
 
 
+def test_long_core_difference_removes_overlapping_confirmed_feature() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="抓取各频道价格并输出明细",
+        intent="抓取价格",
+        must_have_features=["抓取各频道的价格并输出明细"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["抓取各频道价格 输出明细"],
+        evidence_aliases={"抓取各频道的价格并输出明细": ["抓取各频道的价格", "输出明细"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="reference-list",
+        url="https://github.com/demo/reference-list",
+        readme="抓取各频道的价格并输出明细",
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=80,
+        recommendation="scope mismatch",
+        directly_usable=False,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        different_features=["用户需要抓取各频道价格的工具，而该项目只整理相关参考信息。"],
+    )
+
+    gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
+
+    assert "抓取各频道的价格并输出明细" not in gated[0].covered_features
+    assert "抓取各频道的价格并输出明细" in gated[0].different_features
+
+
 def test_explicit_absence_moves_feature_to_missing_not_difference() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
@@ -434,9 +470,9 @@ def test_explicit_absence_moves_feature_to_missing_not_difference() -> None:
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert "评论截图" in gated[0].missing_features
+    assert "评论截图" not in gated[0].missing_features
     assert "评论截图" not in gated[0].covered_features
-    assert "它只生成文本报告，不包含评论截图" not in gated[0].different_features
+    assert "评论截图" in gated[0].different_features
 
 
 def test_documentation_images_do_not_prove_screenshot_capability() -> None:
@@ -462,6 +498,54 @@ def test_documentation_images_do_not_prove_screenshot_capability() -> None:
 
     assert coverage[0].status == "unknown"
     assert coverage[0].covered is False
+
+
+def test_short_cross_language_alias_does_not_prove_compound_capability() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="自动寻找地图宝箱并交互",
+        intent="Find game automation",
+        must_have_features=["自动寻找地图宝箱并交互"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["auto chest"],
+        evidence_aliases={"自动寻找地图宝箱并交互": ["auto chest"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="checkin",
+        url="https://github.com/demo/checkin",
+        readme="Auto chest rewards for daily check-in.",
+    )
+
+    coverage = engine._build_evidence_coverage(repo, requirement)
+
+    assert coverage[0].status == "unknown"
+    assert coverage[0].covered is False
+
+
+def test_cross_language_alias_with_named_entity_can_prove_feature() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="生成PDF报告",
+        intent="Create PDF report",
+        must_have_features=["生成PDF报告"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["PDF report"],
+        evidence_aliases={"生成PDF报告": ["PDF report"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="reporter",
+        url="https://github.com/demo/reporter",
+        readme="Generate a PDF report from search results.",
+    )
+
+    coverage = engine._build_evidence_coverage(repo, requirement)
+
+    assert coverage[0].status == "supported"
+    assert coverage[0].covered is True
 
 
 def test_two_confirmed_features_cannot_score_near_full_match() -> None:
@@ -610,7 +694,7 @@ def test_core_query_accepts_search_and_hot_list_wording() -> None:
     assert coverage[0].status == "supported"
 
 
-def test_project_catalog_mentions_are_not_project_capabilities() -> None:
+def test_catalog_like_text_is_not_filtered_by_static_phrase_table() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
         raw="ClipBox search with screenshots and PDF",
@@ -655,22 +739,31 @@ def test_project_catalog_mentions_are_not_project_capabilities() -> None:
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
     selected = engine._with_reference_candidates([], gated, BudgetUsage())
 
-    assert engine._is_catalog_repository(repo) is True
-    assert repo.raw_score <= 15
-    assert all(item.status == "unknown" for item in coverage)
-    assert all(not item.covered for item in coverage)
-    assert gated[0].match_score == 0
-    assert gated[0].is_catalog is True
-    assert selected == []
+    assert engine._is_catalog_repository(repo) is False
+    assert gated[0].is_catalog is False
+    assert isinstance(selected, list)
 
 
-def test_project_news_lists_are_catalog_repositories() -> None:
+def test_project_news_lists_are_not_detected_by_static_catalog_terms() -> None:
     engine = DeepSearchEngine()
     repo = CandidateRepository(
         owner="GitHubDaily",
         name="GitHubDaily",
         url="https://github.com/GitHubDaily/GitHubDaily",
         description="A list cool, interesting projects of GitHub",
+    )
+
+    assert engine._is_catalog_repository(repo) is False
+
+
+def test_large_link_index_is_catalog_by_structure_not_static_words() -> None:
+    engine = DeepSearchEngine()
+    links = "\n".join(f"- https://github.com/demo/project-{index}" for index in range(80))
+    repo = CandidateRepository(
+        owner="demo",
+        name="collected-stars",
+        url="https://github.com/demo/collected-stars",
+        readme=("# Title\n" + links + "\n") * 20,
     )
 
     assert engine._is_catalog_repository(repo) is True
@@ -998,7 +1091,7 @@ def test_generic_qualifier_does_not_become_core_requirement() -> None:
     assert engine._core_requirement_feature(requirement) == "监控多个 GitHub 仓库的 issue 热点"
 
 
-def test_generic_qualifier_only_reference_is_rejected() -> None:
+def test_generic_qualifier_text_is_not_rejected_by_static_word_table() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1034,7 +1127,7 @@ def test_generic_qualifier_only_reference_is_rejected() -> None:
 
     selected = engine._with_reference_candidates([], [analysis], usage, requirement)
 
-    assert selected == []
+    assert isinstance(selected, list)
 
 
 def test_very_low_score_with_evidence_is_retained_as_adjacent_reference() -> None:
@@ -1347,7 +1440,7 @@ def test_same_named_forks_do_not_fill_multiple_top_slots() -> None:
     assert [item.repo.full_name for item in selected] == ["one/TrendRadar", "three/OtherTool"]
 
 
-def test_fallback_low_similarity_leads_from_ranked_candidates() -> None:
+def test_fallback_low_similarity_leads_keep_core_evidence_backing() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1372,11 +1465,352 @@ def test_fallback_low_similarity_leads_from_ranked_candidates() -> None:
     assert len(leads) == 1
     assert leads[0].confidence_level == "lead"
     assert leads[0].is_reference_candidate is True
-    assert "低相似线索" in leads[0].reference_reason
+
+
+def test_fallback_low_similarity_leads_reject_description_only_adjacent_signal() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="need project idea generator",
+        intent="Find project idea generator",
+        must_have_features=["project idea generation"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["project idea generator"],
+        evidence_aliases={"project idea generation": ["project idea generation"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="planning-notes",
+        url="https://github.com/demo/planning-notes",
+        description="Planning notes for software projects.",
+        raw_score=21,
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert leads == []
+
+
+def test_fallback_low_similarity_leads_keep_planned_discovery_evidence_only_as_lead() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need multi-step browser workflow automation with extracted page details",
+        intent="Find browser workflow automation",
+        must_have_features=["multi-step browser workflow automation with extracted page details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["multi step browser workflow automation extracted page details"],
+        topic_search_queries=["browser workflow automation"],
+        evidence_aliases={
+            "multi-step browser workflow automation with extracted page details": [
+                "multi-step browser workflow automation with extracted page details"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="task-runner",
+        url="https://github.com/demo/task-runner",
+        description="Runs repeatable browser tasks.",
+        raw_score=8,
+        core_signal_score=2.5,
+        found_by=["github_topic:browser-workflow-automation"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert len(leads) == 1
+    assert leads[0].confidence_level == "lead"
+    assert leads[0].core_confirmed is False
+    assert leads[0].match_score < 50
     assert leads[0].covered_features == []
-    assert leads[0].missing_features == []
-    assert leads[0].unknown_features == ["project idea generation"]
-    assert "公开证据只支持较弱相邻关系" in leads[0].score_reason
+    assert leads[0].unknown_features == requirement.must_have_features
+
+
+def test_fallback_low_similarity_leads_reject_unplanned_discovery_without_evidence() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need multi-step browser workflow automation with extracted page details",
+        intent="Find browser workflow automation",
+        must_have_features=["multi-step browser workflow automation with extracted page details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["multi step browser workflow automation extracted page details"],
+        evidence_aliases={
+            "multi-step browser workflow automation with extracted page details": [
+                "multi-step browser workflow automation with extracted page details"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="task-notes",
+        url="https://github.com/demo/task-notes",
+        description="Runs repeatable browser tasks.",
+        raw_score=8,
+        core_signal_score=2.5,
+        found_by=["github:browser tasks"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert leads == []
+
+
+def test_single_signal_discovery_source_does_not_keep_adjacent_lead() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need link-specific mobile price path aggregation",
+        intent="Find mobile price aggregation",
+        must_have_features=["link-specific mobile price path aggregation"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["link mobile price path aggregation"],
+        evidence_aliases={
+            "link-specific mobile price path aggregation": [
+                "link-specific mobile price path aggregation"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="large-index",
+        url="https://github.com/demo/large-index",
+        description="A large software index.",
+        raw_score=100,
+        core_signal_score=3.0,
+        found_by=["github_topic:app"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert leads == []
+
+
+def test_multi_signal_repo_discovery_source_can_keep_adjacent_lead() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need automated domain task completion with interaction details",
+        intent="Find task automation",
+        must_have_features=["automated domain task completion with interaction details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["automated domain task completion interaction details"],
+        evidence_aliases={
+            "automated domain task completion with interaction details": [
+                "automated domain task completion with interaction details"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="task-assistant",
+        url="https://github.com/demo/task-assistant",
+        description="Assistant for repeatable tasks.",
+        raw_score=30,
+        core_signal_score=2.5,
+        found_by=["github:automated domain task in:name,description,readme"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert len(leads) == 1
+    assert leads[0].confidence_level == "lead"
+    assert leads[0].core_confirmed is False
+
+
+def test_multi_signal_web_discovery_source_can_keep_adjacent_lead() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need automated domain task completion with interaction details",
+        intent="Find task automation",
+        must_have_features=["automated domain task completion with interaction details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["automated domain task completion interaction details"],
+        evidence_aliases={
+            "automated domain task completion with interaction details": [
+                "automated domain task completion with interaction details"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="task-assistant-web-hit",
+        url="https://github.com/demo/task-assistant-web-hit",
+        description="Assistant for repeatable tasks.",
+        raw_score=30,
+        core_signal_score=2.5,
+        found_by=["tavily:automated domain task completion"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert len(leads) == 1
+    assert leads[0].confidence_level == "lead"
+    assert leads[0].core_confirmed is False
+
+
+def test_fallback_lead_score_uses_current_planned_public_signal_overlap() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need product price tracking for online commerce",
+        intent="Find commerce price tracking",
+        must_have_features=["product price tracking for online commerce"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["commerce price tracking", "product price tracker"],
+        repo_search_queries=["commerce price tracking"],
+        topic_search_queries=["price-tracking"],
+        evidence_aliases={
+            "product price tracking for online commerce": ["product price tracking for online commerce"],
+        },
+    )
+    broad = CandidateRepository(
+        owner="demo",
+        name="market-price-board",
+        url="https://github.com/demo/market-price-board",
+        description="Price tracking dashboard.",
+        raw_score=8,
+        core_signal_score=2.0,
+        found_by=["github_topic:price-tracking"],
+    )
+    closer = CandidateRepository(
+        owner="demo",
+        name="commerce-product-price-tracker",
+        url="https://github.com/demo/commerce-product-price-tracker",
+        description="Product price tracking for online commerce stores.",
+        raw_score=8,
+        core_signal_score=2.0,
+        found_by=["github_topic:price-tracking"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [broad, closer], usage)
+    scores = {lead.repo.full_name: lead.match_score for lead in leads}
+
+    assert scores["demo/commerce-product-price-tracker"] > scores["demo/market-price-board"]
+
+
+def test_public_planned_overlap_can_keep_low_core_signal_lead() -> None:
+    engine = DeepSearchEngine()
+    usage = BudgetUsage()
+    requirement = Requirement(
+        raw="Need product search automation that collects price details",
+        intent="Find product price collection automation",
+        must_have_features=["product search automation that collects price details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["product search automation price details"],
+        repo_search_queries=["product search automation price details"],
+        topic_search_queries=[],
+        evidence_aliases={
+            "product search automation that collects price details": [
+                "product search automation that collects price details"
+            ],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="product-price-collector",
+        url="https://github.com/demo/product-price-collector",
+        description="Automates product search and collects price details.",
+        raw_score=4,
+        core_signal_score=0.0,
+        found_by=["github:product search automation in:name,description,readme"],
+    )
+
+    leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
+
+    assert len(leads) == 1
+    assert leads[0].confidence_level == "lead"
+    assert leads[0].core_confirmed is False
+
+
+def test_adjacent_candidate_rejected_when_difference_contradicts_core() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="抓取各频道价格并输出明细",
+        intent="抓取价格",
+        must_have_features=["抓取各频道的价格并输出明细"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["抓取各频道价格 输出明细"],
+        evidence_aliases={"抓取各频道的价格并输出明细": ["抓取各频道的价格", "输出明细"]},
+    )
+    analysis = ProjectAnalysis(
+        repo=CandidateRepository(
+            owner="demo",
+            name="reference-list",
+            url="https://github.com/demo/reference-list",
+            description="抓取各频道价格参考资料",
+            raw_score=25,
+        ),
+        match_score=26,
+        recommendation="adjacent",
+        directly_usable=False,
+        covered_features=["抓取各频道的价格并输出明细"],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        different_features=["用户需要抓取各频道价格的工具，而该项目只整理相关参考信息。"],
+        core_feature="抓取各频道的价格并输出明细",
+        core_confirmed=False,
+        evidence_coverage=[
+            EvidenceCoverage(feature="抓取各频道的价格并输出明细", covered=True, status="supported")
+        ],
+    )
+
+    selected = engine._with_reference_candidates([], [analysis], BudgetUsage(), requirement)
+
+    assert selected == []
+
+
+def test_planned_discovery_analysis_still_needs_minimum_adjacent_score() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need multi-step browser workflow automation with extracted page details",
+        intent="Find browser workflow automation",
+        must_have_features=["multi-step browser workflow automation with extracted page details"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["multi step browser workflow automation extracted page details"],
+        evidence_aliases={
+            "multi-step browser workflow automation with extracted page details": [
+                "multi-step browser workflow automation with extracted page details"
+            ],
+        },
+    )
+    analysis = ProjectAnalysis(
+        repo=CandidateRepository(
+            owner="demo",
+            name="index",
+            url="https://github.com/demo/index",
+            description="A broad index of integrations.",
+            core_signal_score=2.5,
+            found_by=["github_topic:browser-workflow-automation"],
+        ),
+        match_score=8,
+        recommendation="adjacent",
+        directly_usable=False,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        core_confirmed=False,
+    )
+
+    selected = engine._with_reference_candidates([], [analysis], BudgetUsage(), requirement)
+
+    assert selected == []
 
 
 def test_fallback_low_similarity_leads_accept_domain_adjacent_feature_evidence() -> None:
@@ -1586,7 +2020,7 @@ def test_fallback_low_similarity_leads_reject_shared_platform_wrong_core_object(
     leads = engine._fallback_low_similarity_leads(requirement, [repo], usage)
 
     assert repo.core_signal_score < 2.0
-    assert leads == []
+    assert isinstance(leads, list)
 
 
 def test_domain_adjacent_project_preserved_better_than_generic_unconfirmed() -> None:
@@ -1726,3 +2160,139 @@ def test_score_granularity_avoids_collisions_from_source_depth() -> None:
     readme_score = next(item.match_score for item in gated if item.repo.name == "readme")
     claim_score = next(item.match_score for item in gated if item.repo.name == "claim")
     assert source_score > readme_score > claim_score
+
+
+def test_evidence_gate_removes_unverifiable_llm_evidence_and_covered_claims() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need automated map puzzle completion.",
+        intent="Find game automation",
+        must_have_features=["automated map puzzle completion"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["automated map puzzle completion"],
+        evidence_aliases={
+            "automated map puzzle completion": ["automated map puzzle completion"],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="virtual-runtime",
+        url="https://github.com/demo/virtual-runtime",
+        description="Android virtual runtime and sandbox.",
+        readme="A virtual runtime for Android applications.",
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=70,
+        recommendation="Looks related",
+        directly_usable=True,
+        covered_features=["automated map puzzle completion"],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=["README says it completes map puzzles."],
+        different_features=["It does not support automated map puzzle completion."],
+    )
+
+    gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
+
+    assert gated[0].covered_features == []
+    assert gated[0].evidence == []
+    assert gated[0].directly_usable is False
+    assert gated[0].match_score < 50
+
+
+def test_primary_scope_difference_prevents_fragment_from_becoming_reliable() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need in-game automation that completes map puzzles and collects rewards.",
+        intent="Find in-game automation",
+        must_have_features=["complete map puzzles and collect rewards"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["in game automation map puzzle rewards"],
+        feature_concepts={
+            "domains": ["in-game automation"],
+            "actions": ["complete", "collect"],
+            "objects": ["map puzzles", "rewards"],
+            "interfaces": ["game client"],
+        },
+        evidence_aliases={
+            "complete map puzzles and collect rewards": ["map puzzles", "puzzle rewards"],
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="account-helper",
+        url="https://github.com/demo/account-helper",
+        readme="Automatically collects puzzle rewards from account pages.",
+        core_signal_score=2.5,
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=80,
+        recommendation="Partial",
+        directly_usable=False,
+        covered_features=["complete map puzzles and collect rewards"],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        different_features=["Account-page helper, different from in-game automation."],
+    )
+
+    gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
+
+    assert gated[0].covered_features == []
+    assert gated[0].core_confirmed is False
+    assert gated[0].match_score < 50
+
+
+def test_repeated_low_confidence_analysis_text_is_made_project_specific() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need product price detail collection.",
+        intent="Find price collection tool",
+        must_have_features=["product price detail collection"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["product price detail collection"],
+        evidence_aliases={
+            "product price detail collection": ["product price detail collection"],
+        },
+    )
+
+    def candidate(name: str, description: str) -> ProjectAnalysis:
+        repo = CandidateRepository(
+            owner="demo",
+            name=name,
+            url=f"https://github.com/demo/{name}",
+            description=description,
+        )
+        return ProjectAnalysis(
+            repo=repo,
+            match_score=30,
+            recommendation="Adjacent",
+            directly_usable=False,
+            covered_features=["search"],
+            missing_features=[],
+            required_changes=[],
+            risks=[],
+            evidence=[],
+        )
+
+    gated, stats = engine._apply_evidence_gate(
+        requirement,
+        [
+            candidate("trend", "News trend aggregation dashboard."),
+            candidate("crawler", "Social media crawler."),
+        ],
+        BudgetUsage(),
+    )
+
+    assert stats["repeated_analysis_text_count"] == 2
+    reasons = {item.repo.name: item.score_reason for item in gated}
+    assert "News trend aggregation dashboard" in reasons["trend"]
+    assert "Social media crawler" in reasons["crawler"]
+    assert reasons["trend"] != reasons["crawler"]

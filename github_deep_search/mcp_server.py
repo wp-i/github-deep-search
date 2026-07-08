@@ -17,7 +17,7 @@ mcp = FastMCP("github-deep-search")
 
 @mcp.tool()
 async def github_deep_search(query: str, max_results: int = 3) -> dict:
-    """Search and analyze GitHub open source projects for a natural-language requirement."""
+    """Search and analyze GitHub repositories for a natural-language requirement."""
     report = await deep_search(query)  # type: ignore[arg-type]
     data = report_to_dict(report)
     data["topProjects"] = data["topProjects"][:max_results]

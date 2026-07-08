@@ -6,12 +6,14 @@ GitHub Deep Search is optimized for one job: help builders quickly discover whet
 
 - Improve first-run onboarding and example queries.
 - Add more actionable error messages for missing keys, rate limits, and provider failures.
+- Keep README, contributing docs, and evidence-gating docs aligned on required keys, network reachability, and trust boundaries.
 - Expand rendered Web regression coverage for mobile and narrow desktop layouts.
 - Improve report structure for direct reuse, reference-only, and adjacent-project candidates.
 
 ## Search Quality
 
-- Improve `SearchSpec` parsing for ambiguous product ideas.
+- Improve `SearchSpec` parsing for ambiguous product ideas, long conversational requests, and numbered manual-operation workflows.
+- Add parser diagnostics that make it clear when a bad result started from requirement parsing instead of evidence ranking.
 - Add stronger evidence coverage scoring without hard-coded product-domain word packs.
 - Better distinguish catalogs, templates, prototypes, and production-ready projects.
 - Add saved live-eval cases that contributors can run with their own credentials.

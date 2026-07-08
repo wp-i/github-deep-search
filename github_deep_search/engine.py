@@ -7,6 +7,7 @@ import re
 import time
 from collections import OrderedDict
 from difflib import SequenceMatcher
+from typing import Sequence
 
 from github_deep_search.config import Settings, get_settings
 from github_deep_search.models import (
@@ -288,7 +289,7 @@ class DeepSearchEngine:
                 if usage.tavily_credits >= self.settings.max_tavily_credits:
                     usage.warnings.append("Tavily budget reached during cross-validation.")
                     break
-                results = await tavily.search(f"site:github.com {search_query} open source", max_results=5)
+                results = await tavily.search(f"site:github.com {search_query}", max_results=5)
                 repo_pairs: list[tuple[str, str]] = []
                 for item in results:
                     url_pair = normalize_repo_url(str(item.get("url") or ""))
@@ -513,7 +514,10 @@ class DeepSearchEngine:
             aliases.extend(self._combined_core_alias_queries(core_aliases))
             core_queries.extend(aliases)
         core_queries.extend(domains[:4])
-        channel_queries = requirement.repo_search_queries or requirement.search_queries
+        channel_queries = self._merge_queries(
+            [*requirement.repo_search_queries, *requirement.search_queries],
+            limit=20,
+        )
         planned = [
             query
             for query in [*channel_queries, *core_queries]
@@ -582,31 +586,7 @@ class DeepSearchEngine:
 
     @staticmethod
     def _generic_search_signals() -> set[str]:
-        return {
-            "github",
-            "open",
-            "source",
-            "opensource",
-            "project",
-            "projects",
-            "repo",
-            "repository",
-            "repositories",
-            "tool",
-            "tools",
-            "software",
-            "system",
-            "app",
-            "apps",
-            "library",
-            "libraries",
-            "开源",
-            "项目",
-            "仓库",
-            "软件",
-            "工具",
-            "系统",
-        }
+        return set()
 
     def _topic_query_variants(self, phrases: list[str]) -> list[str]:
         variants: list[str] = []
@@ -642,11 +622,22 @@ class DeepSearchEngine:
             for value in concepts.get(group, [])
             if str(value).strip()
         ]
-        planned = [
-            *requirement.topic_search_queries,
-            *self._topic_query_variants([*alias_phrases, *concept_phrases]),
-            *domains,
+        variant_groups = [
+            [query]
+            for query in requirement.topic_search_queries
+            if str(query).strip()
         ]
+        variant_groups.extend(
+            self._topic_query_variants([phrase])
+            for phrase in [*alias_phrases, *concept_phrases]
+            if phrase
+        )
+        planned: list[str] = []
+        for index in range(max((len(group) for group in variant_groups), default=0)):
+            for group in variant_groups:
+                if index < len(group):
+                    planned.append(group[index])
+        planned.extend(domains)
         return self._merge_queries(planned, limit=limit)
 
     @staticmethod
@@ -685,35 +676,6 @@ class DeepSearchEngine:
         words = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", query)
         if not words:
             return query
-        generic = {
-            "github",
-            "open",
-            "source",
-            "opensource",
-            "project",
-            "projects",
-            "repo",
-            "repository",
-            "tool",
-            "tools",
-            "software",
-            "system",
-            "app",
-            "apps",
-            "find",
-            "need",
-            "want",
-            "looking",
-            "开源",
-            "项目",
-            "仓库",
-            "软件",
-            "工具",
-            "系统",
-        }
-        filtered = [word for word in words if word.lower() not in generic]
-        if len(filtered) >= 2:
-            words = filtered
         # GitHub joins plain words as AND conditions. Long product sentences
         # become so restrictive that the canonical project disappears.
         clean = " ".join(words[:3])
@@ -885,47 +847,12 @@ class DeepSearchEngine:
         return 0.0
 
     def _is_catalog_repository(self, repo: CandidateRepository) -> bool:
-        name = repo.name.lower()
-        public_text = f"{repo.description} {repo.readme[:2500]}".lower()
-        if name.startswith("awesome-") or name.endswith("-awesome"):
-            return True
-        if re.search(r"(?:^|[-_])(?:book|intro|tutorial|course|lecture|handbook|guide)(?:$|[-_])", name):
-            return True
-        strong_markers = {
-            "curated list",
-            "project list",
-            "projects list",
-            "directory of projects",
-            "collection of projects",
-            "list of projects",
-            "list cool",
-            "interesting projects",
-            "awesome list",
-            "newsletter",
-            "course materials",
-            "lecture notes",
-            "textbook",
-            "study guide",
-            "learning notes",
-            "项目列表",
-            "项目合集",
-            "资源列表",
-            "软件目录",
-            "产品目录",
-            "聚合所有",
-            "课程资料",
-            "课程笔记",
-            "学习笔记",
-            "教程",
-            "教材",
-            "讲义",
-        }
-        if any(marker in public_text for marker in strong_markers):
-            return True
-        if re.search(r"\blist\b.{0,80}\bprojects?\b|\bprojects?\b.{0,80}\blist\b", public_text):
-            return True
-        if re.search(r"\b(?:daily|weekly|monthly)\b", name) and re.search(r"\bprojects?\b", public_text):
-            return True
+        readme = str(repo.readme or "")
+        if len(readme) >= 20_000:
+            github_links = len(re.findall(r"https?://github\.com/[^)\s]+", readme, flags=re.IGNORECASE))
+            external_links = len(re.findall(r"https?://", readme, flags=re.IGNORECASE))
+            if github_links >= 50 and external_links >= github_links:
+                return True
         return False
 
     def _source_quality_score(self, repo: CandidateRepository) -> float:
@@ -1340,24 +1267,10 @@ class DeepSearchEngine:
         lowered = str(path or "").replace("\\", "/").lower()
         if lowered.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico")):
             return False
-        parts = {part for part in lowered.split("/") if part}
-        if parts.intersection({"screenshots", "screenshot", "images", "image", "assets"}):
-            return False
         return True
 
     def _explicit_missing_reason(self, text: str, aliases: set[str]) -> str:
         """Only classify a feature as missing when the project says so explicitly."""
-        lowered = str(text or "").lower()
-        if not lowered:
-            return ""
-        negative_before = r"(?:does not support|doesn't support|not supported|without|unavailable|不支持|不提供|不包含|无法)"
-        negative_after = r"(?:is not supported|is unavailable|not available|不受支持|不可用)"
-        for alias in sorted(aliases, key=len, reverse=True):
-            escaped = re.escape(alias.lower())
-            if re.search(rf"{negative_before}.{{0,48}}{escaped}", lowered, flags=re.DOTALL):
-                return f"项目说明明确表示不提供「{alias}」"
-            if re.search(rf"{escaped}.{{0,32}}{negative_after}", lowered, flags=re.DOTALL):
-                return f"项目说明明确表示不提供「{alias}」"
         return ""
 
     def _rerank_by_evidence(
@@ -1492,65 +1405,15 @@ class DeepSearchEngine:
 
     @staticmethod
     def _is_generic_qualifier_feature(feature: str) -> bool:
-        text = re.sub(r"\s+", "", str(feature or "").casefold())
-        if not text:
-            return False
-        ascii_text = re.sub(r"[^a-z0-9]+", "", text)
-        if re.fullmatch(
-            r"(?:open|source|opensource(?:tools?|projects?)?|tools?|projects?|software|apps?|applications?|repos?|repositories?)",
-            ascii_text,
-        ):
-            return True
-        cjk_text = re.sub(r"[^\u4e00-\u9fff]+", "", text)
-        return bool(cjk_text and re.fullmatch(r"(?:开源)?(?:工具|项目|软件|应用)?", cjk_text))
+        return False
 
     @staticmethod
     def _is_broad_tool_label(feature: str) -> bool:
-        text = re.sub(r"\s+", "", str(feature or "").lower())
-        if not text:
-            return False
-        if re.search(r"(?:工具|项目|软件|应用)$", text) and len(text) <= 12:
-            return True
-        return bool(re.fullmatch(r"[a-z0-9_.-]*(?:tool|project|software|app|application)s?", text))
+        return False
 
     @staticmethod
     def _is_output_artifact_feature(feature: str) -> bool:
-        text = str(feature or "").strip().lower()
-        if not text:
-            return False
-        action_markers = [
-            "监控",
-            "查询",
-            "搜索",
-            "采集",
-            "分析",
-            "测试",
-            "执行",
-            "summarize",
-            "sync",
-            "monitor",
-            "search",
-            "query",
-            "collect",
-            "test",
-            "run",
-        ]
-        if any(marker in text for marker in action_markers):
-            return False
-        output_markers = [
-            "报告",
-            "仪表盘",
-            "截图",
-            "可视化",
-            "网页",
-            "markdown",
-            "pdf",
-            "report",
-            "dashboard",
-            "screenshot",
-            "visualization",
-        ]
-        return any(marker in text for marker in output_markers)
+        return False
 
     def _evidence_gate_features(self, requirement: Requirement) -> list[str]:
         features: list[str] = []
@@ -1607,6 +1470,8 @@ class DeepSearchEngine:
         if not hits:
             return []
         feature_signals = self._semantic_signals(feature)
+        compact_feature = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(feature or "").lower())
+        simple_feature = len(compact_feature) <= 8
         lowered_text = (text or "").lower()
         trusted_exact_hits = [
             alias
@@ -1617,12 +1482,57 @@ class DeepSearchEngine:
         ]
         if trusted_exact_hits and self._different_script(feature, trusted_exact_hits[0]):
             named_entities = self._named_entity_tokens(feature)
-            has_multi_signal_hit = any(len(self._semantic_signals(alias)) >= 2 for alias in trusted_exact_hits)
-            if not named_entities or len(trusted_exact_hits) >= 2 or has_multi_signal_hit:
+            combined_exact_signals = {
+                signal
+                for alias in trusted_exact_hits
+                for signal in self._semantic_signals(alias)
+            }
+            has_broad_combined_signal = len(combined_exact_signals) >= 3
+            if (named_entities and len(combined_exact_signals) >= 2 and named_entities.issubset(combined_exact_signals)) or (
+                len(trusted_exact_hits) >= 2 and has_broad_combined_signal
+            ) or (
+                simple_feature and has_broad_combined_signal
+            ):
                 return trusted_exact_hits
-        if len(feature_signals) <= 2:
-            return hits
         evidence_signals = self._semantic_signals(text)
+        named_entities = self._named_entity_tokens(feature)
+        if len(feature_signals) <= 2:
+            if any(self._same_feature_key(feature, alias) for alias in hits):
+                return hits
+            exact_alias_signals = {
+                signal
+                for alias in hits
+                if self._literal_alias_present(alias, lowered_text)
+                for signal in self._semantic_signals(alias)
+            }
+            if (
+                named_entities
+                and len(exact_alias_signals | evidence_signals) >= 2
+                and named_entities.issubset(exact_alias_signals | evidence_signals)
+            ):
+                return hits
+            if any(
+                self._literal_alias_present(alias, lowered_text)
+                and self._semantic_signals(alias)
+                and not self._semantic_signals(alias).issubset(feature_signals)
+                for alias in hits
+            ):
+                return hits
+            combined_hit_signals = {
+                signal
+                for alias in hits
+                for signal in self._semantic_signals(alias)
+            }
+            if (
+                hits
+                and any(self._different_script(feature, alias) for alias in hits)
+                and simple_feature
+                and len(combined_hit_signals) >= 2
+            ):
+                return hits
+            if feature_signals and feature_signals.issubset(evidence_signals):
+                return hits
+            return []
         overlap = feature_signals.intersection(evidence_signals)
         required_overlap = min(3, max(2, len(feature_signals) // 3))
         combined_alias_signals = {
@@ -1630,21 +1540,41 @@ class DeepSearchEngine:
             for alias in hits
             for signal in self._semantic_signals(alias)
         }
-        named_entities = self._named_entity_tokens(feature)
-        if len(named_entities) >= 2 and named_entities.issubset(combined_alias_signals | evidence_signals):
+        if (
+            len(named_entities) >= 2
+            and len(combined_alias_signals | evidence_signals) >= 2
+            and named_entities.issubset(combined_alias_signals | evidence_signals)
+        ):
             return hits
         if len(hits) >= 2 and len(combined_alias_signals) >= 2 and len(overlap) >= 2:
             return hits
         if hits and any(self._different_script(feature, alias) for alias in hits):
             named_entities = self._named_entity_tokens(feature)
-            has_multi_signal_hit = any(len(self._semantic_signals(alias)) >= 2 for alias in hits)
-            if not named_entities or len(hits) >= 2 or has_multi_signal_hit:
+            if (
+                named_entities
+                and len(combined_alias_signals) >= 2
+                and named_entities.issubset(combined_alias_signals)
+            ) or (
+                len(hits) >= 2 and len(combined_alias_signals) >= 3
+            ) or (
+                simple_feature and len(combined_alias_signals) >= 2
+            ):
                 return hits
         supported: list[str] = []
         for alias in hits:
             alias_signals = self._semantic_signals(alias)
             exact_hit = self._literal_alias_present(alias, lowered_text)
+            if self._different_script(feature, alias):
+                named_entities = self._named_entity_tokens(feature)
+                if not (
+                    named_entities
+                    and len(alias_signals) >= 2
+                    and named_entities.issubset(alias_signals)
+                ):
+                    continue
             if exact_hit and (self._same_feature_key(feature, alias) or len(alias_signals) >= 2):
+                supported.append(alias)
+            elif exact_hit and alias_signals and not alias_signals.issubset(feature_signals):
                 supported.append(alias)
             elif len(overlap) >= required_overlap:
                 supported.append(alias)
@@ -1716,7 +1646,7 @@ class DeepSearchEngine:
             return f"{shown}等 {len(items)} 项" if len(items) > limit else shown
 
         parts: list[str] = []
-        if analysis.covered_features:
+        if analysis.covered_features and analysis.confidence_level != "lead":
             prefix = "仅确认" if len(analysis.covered_features) <= 2 else "已确认"
             parts.append(f"{prefix}{brief(analysis.covered_features)}")
         elif analysis.core_feature and not analysis.core_confirmed:
@@ -1737,43 +1667,7 @@ class DeepSearchEngine:
                 signals.add(run)
             signals.update(run[index : index + 2] for index in range(len(run) - 1))
             signals.update(run[index : index + 3] for index in range(len(run) - 2))
-        weak = {
-            "github",
-            "project",
-            "projects",
-            "repo",
-            "repos",
-            "repository",
-            "repositories",
-            "software",
-            "system",
-            "tool",
-            "tools",
-            "app",
-            "apps",
-            "multiple",
-            "across",
-            "several",
-            "various",
-            "many",
-            "自动",
-            "多个",
-            "多個",
-            "不同",
-            "若干",
-            "仓库",
-            "倉庫",
-            "项目",
-            "软件",
-            "系统",
-            "工具",
-            "功能",
-            "支持",
-            "当前",
-            "是否",
-            "类似",
-        }
-        return {item for item in signals if item not in weak and len(item) >= 2}
+        return {item for item in signals if len(item) >= 2}
 
     def _requirement_aliases(self, requirement: Requirement) -> set[str]:
         seed = " ".join(
@@ -1845,7 +1739,7 @@ class DeepSearchEngine:
             }
             data = await llm.json_chat(
                 (
-                    "You are an open source technical research analyst. Return JSON only. "
+                    "You are a technical repository research analyst. Return JSON only. "
                     "Use the same language as the user's requirement for every natural-language field. "
                     "If the requirement is Chinese, all recommendations, risks, changes, and evidence summaries must be Chinese."
                 ),
@@ -1855,8 +1749,8 @@ class DeepSearchEngine:
                     '"directly_usable":true/false,"covered_features":[],"different_features":[],'
                     '"missing_features":[],"unknown_features":[],'
                     '"required_changes":[],"risks":[],"evidence":[]}]}.\n'
-                    "Prefer practical software projects over curated lists, newsletters, directories, or awesome lists. "
-                    "If a candidate is only a list/directory/newsletter, give it a low score and mark it as reference-only.\n"
+                    "Use only the supplied repository material and evidence coverage. "
+                    "If the supplied material does not prove a requested capability, keep it unknown.\n"
                     "Do not use popularity metadata, stars, license, or language as the main recommendation. Focus on "
                     "functional fit, evidence coverage, missing capabilities, and the next verification step.\n"
                     "Write all user-facing fields for a reader with no software-development experience. Avoid "
@@ -1962,6 +1856,7 @@ class DeepSearchEngine:
             "unknown_feature_count": 0,
             "explicit_missing_count": 0,
             "core_requirement_unconfirmed_count": 0,
+            "repeated_analysis_text_count": 0,
             "ungated_generic_must_have_count": len(requirement.must_have_features) - len(gated_features),
         }
         if not gated_features:
@@ -1986,17 +1881,20 @@ class DeepSearchEngine:
                 ):
                     item.status = "different"
                     item.covered = False
+            if self._reported_difference_overlaps_primary(requirement, reported_differences):
+                supported_count = sum(1 for item in coverage if item.status == "supported" or item.covered)
+                if supported_count < len(coverage):
+                    for item in coverage:
+                        if item.status == "supported" or item.covered:
+                            item.status = "different"
+                            item.covered = False
+                            if not item.difference_reason:
+                                item.difference_reason = "reported scope difference overlaps the requested capability"
             evidence_covered = [item.feature for item in coverage if item.status == "supported"]
             explicit_missing = [item.feature for item in coverage if item.status == "missing"]
             unknown = [item.feature for item in coverage if item.status == "unknown"]
             evidence_differences = [item.feature for item in coverage if item.status == "different"]
             constraint_differences, constraint_unknown = self._constraint_findings(requirement, analysis.repo)
-            if constraint_differences:
-                unknown = [
-                    feature
-                    for feature in unknown
-                    if not any(term in feature.lower() for term in ["open source", "open-source", "opensource", "开源"])
-                ]
             analysis.covered_features = evidence_covered[:8]
             remaining_differences = [
                 difference
@@ -2081,6 +1979,7 @@ class DeepSearchEngine:
             )
             analysis.suitability_score = max(0, functional_score - suitability_penalty)
             analysis.score_reason = self._score_reason(analysis)
+            analysis.evidence = self._coverage_evidence_summary(analysis)
             if unknown or analysis.different_features:
                 analysis.directly_usable = False
 
@@ -2098,16 +1997,91 @@ class DeepSearchEngine:
             if not unknown and not explicit_missing and not evidence_differences:
                 stats["fully_covered_count"] += 1
             gated.append(analysis)
+        stats["repeated_analysis_text_count"] = self._degrade_repeated_analysis_text(gated, usage)
         if penalized:
             usage.warnings.append("Candidates with explicitly absent requirements: " + ", ".join(penalized[:5]))
         return sorted(gated, key=lambda item: item.match_score, reverse=True), stats
 
+    def _coverage_evidence_summary(self, analysis: ProjectAnalysis) -> list[str]:
+        """Expose only evidence derived from repository material, not model prose."""
+        summary: list[str] = []
+        for item in analysis.evidence_coverage:
+            if item.status == "supported" or item.covered:
+                sources = [*item.source_evidence[:2], *item.path_evidence[:2], *item.readme_evidence[:2]]
+                if sources:
+                    summary.append(f"{item.feature}: {'; '.join(sources[:3])}")
+                else:
+                    summary.append(f"{item.feature}: public repository material supports this item")
+            elif (
+                item.status == "missing"
+                and item.missing_reason
+                and not item.missing_reason.startswith("核对结果")
+            ):
+                summary.append(f"{item.feature}: {item.missing_reason}")
+            elif item.status == "different" and item.difference_reason:
+                summary.append(f"{item.feature}: {item.difference_reason}")
+            if len(summary) >= 6:
+                break
+        return summary
+
+    def _degrade_repeated_analysis_text(
+        self,
+        analyses: list[ProjectAnalysis],
+        usage: BudgetUsage,
+    ) -> int:
+        grouped: dict[tuple[str, str], list[ProjectAnalysis]] = {}
+        for analysis in analyses:
+            if analysis.core_confirmed and analysis.match_score >= 50:
+                continue
+            reason_key = re.sub(r"\s+", "", analysis.score_reason.casefold())
+            covered_key = "|".join(re.sub(r"\s+", "", item.casefold()) for item in analysis.covered_features)
+            if not reason_key and not covered_key:
+                continue
+            grouped.setdefault((reason_key, covered_key), []).append(analysis)
+
+        repeated = 0
+        affected: list[str] = []
+        for items in grouped.values():
+            if len(items) < 2:
+                continue
+            for analysis in items:
+                signal = self._public_candidate_signal(analysis.repo)
+                if signal:
+                    analysis.score_reason = (
+                        f"{analysis.score_reason.rstrip('。') if analysis.score_reason else '公开证据较弱'}；"
+                        f"该项目可核对线索：{signal}。"
+                    )
+                else:
+                    analysis.score_reason = "公开证据不足以形成独立匹配理由，仅能作为低可信线索。"
+                    analysis.match_score = min(analysis.match_score, 19)
+                    analysis.functional_score = min(analysis.functional_score or analysis.match_score, analysis.match_score)
+                    analysis.suitability_score = min(analysis.suitability_score or analysis.match_score, analysis.match_score)
+                analysis.directly_usable = False
+                repeated += 1
+                affected.append(analysis.repo.full_name)
+        if affected:
+            usage.warnings.append(
+                "Repeated low-confidence analysis text was made project-specific or downgraded: "
+                + ", ".join(affected[:5])
+            )
+        return repeated
+
     @staticmethod
-    def _feature_has_confirmed_difference(feature: str, differences: list[str]) -> bool:
+    def _public_candidate_signal(repo: CandidateRepository) -> str:
+        if repo.description:
+            return compact_text(repo.description, 120)
+        if repo.topics:
+            return "topics: " + ", ".join(repo.topics[:5])
+        if repo.found_by:
+            return ", ".join(repo.found_by[:2])
+        return repo.full_name
+
+    def _feature_has_confirmed_difference(self, feature: str, differences: list[str]) -> bool:
         """Prevent one capability from appearing as both confirmed and different."""
         feature_text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", feature.lower())
         if not feature_text:
             return False
+        feature_signals = self._semantic_signals(feature)
         for difference in differences:
             difference_text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", difference.lower())
             if not difference_text:
@@ -2115,61 +2089,47 @@ class DeepSearchEngine:
             match_size = SequenceMatcher(None, feature_text, difference_text).find_longest_match().size
             if match_size >= 3 and match_size / max(3, min(len(feature_text), 8)) >= 0.45:
                 return True
+            difference_signals = self._semantic_signals(difference)
+            if feature_signals and difference_signals:
+                overlap = feature_signals.intersection(difference_signals)
+                required_overlap = min(4, max(2, len(feature_signals) // 5))
+                if len(overlap) >= required_overlap:
+                    return True
         return False
+
+    def _reported_difference_overlaps_primary(
+        self,
+        requirement: Requirement,
+        differences: list[str],
+    ) -> bool:
+        if not differences:
+            return False
+        concepts = requirement.feature_concepts or {}
+        primary_text = " ".join(
+            [
+                requirement.intent,
+                *requirement.must_have_features,
+                *[
+                    str(item)
+                    for group in ("domains", "actions", "objects", "interfaces")
+                    for item in concepts.get(group, [])
+                ],
+            ]
+        )
+        primary_signals = self._semantic_signals(primary_text)
+        if not primary_signals:
+            return False
+        difference_signals = self._semantic_signals(" ".join(differences))
+        return len(primary_signals.intersection(difference_signals)) >= 2
 
     @classmethod
     def _feature_has_confirmed_absence(cls, feature: str, differences: list[str]) -> bool:
-        negative = re.compile(
-            r"(?:does not|doesn't|not available|not supported|without|no\s+|"
-            r"不支持|不提供|不包含|没有|无(?:法|此|该)?|缺少)"
-        )
-        return any(
-            negative.search(str(difference).lower())
-            and cls._feature_has_confirmed_difference(feature, [difference])
-            for difference in differences
-        )
+        return False
 
     def _constraint_findings(
         self, requirement: Requirement, repo: CandidateRepository
     ) -> tuple[list[str], list[str]]:
-        raw = f"{requirement.raw} {' '.join(requirement.must_have_features)}".lower()
-        if not any(term in raw for term in ["open source", "open-source", "opensource", "开源"]):
-            return [], []
-
-        approved = {
-            "MIT",
-            "APACHE-2.0",
-            "GPL-2.0",
-            "GPL-3.0",
-            "AGPL-3.0",
-            "LGPL-2.1",
-            "LGPL-3.0",
-            "BSD-2-CLAUSE",
-            "BSD-3-CLAUSE",
-            "MPL-2.0",
-            "ISC",
-            "UNLICENSE",
-        }
-        license_id = str(repo.license or "").upper()
-        license_text = repo.readme.lower() + " " + " ".join(
-            text.lower() for path, text in repo.key_files.items() if "license" in path.lower()
-        )
-        restricted_markers = [
-            "sustainable use license",
-            "business source license",
-            "server side public license",
-            "fair-code license",
-            "fair code license",
-        ]
-        if any(marker in license_text for marker in restricted_markers) or license_id in {
-            "BUSL-1.1",
-            "SSPL-1.0",
-            "ELASTIC-2.0",
-        }:
-            return ["开源许可带有额外使用限制"], []
-        if license_id in approved:
-            return [], []
-        return [], ["开源许可是否符合预期"]
+        return [], []
 
     def _with_reference_candidates(
         self,
@@ -2261,10 +2221,7 @@ class DeepSearchEngine:
             for item in remaining
             if not selected
             and item.repo.full_name not in reference_names
-            and (
-                item.match_score >= 15
-                or self._analysis_has_adjacent_signal(item, requirement)
-            )
+            and (item.match_score >= 15 or self._has_multi_feature_core_evidence(item, requirement))
             and self._has_meaningful_adjacent_value(item, requirement)
             and (self._is_usable_reference_candidate(item, requirement) or item.repo.core_signal_score >= 2.0)
         ]
@@ -2313,6 +2270,24 @@ class DeepSearchEngine:
             return analysis.core_confirmed and analysis.match_score >= 20
         return analysis.match_score >= minimum_score and (analysis.core_confirmed or not analysis.core_feature)
 
+    @staticmethod
+    def _supported_evidence_count(coverage: Sequence[EvidenceCoverage]) -> int:
+        return sum(1 for item in coverage if item.status == "supported" or item.covered)
+
+    def _has_multi_feature_core_evidence(
+        self,
+        analysis: ProjectAnalysis,
+        requirement: Requirement | None,
+    ) -> bool:
+        core_feature = self._core_requirement_feature(requirement) if requirement else analysis.core_feature
+        if not core_feature:
+            return False
+        has_core = any(
+            item.feature == core_feature and (item.status == "supported" or item.covered)
+            for item in analysis.evidence_coverage
+        )
+        return has_core and self._supported_evidence_count(analysis.evidence_coverage) >= 2
+
     def _fallback_low_similarity_leads(
         self,
         requirement: Requirement,
@@ -2350,16 +2325,21 @@ class DeepSearchEngine:
             )
             core_related_features = self._core_related_adjacent_features(requirement, covered_features)
             core_aligned = self._core_evidence_is_compositional(requirement, repo)
-            has_adjacent_evidence = bool(core_related_features or core_supported or core_aligned)
+            discovery_evidence = self._has_planned_discovery_evidence(
+                repo
+            ) or self._has_public_planned_discovery_evidence(requirement, repo)
+            has_adjacent_evidence = bool(core_related_features or core_supported or discovery_evidence)
+            if not has_adjacent_evidence:
+                continue
             if repo.raw_score < 15 and not adjacent_signal and not has_adjacent_evidence:
                 continue
             if repo.core_signal_score <= 0 and not adjacent_signal and not has_adjacent_evidence:
                 continue
             if covered_features and not core_related_features and not core_aligned:
                 continue
-            if not covered_features and not core_supported and not core_aligned:
+            if not covered_features and not core_supported and not core_aligned and not discovery_evidence:
                 continue
-            if repo.core_signal_score <= 0 and not covered_features and not core_supported:
+            if repo.core_signal_score <= 0 and not covered_features and not core_supported and not discovery_evidence:
                 continue
             unknown_features = [
                 feature
@@ -2374,9 +2354,12 @@ class DeepSearchEngine:
                 core_aligned=core_aligned,
                 adjacent_signal=adjacent_signal,
             )
-            if not covered_features and not core_supported and repo.core_signal_score < 2.0:
+            if discovery_evidence:
+                score = max(score, 20)
+            score = min(39, score + min(6, self._candidate_planned_signal_overlap(requirement, repo)))
+            if not covered_features and not core_supported and repo.core_signal_score < 2.0 and not discovery_evidence:
                 continue
-            if not covered_features and not core_supported and score < 20:
+            if not covered_features and not core_supported and score < 20 and not discovery_evidence:
                 continue
             analysis = ProjectAnalysis(
                 repo=repo,
@@ -2397,8 +2380,9 @@ class DeepSearchEngine:
                 or [EvidenceCoverage(feature=feature, covered=False, status="unknown") for feature in unknown_features],
             )
             self._mark_low_similarity_lead(analysis)
+            signal = self._public_candidate_signal(repo)
             analysis.score_reason = (
-                f"项目名称和公开简介与「{core_feature}」方向相近，"
+                f"公开线索「{signal}」与「{core_feature}」方向相近，"
                 "公开证据只支持较弱相邻关系，因此只作为相邻参考。"
             )
             leads.append(analysis)
@@ -2436,6 +2420,64 @@ class DeepSearchEngine:
         if adjacent_signal or covered_features:
             score = max(score, 15)
         return max(1, min(39, score))
+
+    def _has_planned_discovery_evidence(self, repo: CandidateRepository) -> bool:
+        if repo.core_signal_score < 2.0:
+            return False
+        sources = [str(source) for source in repo.found_by or []]
+        for source in sources:
+            signal_count = self._discovery_source_signal_count(source)
+            if source.startswith(("github_topic:", "github_code:")) and signal_count >= 2:
+                return True
+            if source.startswith("github:") and repo.core_signal_score >= 2.5 and signal_count >= 3:
+                return True
+            if source.startswith("tavily:") and repo.core_signal_score >= 2.5 and signal_count >= 3:
+                return True
+        return False
+
+    def _discovery_source_signal_count(self, source: str) -> int:
+        payload = str(source or "")
+        for prefix in ("github_topic:", "github_code:", "github_issue:", "github:", "tavily:"):
+            if payload.startswith(prefix):
+                payload = payload[len(prefix) :]
+                break
+        payload = payload.split(" in:", 1)[0]
+        payload = re.sub(r"[-_/]+", " ", payload)
+        return len(self._semantic_signals(payload))
+
+    def _candidate_planned_signal_overlap(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+    ) -> int:
+        planned = " ".join(
+            [
+                *requirement.search_queries,
+                *requirement.repo_search_queries,
+                *requirement.topic_search_queries,
+            ]
+        )
+        planned_signals = self._semantic_signals(re.sub(r"[-_/]+", " ", planned))
+        if not planned_signals:
+            return 0
+        public = " ".join([repo.name, repo.description, " ".join(repo.topics)])
+        public_signals = self._semantic_signals(re.sub(r"[-_/]+", " ", public))
+        return len(planned_signals.intersection(public_signals))
+
+    def _has_public_planned_discovery_evidence(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+    ) -> bool:
+        if self._candidate_planned_signal_overlap(requirement, repo) < 3:
+            return False
+        for source in [str(source) for source in repo.found_by or []]:
+            signal_count = self._discovery_source_signal_count(source)
+            if source.startswith(("github_topic:", "github_code:")) and signal_count >= 2:
+                return True
+            if source.startswith(("github:", "tavily:")) and signal_count >= 3:
+                return True
+        return False
 
     def _analysis_has_adjacent_signal(
         self,
@@ -2563,6 +2605,12 @@ class DeepSearchEngine:
         if self._is_catalog_candidate(analysis):
             return False
         core_feature = self._core_requirement_feature(requirement) if requirement else analysis.core_feature
+        if (
+            core_feature
+            and not analysis.core_confirmed
+            and self._feature_has_confirmed_difference(core_feature, analysis.different_features)
+        ):
+            return False
         return any(
             item.covered
             and (
@@ -2588,9 +2636,16 @@ class DeepSearchEngine:
             return True
         if not requirement:
             return self._is_usable_reference_candidate(analysis)
+        core_feature = self._core_requirement_feature(requirement) or analysis.core_feature
+        if core_feature and self._feature_has_confirmed_difference(core_feature, analysis.different_features):
+            return False
         if analysis.repo.core_signal_score <= 0:
             analysis.repo.core_signal_score = self._core_direction_score(requirement, analysis.repo)
         supported = self._supported_adjacent_features(requirement, analysis.evidence_coverage)
+        if self._has_planned_discovery_evidence(analysis.repo):
+            return analysis.match_score >= 15
+        if self._has_public_planned_discovery_evidence(requirement, analysis.repo):
+            return analysis.match_score >= 15
         if supported:
             if self._core_related_adjacent_features(requirement, supported):
                 return True
@@ -2726,28 +2781,7 @@ class DeepSearchEngine:
 
     @staticmethod
     def _plain_user_text(text: str) -> str:
-        plain = str(text or "")
-        replacements = {
-            "项目为元仓库，实际代码在": "这个地址只是项目入口，实际内容在",
-            "元仓库": "项目入口",
-            "实际代码": "实际内容",
-            "MCP 服务器": "配套工具",
-            "MCP服务器": "配套工具",
-            "MCP 服务": "配套工具",
-            "数据查询接口": "查询能力",
-            "README": "项目说明",
-            "源码": "项目内容",
-            "API": "连接方式",
-            "Skill": "扩展功能",
-            "工作流": "操作流程",
-            "LLM": "AI",
-            "Agent": "智能助手",
-            "RAG": "知识检索",
-            "外部数据库（如 MySQL）": "额外的数据存储服务",
-        }
-        for source, target in replacements.items():
-            plain = plain.replace(source, target)
-        return plain
+        return str(text or "")
 
     def _sentence(self, text: str) -> str:
         stripped = str(text or "").strip()
@@ -2834,15 +2868,14 @@ class DeepSearchEngine:
             self._core_requirement_feature(requirement)
             or (requirement.must_have_features[0] if requirement.must_have_features else "核心需求")
         )
-        must_have = "、".join(self._plain_user_text(item) for item in requirement.must_have_features[:5])
         lines.append("")
         lines.append("### 本次为什么没有列出项目")
         lines.append(f"- 已查找方向：{'、'.join(channels)}。")
         lines.append(
             f"- 筛选原因：没有候选能用公开证据完整确认「{core}」。按核心规则，这种情况下应继续展示核心功能相近或相关方向，而不是输出空报告。"
         )
-        if must_have:
-            lines.append(f"- 关键缺口：{must_have}。")
+        if core:
+            lines.append(f"- 关键缺口：未确认核心能力「{core}」。")
 
     def _append_project_report(
         self,
@@ -2862,7 +2895,7 @@ class DeepSearchEngine:
         lines.append(
             f"- 得分原因：{self._plain_user_text(analysis.score_reason or self._score_reason(analysis))}"
         )
-        if analysis.covered_features:
+        if analysis.covered_features and analysis.confidence_level != "lead":
             lines.append(f"- 符合部分：{self._plain_user_text('、'.join(analysis.covered_features[:5]))}")
         differences: list[str] = []
         for item in analysis.different_features:

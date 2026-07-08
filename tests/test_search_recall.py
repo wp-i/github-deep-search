@@ -112,7 +112,7 @@ def test_deep_pool_grows_with_available_candidates() -> None:
     assert engine._deep_pool_limit() == 20
 
 
-def test_multilingual_queries_are_interleaved_and_repo_query_stays_broad() -> None:
+def test_multilingual_queries_are_interleaved_and_repo_query_preserves_request_terms() -> None:
     engine = DeepSearchEngine()
 
     planned = engine._interleave_multilingual_queries(
@@ -121,11 +121,11 @@ def test_multilingual_queries_are_interleaved_and_repo_query_stays_broad() -> No
 
     assert planned[:4] == ["文档管理 OCR", "document management OCR", "全文搜索 标签", "document search tags"]
     assert engine._to_github_repo_query("document management system OCR full-text search Docker") == (
-        "document management OCR in:name,description,readme"
+        "document management system in:name,description,readme"
     )
 
 
-def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search() -> None:
+def test_chinese_terminal_ui_query_does_not_drop_request_terms_by_static_word_list() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
         raw="找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。",
@@ -148,7 +148,7 @@ def test_chinese_terminal_ui_query_uses_specific_alias_phrases_for_repo_search()
     assert any("terminal ui library" in item.lower() for item in planned)
     assert any("python tui" in item.lower() for item in planned)
     assert "python" not in planned
-    assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "Python 终端 UI in:name,description,readme"
+    assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "开源 Python 终端 in:name,description,readme"
     assert "terminal ui library" in engine._requirement_aliases(requirement)
     topics = engine._planned_topic_search_queries(requirement)
     assert "progress-bar" in topics
@@ -507,9 +507,9 @@ def test_collect_candidates_runs_third_wave_only_when_two_waves_do_not_fill_top3
 
     enough_after_two = WaveGitHub(hits_per_repo_query=1)
     asyncio.run(engine._collect_candidates(requirement, enough_after_two, None, BudgetUsage()))
-    # Unified budget path: 6 repo queries plus 1 derived alias gives 7 repo queries in two waves.
+    # Unified budget path: 6 repo queries plus 1 union query and 1 derived alias gives 8 repo queries in two waves.
     # Unified limits: code=5, topic=8, issue=5.
-    assert len(enough_after_two.repo_queries) == 7
+    assert len(enough_after_two.repo_queries) == 8
     assert len(enough_after_two.code_queries) == 5
     assert len(enough_after_two.topic_queries) == 8
     assert len(enough_after_two.issue_queries) == 5
@@ -589,5 +589,3 @@ def test_repo_evidence_cache_avoids_duplicate_fetches() -> None:
     assert github.readme_calls == 1
     assert github.tree_calls == 1
     assert github.file_calls == 1
-
-

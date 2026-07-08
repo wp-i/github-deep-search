@@ -65,6 +65,16 @@ python scripts/start_web.py
 
 启动器会自动创建 `.venv`、安装依赖、创建 `config/user_keys.env`，然后启动 Web 服务。打开终端输出的地址，通常是 http://127.0.0.1:8001。
 
+### 真实运行前提
+
+这个项目不是离线 demo。Web 可以无 key 打开，但真实调研必须能访问 GitHub API 和一个 OpenAI-compatible LLM：
+
+- `GITHUB_TOKEN`：基本必需，用于真实 GitHub 搜索、README 和源码证据采集。
+- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：必需，用于把自然语言需求解析成 `SearchSpec`，再做查询规划、比较和报告。
+- 中国大陆网络下通常不需要“项目内置 VPN”，但 GitHub API 和 LLM 服务的可达性取决于实际网络。OpenAI 官方接口在部分环境不可直连；超时、连接重置或长期无结果时，优先配置代理或使用可直连的兼容服务商。
+
+详细 key 获取和网络说明见 [API Key 与消耗](#api-key-与消耗)。
+
 当前 Web 入口由 FastAPI 直接服务静态文件：
 
 - `github_deep_search/static/index.html`
@@ -86,6 +96,19 @@ python scripts/start_web.py
 
 没有 key 可以打开界面，但不会得到可信的真实调研报告。
 
+### Clone 后最快配置
+
+1. 运行 `python scripts/start_web.py`，启动器会自动创建 `config/user_keys.env`。
+2. 打开 [GitHub fine-grained token 页面](https://github.com/settings/tokens?type=beta)，生成一个本地只读 token：
+   - Repository access：Public repositories only
+   - Permissions：Metadata Read-only；Contents Read-only
+   - 不要授予写权限，也不要授予私有仓库权限，除非你明确要调研私有仓库
+3. 把 token 填到 `config/user_keys.env` 的 `GITHUB_TOKEN=`。
+4. 填入一个 OpenAI-compatible LLM：
+   - 国内网络优先选择可直连的兼容服务商，例如 DeepSeek/OpenRouter/自建网关
+   - 使用 OpenAI 官方接口时，按所在地网络情况配置代理或网关
+5. 重启 Web 服务或重新运行 CLI。
+
 ```env
 GITHUB_TOKEN=your_public_read_token
 LLM_API_KEY=your_openai_compatible_key
@@ -99,6 +122,21 @@ TAVILY_API_KEY=
 | `GITHUB_TOKEN` | 基本必需 | 提高真实 GitHub 搜索额度，建议只授予公开仓库只读权限 |
 | `LLM_API_KEY` | 必需 | 需求解析、查询规划、项目比较、最终报告 |
 | `TAVILY_API_KEY` | 可选 | Web 交叉验证和补充发现 |
+
+### 网络可达性
+
+项目本身不要求 VPN，但真实搜索依赖外部服务：
+
+- GitHub API：必须可访问 `https://api.github.com`。中国大陆网络通常可以访问但稳定性因运营商和时段而异，若频繁超时、连接重置或速率异常，建议配置稳定代理。
+- LLM API：取决于 `LLM_BASE_URL`。OpenAI 官方接口在部分网络环境下不可直连；DeepSeek、OpenRouter、公司网关或本地兼容网关可按实际网络选择。
+- Tavily：可选；不可访问时只影响网页交叉发现，不应阻止 GitHub 主流程。
+
+底层 HTTP 客户端会遵循常见环境代理变量；需要代理时可在启动前设置：
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:7890
+HTTP_PROXY=http://127.0.0.1:7890
+```
 
 Web 默认使用 `detailed + continue`，优先保证召回质量。
 
@@ -131,7 +169,7 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 
 ```text
 自然语言需求
-=> 结构化 SearchSpec
+=> LLM 解析成结构化 SearchSpec
 => GitHub repo / code / topic / issue 搜索
 => README、文件树、关键源码证据采集
 => 证据覆盖排序
@@ -140,6 +178,8 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 
 普通 GitHub 搜索容易漏掉 README、代码路径、Issue 和 Topic 里的线索。直接问 LLM 很快，但常见问题是结果过时、证据不足、把“看起来像”的项目说成可用。
 
+`SearchSpec` 是流程第一步：用户输入可能很长、很口语化，也可能是多步骤手动流程，所以必须先由 LLM 把当前需求理解成仓库可搜索的能力、对象、动作、平台和输出。后续搜索、证据和报告只能使用这个当前请求的结构化结果与真实仓库证据，不能靠静态词组、固定同义词表或样例专用补丁修正某一次输出。
+
 ## 信任边界
 
 | 不做什么 | 为什么重要 |
@@ -147,6 +187,7 @@ input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
 | 不内置 Demo 报告 | 首次体验不会被预置结果误导 |
 | 不内置假仓库、假排行或 seeded result data | 排名来自当前输入和实时 provider 响应 |
 | 不使用静态产品同义词表、业务关键词包、仓库白名单或黑名单排序捷径 | 搜索语义必须来自当前需求和真实仓库证据 |
+| 不用静态删词、静态替换或固定正则修解析 | 多样化用户输入必须由当前 LLM 解析和结构校验处理 |
 | 测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载 | 测试数据不会混入真实运行 |
 | 不把弱证据包装成高置信结果 | 未确认核心能力时只保留低置信参考或相邻线索 |
 
