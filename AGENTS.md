@@ -8,6 +8,12 @@ These rules override local implementation convenience. If a change would make a
 sample look better by teaching the runtime a fixed phrase, wording pattern, or
 language marker, the change is forbidden even when the phrase looks generic.
 
+Both new development and bug fixes must start with trace, diagnosis, and
+minimal adjustment. Do not make extra fallback behavior the first response to a
+bad example. If temporary diagnostic or compensating logic was added while
+investigating, remove it once the upstream cause is fixed unless it is still a
+domain-neutral architecture rule with its own tests.
+
 ## Mandatory Pre-Change Gate
 
 Before changing any search, parsing, evidence, ranking, report, or cost/usage
@@ -19,12 +25,18 @@ logic, the agent must:
    usage accounting.
 3. Trace the failing behavior through the flow: user input -> LLM `SearchSpec`
    parsing -> search planning -> repository evidence -> ranking/reporting.
-4. Check the proposal against the forbidden-change list below.
-5. If the proposal fails the gate, reject that approach before editing and
+4. Identify the earliest incorrect stage and prefer fixing that stage over
+   adding downstream compensation.
+5. Check whether any earlier workaround can be removed after the root fix.
+6. Check the proposal against the forbidden-change list below.
+7. If the proposal fails the gate, reject that approach before editing and
    choose a compliant design.
 
 Do not proceed directly from a failing user-facing example to a fixture-shaped
 code change.
+
+Do not leave cleanup for later. A completed fix should not retain redundant
+patches that were only needed before the root cause was understood.
 
 ## Forbidden Before Editing
 

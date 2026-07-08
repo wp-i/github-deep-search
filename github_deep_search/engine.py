@@ -1336,18 +1336,7 @@ class DeepSearchEngine:
     def _core_requirement_feature(self, requirement: Requirement | None) -> str | None:
         if not requirement or not requirement.must_have_features:
             return None
-        candidate_features = [
-            feature
-            for feature in requirement.must_have_features
-            if not self._is_generic_qualifier_feature(feature)
-        ] or requirement.must_have_features
-        focused_features = [
-            feature
-            for feature in candidate_features
-            if not self._is_broad_tool_label(feature) and not self._is_output_artifact_feature(feature)
-        ]
-        if focused_features:
-            candidate_features = focused_features
+        candidate_features = requirement.must_have_features
         concepts = requirement.feature_concepts or {}
         context = " ".join(
             [
@@ -1402,18 +1391,6 @@ class DeepSearchEngine:
             )
         best = max(scored_features)
         return best[7] if best[0] > 0 or best[1] > 0 or best[3] > 0 else candidate_features[0]
-
-    @staticmethod
-    def _is_generic_qualifier_feature(feature: str) -> bool:
-        return False
-
-    @staticmethod
-    def _is_broad_tool_label(feature: str) -> bool:
-        return False
-
-    @staticmethod
-    def _is_output_artifact_feature(feature: str) -> bool:
-        return False
 
     def _evidence_gate_features(self, requirement: Requirement) -> list[str]:
         features: list[str] = []
@@ -2325,9 +2302,7 @@ class DeepSearchEngine:
             )
             core_related_features = self._core_related_adjacent_features(requirement, covered_features)
             core_aligned = self._core_evidence_is_compositional(requirement, repo)
-            discovery_evidence = self._has_planned_discovery_evidence(
-                repo
-            ) or self._has_public_planned_discovery_evidence(requirement, repo)
+            discovery_evidence = self._has_planned_discovery_evidence(repo)
             has_adjacent_evidence = bool(core_related_features or core_supported or discovery_evidence)
             if not has_adjacent_evidence:
                 continue
@@ -2356,8 +2331,7 @@ class DeepSearchEngine:
             )
             if discovery_evidence:
                 score = max(score, 20)
-            score = min(39, score + min(6, self._candidate_planned_signal_overlap(requirement, repo)))
-            if not covered_features and not core_supported and repo.core_signal_score < 2.0 and not discovery_evidence:
+            if not covered_features and not core_supported and repo.core_signal_score < 2.0:
                 continue
             if not covered_features and not core_supported and score < 20 and not discovery_evidence:
                 continue
@@ -2445,40 +2419,6 @@ class DeepSearchEngine:
         payload = re.sub(r"[-_/]+", " ", payload)
         return len(self._semantic_signals(payload))
 
-    def _candidate_planned_signal_overlap(
-        self,
-        requirement: Requirement,
-        repo: CandidateRepository,
-    ) -> int:
-        planned = " ".join(
-            [
-                *requirement.search_queries,
-                *requirement.repo_search_queries,
-                *requirement.topic_search_queries,
-            ]
-        )
-        planned_signals = self._semantic_signals(re.sub(r"[-_/]+", " ", planned))
-        if not planned_signals:
-            return 0
-        public = " ".join([repo.name, repo.description, " ".join(repo.topics)])
-        public_signals = self._semantic_signals(re.sub(r"[-_/]+", " ", public))
-        return len(planned_signals.intersection(public_signals))
-
-    def _has_public_planned_discovery_evidence(
-        self,
-        requirement: Requirement,
-        repo: CandidateRepository,
-    ) -> bool:
-        if self._candidate_planned_signal_overlap(requirement, repo) < 3:
-            return False
-        for source in [str(source) for source in repo.found_by or []]:
-            signal_count = self._discovery_source_signal_count(source)
-            if source.startswith(("github_topic:", "github_code:")) and signal_count >= 2:
-                return True
-            if source.startswith(("github:", "tavily:")) and signal_count >= 3:
-                return True
-        return False
-
     def _analysis_has_adjacent_signal(
         self,
         analysis: ProjectAnalysis,
@@ -2531,7 +2471,6 @@ class DeepSearchEngine:
             item.feature
             for item in coverage
             if item.feature != core_feature and (item.status == "supported" or item.covered)
-            and not self._is_generic_qualifier_feature(item.feature)
         ]
 
     def _core_related_adjacent_features(
@@ -2558,18 +2497,12 @@ class DeepSearchEngine:
             return [
                 feature
                 for feature in features
-                if not self._is_output_artifact_feature(feature)
-                and not self._is_broad_tool_label(feature)
-                and not self._is_generic_qualifier_feature(feature)
-                and not self._matching_terms(feature, secondary_aliases)
+                if not self._matching_terms(feature, secondary_aliases)
             ]
         return [
             feature
             for feature in features
-            if not self._is_output_artifact_feature(feature)
-            and not self._is_broad_tool_label(feature)
-            and not self._is_generic_qualifier_feature(feature)
-            and not self._matching_terms(feature, secondary_aliases)
+            if not self._matching_terms(feature, secondary_aliases)
             and self._matching_terms(feature, primary_aliases)
         ]
 
@@ -2621,7 +2554,6 @@ class DeepSearchEngine:
                 )
                 or (
                     requirement is None
-                    and not self._is_generic_qualifier_feature(item.feature)
                 )
             )
             for item in analysis.evidence_coverage
@@ -2643,8 +2575,6 @@ class DeepSearchEngine:
             analysis.repo.core_signal_score = self._core_direction_score(requirement, analysis.repo)
         supported = self._supported_adjacent_features(requirement, analysis.evidence_coverage)
         if self._has_planned_discovery_evidence(analysis.repo):
-            return analysis.match_score >= 15
-        if self._has_public_planned_discovery_evidence(requirement, analysis.repo):
             return analysis.match_score >= 15
         if supported:
             if self._core_related_adjacent_features(requirement, supported):
@@ -2675,7 +2605,6 @@ class DeepSearchEngine:
             for item in analysis.evidence_coverage
             if (item.status == "supported" or item.covered)
             and (analysis.core_confirmed or item.feature != analysis.core_feature)
-            and not self._is_generic_qualifier_feature(item.feature)
         ][:5]
         missing = [
             item.feature for item in analysis.evidence_coverage if item.status == "missing"
