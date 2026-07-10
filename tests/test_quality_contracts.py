@@ -199,6 +199,28 @@ def test_reference_tiering_replaces_unverified_model_recommendation() -> None:
     assert analysis.recommendation != "Unverified capability claim"
 
 
+def test_candidate_trace_distinguishes_discovery_score_from_public_score() -> None:
+    repo = CandidateRepository(
+        "demo",
+        "project",
+        "https://github.com/demo/project",
+        raw_score=120.3,
+        core_signal_score=2.5,
+        found_by=["github:current-query"],
+    )
+
+    item = DeepSearchEngine._candidate_trace_item(repo, include_found_by=True)
+
+    assert item == {
+        "repo": "demo/project",
+        "discovery_score": 120.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": ["github:current-query"],
+    }
+    assert "score" not in item
+
+
 class _FakeReviewer:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []

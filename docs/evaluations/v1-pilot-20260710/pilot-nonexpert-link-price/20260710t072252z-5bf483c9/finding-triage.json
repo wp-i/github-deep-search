@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "1",
+  "status": "pending",
+  "findings": [
+    {
+      "id": "user-4",
+      "role": "user",
+      "severity": "P2",
+      "stage": "report_delivery",
+      "claim": "报告给出了明确的下一步行动：打开 davide97l/ecommerce_price_scraper 的证据与源码，先核查输入方式。",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: 打开 davide97l/ecommerce_price_scraper 的证据与源码，先核查「需求：给定一条商品链接。项目实际：使用商品关键词搜索，不接收商品链接。」。"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-5",
+      "role": "user",
+      "severity": "P3",
+      "stage": "analysis",
+      "claim": "报告已整理 3 个相邻方向，最接近的是 davide97l/ecommerce_price_scraper（15/100）。",
+      "evidenceRefs": [
+        "summary: 已整理 3 个相邻方向，最接近的是 davide97l/ecommerce_price_scraper（15/100）",
+        "topProjects: 3 items"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-2",
+      "role": "semantic",
+      "severity": "P1",
+      "stage": "evidence",
+      "claim": "The report performed evidence collection for the top three projects.",
+      "evidenceRefs": [
+        "usage.providerEvents: only one failed GitHub request for an unrelated repo (1979139113/0day-today-exploits)",
+        "raw.cache_stats: 'readmes: 22', 'trees: 3', 'files: 6'",
+        "raw.request_stages: 'discovery: 119', 'readme: 22', 'source: 9'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-3",
+      "role": "semantic",
+      "severity": "P2",
+      "stage": "analysis",
+      "claim": "The report's top projects are suitable as 'reference candidates' or 'leads' for the user.",
+      "evidenceRefs": [
+        "topProjects[0].recommendation: '低相似线索：Given a product link, read the price and discount details and calculate the final price.'",
+        "topProjects[0].isReferenceCandidate: true",
+        "topProjects[0].confidenceLevel: 'lead'",
+        "topProjects[0].referenceReason: '低相似线索：Given a product link, read the price and discount details and calculate the final price.'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-4",
+      "role": "semantic",
+      "severity": "P3",
+      "stage": "analysis",
+      "claim": "The report's evidence coverage analysis correctly identifies that the core feature is 'unknown' for all three top projects.",
+      "evidenceRefs": [
+        "topProjects[0].evidenceCoverage[0].status: 'unknown'",
+        "topProjects[1].evidenceCoverage[0].status: 'unknown'",
+        "topProjects[2].evidenceCoverage[0].status: 'unknown'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-6",
+      "role": "evidence",
+      "severity": "P1",
+      "stage": "evidence",
+      "claim": "The report states that evidence coverage for all three projects is 'unknown' with no source evidence or path evidence provided.",
+      "evidenceRefs": [
+        "evidenceCoverage[0].sourceEvidence: []",
+        "evidenceCoverage[0].pathEvidence: []",
+        "evidenceCoverage[1].sourceEvidence: []",
+        "evidenceCoverage[1].pathEvidence: []",
+        "evidenceCoverage[2].sourceEvidence: []",
+        "evidenceCoverage[2].pathEvidence: []"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-8",
+      "role": "evidence",
+      "severity": "P2",
+      "stage": "evidence",
+      "claim": "The report states that 20 candidates had 'unknown_feature_count' for the core requirement, meaning no evidence was found for or against the feature.",
+      "evidenceRefs": [
+        "raw.evidence_gate.unknown_feature_count: 20",
+        "raw.evidence_gate.core_requirement_unconfirmed_count: 20"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    }
+  ],
+  "note": "Agent severity is a triage suggestion. Only accepted findings enter the defect closure loop."
+}

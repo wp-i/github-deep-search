@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "status": "passed",
+  "results": [
+    {
+      "repo": "davide97l/ecommerce_price_scraper",
+      "initialUrl": "https://github.com/davide97l/ecommerce_price_scraper",
+      "renderedHref": "https://github.com/davide97l/ecommerce_price_scraper",
+      "finalUrl": "https://github.com/davide97l/ecommerce_price_scraper",
+      "httpStatus": 200,
+      "pageTitle": "GitHub - davide97l/ecommerce_price_scraper: Scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao 淘宝, Tmall 天猫, and Jingdong 京东. · GitHub",
+      "status": "passed",
+      "reason": "identity_and_reachability",
+      "checkedAt": "2026-07-10T07:26:33.591657+00:00"
+    }
+  ]
+}

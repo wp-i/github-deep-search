@@ -1,0 +1,898 @@
+{
+  "summary": "已整理 3 个相邻方向，最接近的是 jez500/pricebuddy（15/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "jez500/pricebuddy 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "jez500/pricebuddy",
+    "confirmedFeatures": [],
+    "gaps": [
+      "主要功能是追踪价格变化和发送降价通知，而非计算最终到手价",
+      "需要自行部署（Docker），有一定技术门槛",
+      "支持价格历史记录和跨店比较"
+    ],
+    "unconfirmedFeatures": [
+      "Given a product link, read the price and discount details from the page",
+      "Calculate the final price after applying discounts"
+    ],
+    "nextStep": "打开 jez500/pricebuddy 的证据与源码，先核查「主要功能是追踪价格变化和发送降价通知，而非计算最终到手价」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "find an open-source project that, given a product link, reads price and discount details and calculates the final price",
+    "mustHaveFeatures": [
+      "Given a product link, read the price and discount details from the page",
+      "Calculate the final price after applying discounts"
+    ],
+    "niceToHaveFeatures": [
+      "Support multiple e-commerce platforms",
+      "Provide a simple user interface for non-developers",
+      "Include data source flexibility"
+    ],
+    "targetPlatforms": [
+      "command-line",
+      "API",
+      "web interface"
+    ],
+    "searchQueries": [
+      "open source product link price discount calculator",
+      "read price and discount from product URL",
+      "calculate final price from product link",
+      "e-commerce price scraper discount calculator",
+      "product link to final price tool",
+      "price discount calculator",
+      "product link price reader",
+      "final price calculator",
+      "e-commerce price scraper",
+      "price discount calculation",
+      "product link price",
+      "final price after discount",
+      "read price from URL",
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper",
+      "price-scraper",
+      "product link price discount",
+      "calculate final price from URL",
+      "price scraper discount"
+    ],
+    "repoSearchQueries": [
+      "price discount calculator",
+      "product link price reader",
+      "final price calculator",
+      "e-commerce price scraper"
+    ],
+    "codeSearchQueries": [
+      "price discount calculation",
+      "product link price",
+      "final price after discount",
+      "read price from URL"
+    ],
+    "topicSearchQueries": [
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper",
+      "price-scraper"
+    ],
+    "issueSearchQueries": [
+      "product link price discount",
+      "calculate final price from URL",
+      "price scraper discount",
+      "e-commerce price calculator"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount final price",
+      "github price calculator from product URL",
+      "read price and discount from product link open source"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价",
+        "开源项目"
+      ],
+      "domains": [
+        "e-commerce",
+        "price tracking",
+        "discount calculation"
+      ],
+      "actions": [
+        "read",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "command-line",
+        "API",
+        "web interface"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, read the price and discount details from the page": [
+        "read price from product URL",
+        "extract discount details from link",
+        "parse product page for price"
+      ],
+      "Calculate the final price after applying discounts": [
+        "calculate final price",
+        "apply discounts to price",
+        "compute final cost"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, read the price and discount details from the page": {
+        "action": [
+          "read",
+          "extract"
+        ],
+        "object": [
+          "price",
+          "discount details"
+        ],
+        "context/interface": [
+          "product link",
+          "URL"
+        ],
+        "output": [
+          "price and discount data"
+        ]
+      },
+      "Calculate the final price after applying discounts": {
+        "action": [
+          "calculate",
+          "apply"
+        ],
+        "object": [
+          "final price",
+          "discounts"
+        ],
+        "context/interface": [
+          "price and discount data"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 3 个相邻方向，最接近的是 jez500/pricebuddy（15/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. jez500/pricebuddy（相邻参考） · ★ 1009 · 更新 2026-07-06\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A self hostable app that tracks prices and sends you notifications when prices match your preferences。\n- 差异部分：主要功能是追踪价格变化和发送降价通知，而非计算最终到手价；需要自行部署（Docker），有一定技术门槛；支持价格历史记录和跨店比较\n- 地址：https://github.com/jez500/pricebuddy\n\n### 2. palaciodaniel/discount_calculator（相邻参考） · ★ 0 · 更新 2024-04-03\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A useful function to automatically apply discounts to prices. I wrote it to practice Unit Testing with pytest.。\n- 差异部分：只是一个演示用的Python函数，没有用户界面；需要手动输入价格和折扣，不能从链接读取；功能极其简单，仅用于教学\n- 地址：https://github.com/palaciodaniel/discount_calculator\n\n### 3. codertesla/ai-coding-deals（相邻参考） · ★ 52 · 更新 2026-07-08\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：Money-saving guide to AI coding tools: free tiers, discounts, referral credits & open-source alternatives. 省钱指南。。\n- 差异部分：是一个信息汇总文档，而非工具；内容是关于AI编程工具的定价和优惠；与电商商品价格计算无关\n- 地址：https://github.com/codertesla/ai-coding-deals\n\n## 本次消耗\n- LLM Token：输入 35816，输出 4593，合计 40409。",
+  "topProjects": [
+    {
+      "repo": "jez500/pricebuddy",
+      "url": "https://github.com/jez500/pricebuddy",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A self hostable app that tracks prices and sends you notifications when prices match your preferences。",
+      "coreFeature": "Given a product link, read the price and discount details from the page",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 1009,
+      "lastPushedAt": "2026-07-06T01:30:02Z",
+      "language": "PHP",
+      "license": "NOASSERTION",
+      "recommendation": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "主要功能是追踪价格变化和发送降价通知，而非计算最终到手价",
+        "需要自行部署（Docker），有一定技术门槛",
+        "支持价格历史记录和跨店比较"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details from the page",
+        "Calculate the final price after applying discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "可能需要配置或开发一个插件来计算最终到手价",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "需要自行托管服务器，对非开发人员有难度",
+        "折扣计算功能不明确，可能需要额外配置",
+        "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details from the page",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: the API and CLI make it scriptable. [Read the docs](https://pricebuddy.jez.me",
+              "README: [Read the docs](https://pricebuddy.jez.me",
+              "README: [Read the docs](https://pricebuddy.jez.me ref=pb-gh) · [Install with Docker](#installation) · [Explore features](#features) · [CLI](https://github.com/jez500/pricebuddy-cli)",
+              "README: Use it for everyday shopping, household wishlists, hobby gear, computer parts, baby stuff, subscriptions, marketplace listings, or anything else where timing matters. Paste a product URL and PriceBuddy will try to read the p\n\n...[truncated]...\n\nr sites, you can tune the scrape strategy without changing code."
+            ],
+            "object": [
+              "仓库简介: A self hostable app that tracks prices and sends you notifications when prices match your preferences",
+              "README: **Track prices from the stores you actually use. Run it yourself. Keep the data. Know when a deal is real.**",
+              "README: **Track prices from the stores you actually use. Run it yourself. Keep the data. Know when a deal is real.** PriceBuddy is an open source, self-hostable price tracker for people who would rather watch products than browser t\n\n...[truncated]...\n\net notified when the price or availability moves in your favour.",
+              "README: PriceBuddy is an open source, self-hostable price tracker for people who would rather watch products than browser tabs. Paste in a product URL, let PriceBuddy check it on a schedule, and get notified when the price or availability moves in your favour."
+            ],
+            "context/interface": [
+              "README: **Track prices from the stores you actually use. Run it yourself. Keep the data. Know when a deal is real.** PriceBuddy is an open source, self-hostable price tracker for people who would rather watch products than browser t\n\n...[truncated]...\n\net notified when the price or availability moves in your favour.",
+              "README: PriceBuddy is an open source, self-hostable price tracker for people who would rather watch products than browser tabs. Paste in a product URL, let PriceBuddy check it on a schedule, and get notified when the price or availability moves in your favour.",
+              "README: PriceBuddy is an open source, self-hostable price tracker for people who would rather watch products than browser tabs. Paste in a product URL, let PriceBuddy check it on a schedule, and get notified when the price or availa\n\n...[truncated]...\n\n page is awkward to scrape. The web app is the main control room",
+              "README: Use it for everyday shopping, household wishlists, hobby gear, computer parts, baby stuff, subscriptions, marketplace listings, or anything else where timing matters. Paste a product URL and PriceBuddy will try to read the p\n\n...[truncated]...\n\nr sites, you can tune the scrape strategy without changing code."
+            ]
+          },
+          "requiredComponentCount": 4
+        },
+        {
+          "feature": "Calculate the final price after applying discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: A cheap listing is useless if it is out of stock. PriceBuddy tracks in stock, pre-order, back order, special order, out of stock and discontinued states. PriceBuddy can calculate price per unit, so a 10-pack and a 3-pack can be compared fairly.",
+              "README: PriceBuddy can calculate price per unit, so a 10-pack and a 3-pack can be compared fairly.",
+              "README: PriceBuddy can calculate price per unit, so a 10-pack and a 3-pack can be compared fairly. Bring your own OpenAI, Anthropic, Gemini or local Ollama provider. PriceBuddy can use AI to recover missing data from a page or help repair scraping rules. It is optional and off by default."
+            ],
+            "object": [
+              "README: Track the same product across multiple stores, or multiple listings on the same marketplace, and see the current best option in one place. PriceBuddy records prices over time so you can see highs, lows and trends. That makes it easier to spot fake discounts and decide whether today's price is actually good.",
+              "README: PriceBuddy records prices over time so you can see highs, lows and trends. That makes it easier to spot fake discounts and decide whether today's price is actually good.",
+              "README: PriceBuddy records prices over time so you can see highs, lows and trends. That makes it easier to spot fake discounts and decide whether today's price is actually good. Set a target price or percentage drop and let PriceBud\n\n...[truncated]...\n\npp, email, Pushover, Gotify, Apprise, Telegram, Discord or ntfy."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "tavily:read price and discount from product link open source"
+      ]
+    },
+    {
+      "repo": "palaciodaniel/discount_calculator",
+      "url": "https://github.com/palaciodaniel/discount_calculator",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A useful function to automatically apply discounts to prices. I wrote it to practice Unit Testing with pytest.。",
+      "coreFeature": "Given a product link, read the price and discount details from the page",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2024-04-03T06:36:49Z",
+      "language": "Python",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "只是一个演示用的Python函数，没有用户界面",
+        "需要手动输入价格和折扣，不能从链接读取",
+        "功能极其简单，仅用于教学"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details from the page",
+        "Calculate the final price after applying discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要开发完整的应用，包括链接解析和用户界面",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目仅为教学演示，无实际使用价值",
+        "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details from the page",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: A useful function to automatically apply discounts to prices. I wrote it to practice Unit Testing with pytest.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and codecov apps.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and cod\n\n...[truncated]...\n\nst click that last cell and press the **Run** icon below 'Cell'."
+            ]
+          },
+          "requiredComponentCount": 4
+        },
+        {
+          "feature": "Calculate the final price after applying discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "仓库简介: A useful function to automatically apply discounts to prices. I wrote it to practice Unit Testing with pytest.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and codecov apps.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and cod\n\n...[truncated]...\n\nst click that last cell and press the **Run** icon below 'Cell'."
+            ],
+            "object": [
+              "仓库简介: A useful function to automatically apply discounts to prices. I wrote it to practice Unit Testing with pytest.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and codecov apps.",
+              "README: This is a small function written in Python to apply discounts to prices. It was done for demonstrative purposes, to showcase my current knowledge of Unit Testing using the pytest library, along with GitHub's TravisCI and cod\n\n...[truncated]...\n\nst click that last cell and press the **Run** icon below 'Cell'."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "github_code:\"apply discounts to price\" in:file,path:README.md"
+      ]
+    },
+    {
+      "repo": "codertesla/ai-coding-deals",
+      "url": "https://github.com/codertesla/ai-coding-deals",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：Money-saving guide to AI coding tools: free tiers, discounts, referral credits & open-source alternatives. 省钱指南。。",
+      "coreFeature": "Given a product link, read the price and discount details from the page",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 52,
+      "lastPushedAt": "2026-07-08T06:24:05Z",
+      "language": "Python",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "是一个信息汇总文档，而非工具",
+        "内容是关于AI编程工具的定价和优惠",
+        "与电商商品价格计算无关"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details from the page",
+        "Calculate the final price after applying discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "无法满足需求",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目类型完全不同",
+        "低相似线索：Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details from the page",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "README: | **ZCode** *(Zhipu)* ✅ | New users receive a **5-day free trial with 5M free tokens/day** (GLM-5.2 and GLM-5-turbo allocation) — promotion active through **2026-06-30** | The most accessible way to evaluate the capabilities\n\n...[truncated]...\n\nt** | **$10/month** Pro tier — lowest nominal subscription price",
+              "README: | **GitHub Copilot** | **$10/month** Pro tier — lowest nominal subscription price",
+              "README: | **GitHub Copilot** | **$10/month** Pro tier — lowest nominal subscription price **inline completions remain free** | Highly cost-effective baseline option even with usage-based metrics ⚠️ *New sign-ups paused since 2026-06-01* |",
+              "README: GLM Coding Plan subscribers receive a **1.5× quota multiplier** — active through **2026-06-30** | Developers seeking an official, deeply integrated IDE for the GLM model ecosystem | [zcode.z.ai](https://zcode.z.ai/cn/docs/we\n\n...[truncated]...\n\nonth)<br>Team: $40/seat/month | Provides 250 credits per 2 weeks"
+            ],
+            "context/interface": [
+              "README: - **Generous Vendor Free Tiers:** [Google Gemini / Antigravity](https://antigravity.google), [Cursor Hobby](https://cursor.com). - **Free OpenAI-Compatible Inference Endpoint (BYOK):** **NVIDIA NIM Free Tier** — one API key \n\n...[truncated]...\n\nm/v1\"`. Best for prototyping and model comparisons (rate-limited",
+              "README: - **Free OpenAI-Compatible Inference Endpoint (BYOK):** **NVIDIA NIM Free Tier** — one API key across a large model catalog (incl. popular Chinese models), compatible with the OpenAI SDK via `base_url=\"https://integrate.api.nvidia.com/v1\"`. Best for prototyping and model comparisons (rate-limited",
+              "README: - **Free OpenAI-Compatible Inference Endpoint (BYOK):** **NVIDIA NIM Free Tier** — one API key across a large model catalog (incl. popular Chinese models), compatible with the OpenAI SDK via `base_url=\"https://integrate.api.nvidia.com/v1\"`. Best for prototyping and model comparisons (rate-limited no SLA"
+            ]
+          },
+          "requiredComponentCount": 4
+        },
+        {
+          "feature": "Calculate the final price after applying discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: no SLA terms/logging policies apply). Signup may require phone OTP",
+              "README: terms/logging policies apply). Signup may require phone OTP",
+              "README: terms/logging policies apply). Signup may require phone OTP rate limits vary (e.g. dashboard may show “up to 40 RPM”). **Suggested first model to try (community-tested):** `nvidia/nemotron-3-super-120b-a12b` (fast + returned normal `message.content`)",
+              "README: | **Zed** ✅ | **Free 1-year membership** including ~**$10/month in AI model credits** | Complete student verification directly within the Zed editor client ([zed.dev](https://zed.dev)) | | **GitHub Copilot** ✅ | **Free Copil\n\n...[truncated]...\n\neducation.github.com/pack](https://education.github.com/pack)) |"
+            ],
+            "object": [
+              "仓库简介: Money-saving guide to AI coding tools: free tiers, discounts, referral credits & open-source alternatives. 省钱指南",
+              "README: > A comprehensive guide to AI coding tool selection and cost optimization — tracking free tiers, commercial discounts, referral credits, and open-source alternatives in one place.",
+              "README: > A comprehensive guide to AI coding tool selection and cost optimization — tracking free tiers, commercial discounts, referral credits, and open-source alternatives in one place. **[English](README.md) · [简体中文](README.zh-CN.md)**",
+              "README: **[English](README.md) · [简体中文](README.zh-CN.md)** AI coding tool pricing and quotas evolve rapidly. This repository tracks **free tiers, commercial discounts, referral credits, and highly cost-effective deployment strategie\n\n...[truncated]...\n\nhe community and verified against official vendor documentation."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "tavily:open source project product link price discount final price"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, read the price and discount details from the page、Calculate the final price after applying discounts」。可借鉴 jez500/pricebuddy 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 145,
+    "githubSearchRequests": 21,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 4,
+    "tavilyCredits": 3,
+    "llmInputTokens": 35816,
+    "llmOutputTokens": 4593,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 154374,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/ExilanceSoft/Dealership-Model1/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: jez500/pricebuddy, yuvraj-2503/unifizeAssignment, PedroSilva370/discount-calculator-v2, OrbisAPI/commerce-mcp, palaciodaniel/discount_calculator",
+      "Excluded 17 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added relatively closest adjacent projects because stronger matches were insufficient: jez500/pricebuddy, palaciodaniel/discount_calculator, codertesla/ai-coding-deals",
+      "Low-confidence candidates below 50/100 not returned: yuvraj-2503/unifizeAssignment, PedroSilva370/discount-calculator-v2, OrbisAPI/commerce-mcp, shopware/shopware, mikebryant/ac-nh-turnip-prices",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": [
+      {
+        "provider": "github",
+        "operation": "/repos/ExilanceSoft/Dealership-Model1/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      }
+    ]
+  },
+  "raw": {
+    "candidate_count": 82,
+    "ranked_count": 82,
+    "deep_pool_count": 20,
+    "top_projects_returned": 3,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 3,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "limited",
+    "search_completeness_reasons": [
+      "github HTTPStatusError during evidence"
+    ],
+    "source_mix": {
+      "github_repo": 22,
+      "github_code": 15,
+      "github_topic": 22,
+      "github_issue": 21,
+      "tavily": 2,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 114,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 4,
+      "code": 4,
+      "topic": 4,
+      "issue": 4,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "open source product link price discount calculator",
+      "final price calculator",
+      "read price and discount from product URL",
+      "calculate final price from product link",
+      "product link to final price tool",
+      "read price from URL",
+      "final price after discount",
+      "product link price discount",
+      "calculate final price from URL",
+      "calculate the final price after applying discounts"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 89.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 130.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 120.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 120.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 119.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 119.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 113.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 84.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 107.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 101.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 36.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:discount-calculator"
+        ]
+      },
+      {
+        "repo": "Dashboard-Design/Nilper_Scraping",
+        "discovery_score": 31.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikebryant/ac-nh-turnip-prices",
+        "discovery_score": 27.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:final price calculator in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "jez500/pricebuddy",
+        "discovery_score": 31.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "tavily:read price and discount from product link open source"
+        ]
+      },
+      {
+        "repo": "Thordata/how-to-scrape-amazon-prices-with-python",
+        "discovery_score": 19.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 89.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 84.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "yuvraj-2503/unifizeAssignment",
+        "discovery_score": 62.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 36.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "jez500/pricebuddy",
+        "discovery_score": 31.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "mikebryant/ac-nh-turnip-prices",
+        "discovery_score": 27.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "codertesla/ai-coding-deals",
+        "discovery_score": 25.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "palaciodaniel/discount_calculator",
+        "discovery_score": 9.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "juliuspleunes4/RenderSchema",
+        "discovery_score": 7.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "aimadetools/race-xiaomi",
+        "discovery_score": 2.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "kyle-ip/pyguizer",
+        "discovery_score": -1.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "dbader/readme-template",
+        "discovery_score": -8.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "barkain/madrox",
+        "discovery_score": -11.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "microsoft/CDM",
+        "discovery_score": -15.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "samsu-same/Teghiya-Shop",
+        "discovery_score": -19.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "MicrosoftDocs/dynamics-365-unified-operations-public",
+        "discovery_score": -22.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "MicrosoftDocs/common-data-model-and-service",
+        "discovery_score": -23.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "samsu-same/Ecom01",
+        "discovery_score": -29.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Onekit00001/OneKitTools",
+        "discovery_score": -29.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Samuel-Harwood/Test-Driven-Development",
+        "discovery_score": -29.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, read the price and discount details from the page",
+    "evidence_gate": {
+      "gated_feature_count": 2,
+      "penalized_count": 0,
+      "score_capped_count": 0,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 40,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 20,
+      "repeated_analysis_text_count": 20,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 17,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "partial",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 2,
+          "nice_to_have": 3,
+          "planned_queries": 20
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "completed",
+        "inputs": {
+          "planned_queries": 20
+        },
+        "outputs": {
+          "candidates": 82,
+          "requests": 114
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 40
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 3
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 3
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

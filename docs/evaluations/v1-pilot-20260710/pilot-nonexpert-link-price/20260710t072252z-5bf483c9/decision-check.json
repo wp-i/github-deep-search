@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1",
+  "kind": "structural-30-second-decision-check",
+  "status": "pass",
+  "score": 5,
+  "maxScore": 5,
+  "checks": {
+    "decision_present": true,
+    "evidence_boundary_present": true,
+    "unconfirmed_core_is_visible": true,
+    "next_action_present": true,
+    "readable_report_present": true
+  },
+  "note": "This structural check does not replace independent human scoring."
+}

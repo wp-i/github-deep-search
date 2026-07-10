@@ -366,23 +366,28 @@ def test_secondary_features_cannot_outvote_core_but_remain_adjacent_reference() 
 
 def test_confirmed_difference_removes_feature_from_confirmed_list() -> None:
     engine = DeepSearchEngine()
+    feature = "requested output"
     requirement = Requirement(
-        raw="search and PDF report",
-        intent="Find a research tool",
-        must_have_features=["keyword search", "生成PDF报告"],
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=[feature],
         nice_to_have_features=[],
         target_platforms=[],
-        search_queries=["keyword search PDF report"],
-        evidence_aliases={
-            "keyword search": ["keyword search"],
-            "生成PDF报告": ["PDF report"],
-        },
+        search_queries=["current query"],
+        evidence_aliases={feature: ["current evidence"]},
     )
     repo = CandidateRepository(
         owner="demo",
-        name="html-report",
-        url="https://github.com/demo/html-report",
-        readme="keyword search PDF report",
+        name="different",
+        url="https://github.com/demo/different",
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=feature,
+                covered=False,
+                status="different",
+                difference_reason="Repository evidence confirms a different output.",
+            )
+        ],
     )
     analysis = ProjectAnalysis(
         repo=repo,
@@ -394,31 +399,38 @@ def test_confirmed_difference_removes_feature_from_confirmed_list() -> None:
         required_changes=[],
         risks=[],
         evidence=[],
-        different_features=["生成的是交互式HTML报告，而非PDF报告"],
     )
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert "生成PDF报告" not in gated[0].covered_features
-    assert "生成PDF报告" in gated[0].different_features
+    assert feature not in gated[0].covered_features
+    assert gated[0].different_features == [feature]
 
 
 def test_long_core_difference_removes_overlapping_confirmed_feature() -> None:
     engine = DeepSearchEngine()
+    feature = "compound current capability with multiple required parts"
     requirement = Requirement(
-        raw="抓取各频道价格并输出明细",
-        intent="抓取价格",
-        must_have_features=["抓取各频道的价格并输出明细"],
+        raw="Current compound request",
+        intent="Current compound outcome",
+        must_have_features=[feature],
         nice_to_have_features=[],
         target_platforms=[],
-        search_queries=["抓取各频道价格 输出明细"],
-        evidence_aliases={"抓取各频道的价格并输出明细": ["抓取各频道的价格", "输出明细"]},
+        search_queries=["current compound query"],
+        evidence_aliases={feature: ["current evidence"]},
     )
     repo = CandidateRepository(
         owner="demo",
-        name="reference-list",
-        url="https://github.com/demo/reference-list",
-        readme="抓取各频道的价格并输出明细",
+        name="compound-difference",
+        url="https://github.com/demo/compound-difference",
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=feature,
+                covered=False,
+                status="different",
+                difference_reason="Repository evidence confirms a different compound workflow.",
+            )
+        ],
     )
     analysis = ProjectAnalysis(
         repo=repo,
@@ -430,31 +442,38 @@ def test_long_core_difference_removes_overlapping_confirmed_feature() -> None:
         required_changes=[],
         risks=[],
         evidence=[],
-        different_features=["用户需要抓取各频道价格的工具，而该项目只整理相关参考信息。"],
     )
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert "抓取各频道的价格并输出明细" not in gated[0].covered_features
-    assert "抓取各频道的价格并输出明细" in gated[0].different_features
+    assert feature not in gated[0].covered_features
+    assert gated[0].different_features == [feature]
 
 
-def test_explicit_absence_moves_feature_to_missing_not_difference() -> None:
+def test_model_absence_cannot_override_supported_evidence() -> None:
     engine = DeepSearchEngine()
+    feature = "supported current capability"
     requirement = Requirement(
-        raw="report with screenshots",
-        intent="Create report",
-        must_have_features=["report", "评论截图"],
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=[feature],
         nice_to_have_features=[],
         target_platforms=[],
-        search_queries=["report screenshots"],
-        evidence_aliases={"report": ["report"], "评论截图": ["评论截图"]},
+        search_queries=["current query"],
+        evidence_aliases={feature: ["supported evidence"]},
     )
     repo = CandidateRepository(
         owner="demo",
-        name="text-report",
-        url="https://github.com/demo/text-report",
-        readme="report 评论截图",
+        name="supported",
+        url="https://github.com/demo/supported",
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=feature,
+                covered=True,
+                status="supported",
+                readme_evidence=["README confirms supported evidence."],
+            )
+        ],
     )
     analysis = ProjectAnalysis(
         repo=repo,
@@ -466,14 +485,14 @@ def test_explicit_absence_moves_feature_to_missing_not_difference() -> None:
         required_changes=[],
         risks=[],
         evidence=[],
-        different_features=["它只生成文本报告，不包含评论截图"],
+        different_features=["The model claims this supported capability is absent."],
     )
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert "评论截图" not in gated[0].missing_features
-    assert "评论截图" not in gated[0].covered_features
-    assert "评论截图" in gated[0].different_features
+    assert gated[0].missing_features == []
+    assert gated[0].covered_features == [feature]
+    assert gated[0].different_features == []
 
 
 def test_documentation_images_do_not_prove_screenshot_capability() -> None:
@@ -2469,3 +2488,51 @@ def test_repeated_low_confidence_analysis_text_is_made_project_specific() -> Non
     assert "News trend aggregation dashboard" in reasons["trend"]
     assert "Social media crawler" in reasons["crawler"]
     assert reasons["trend"] != reasons["crawler"]
+
+
+def test_model_reported_difference_cannot_bypass_unknown_evidence() -> None:
+    engine = DeepSearchEngine()
+    feature = "current requested capability"
+    requirement = Requirement(
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["current query"],
+        evidence_aliases={feature: ["current evidence"]},
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="unknown",
+        url="https://github.com/demo/unknown",
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=feature,
+                covered=False,
+                status="unknown",
+                unknown_reason="Repository material does not confirm the capability.",
+            )
+        ],
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=60,
+        recommendation="Review",
+        directly_usable=False,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        different_features=["The project uses an unverified alternative workflow."],
+    )
+    usage = BudgetUsage()
+
+    gated, stats = engine._apply_evidence_gate(requirement, [analysis], usage)
+
+    assert gated[0].different_features == []
+    assert gated[0].unknown_features == [feature]
+    assert gated[0].evidence_coverage[0].status == "unknown"
+    assert stats["unverified_model_difference_count"] == 1
+    assert usage.warnings[-1] == "Discarded unverified model-reported differences: 1"

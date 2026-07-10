@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "status": "passed",
+  "results": [
+    {
+      "repo": "Odisseu93/calculadora-ML",
+      "initialUrl": "https://github.com/Odisseu93/calculadora-ML",
+      "renderedHref": "https://github.com/Odisseu93/calculadora-ML",
+      "finalUrl": "https://github.com/Odisseu93/calculadora-ML",
+      "httpStatus": 200,
+      "pageTitle": "GitHub - Odisseu93/calculadora-ML: Calculator to find the final price of a product, taking into account Mercado Livre fees. · GitHub",
+      "status": "passed",
+      "reason": "identity_and_reachability",
+      "checkedAt": "2026-07-10T07:38:33.370396+00:00"
+    }
+  ]
+}

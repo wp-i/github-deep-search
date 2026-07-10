@@ -1,0 +1,70 @@
+{
+  "schema_version": "1",
+  "status": "completed",
+  "stages": [
+    {
+      "name": "parse",
+      "status": "completed",
+      "inputs": {
+        "query": 1
+      },
+      "outputs": {
+        "must_have": 2,
+        "nice_to_have": 3,
+        "planned_queries": 19
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "discovery",
+      "status": "completed",
+      "inputs": {
+        "planned_queries": 19
+      },
+      "outputs": {
+        "candidates": 83,
+        "requests": 77
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "evidence",
+      "status": "completed",
+      "inputs": {
+        "deep_pool": 22
+      },
+      "outputs": {
+        "coverage_items": 40
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "analysis",
+      "status": "completed",
+      "inputs": {
+        "deep_pool": 20
+      },
+      "outputs": {
+        "analyses": 2
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "report_delivery",
+      "status": "completed",
+      "inputs": {
+        "projects": 2
+      },
+      "outputs": {
+        "markdown": 1
+      },
+      "notes": [],
+      "failure": null
+    }
+  ],
+  "failure": null
+}

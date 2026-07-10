@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "1",
+  "status": "pending",
+  "findings": [
+    {
+      "id": "user-1",
+      "role": "user",
+      "severity": "P0",
+      "stage": "analysis",
+      "claim": "报告返回了最接近用户需求的项目 Cabin303/Discount_Calculator（15/100），并建议作为线索核对。",
+      "evidenceRefs": [
+        "topProjects[0].repo: Cabin303/Discount_Calculator",
+        "topProjects[0].score: 15",
+        "topProjects[0].recommendation: 低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-2",
+      "role": "user",
+      "severity": "P0",
+      "stage": "analysis",
+      "claim": "报告确认了两个核心功能（从链接读取价格和优惠、计算最终价格）均未被任何项目覆盖。",
+      "evidenceRefs": [
+        "topProjects[0].coveredFeatures: []",
+        "topProjects[0].evidenceCoverage[0].covered: false",
+        "topProjects[0].evidenceCoverage[1].covered: false",
+        "topProjects[1].coveredFeatures: []",
+        "topProjects[1].evidenceCoverage[0].covered: false",
+        "topProjects[1].evidenceCoverage[1].covered: false"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-3",
+      "role": "user",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "报告给出了明确的下一步行动：打开 Cabin303/Discount_Calculator 的证据与源码，确认其功能。",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: 打开 Cabin303/Discount_Calculator 的证据与源码，确认「Given a product link, it reads the price and discount details from the page」。"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-4",
+      "role": "user",
+      "severity": "P2",
+      "stage": "discovery",
+      "claim": "报告进行了全面的搜索，覆盖了 19 个查询、83 个候选项目，并深入分析了 20 个候选。",
+      "evidenceRefs": [
+        "usage.githubRequests: 108",
+        "raw.candidate_count: 83",
+        "raw.deep_pool_count: 20",
+        "runTrace.stages[1].outputs.candidates: 83"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-5",
+      "role": "user",
+      "severity": "P3",
+      "stage": "report_delivery",
+      "claim": "报告以 JSON 格式提供了完整的决策摘要、项目列表和搜索元数据。",
+      "evidenceRefs": [
+        "summary",
+        "decisionBrief",
+        "topProjects",
+        "usage",
+        "raw"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-1",
+      "role": "semantic",
+      "severity": "P0",
+      "stage": "analysis",
+      "claim": "The report correctly identifies that no project directly matches the core requirement of reading price and discount details from a product link.",
+      "evidenceRefs": [
+        "summary: '已整理 2 个相邻方向，最接近的是 Cabin303/Discount_Calculator（15/100），目前更适合用来找灵感，不适合直接采用。'",
+        "decisionBrief.headline: 'Cabin303/Discount_Calculator 仅是相邻线索，不应视为已验证匹配。'",
+        "topProjects[0].coreConfirmed: false",
+        "topProjects[1].coreConfirmed: false"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-2",
+      "role": "semantic",
+      "severity": "P0",
+      "stage": "analysis",
+      "claim": "The report omits the core intent that the user is a non-developer and does not evaluate any project for non-developer usability.",
+      "evidenceRefs": [
+        "requirement.raw: '我不懂开发，想找一个开源项目'",
+        "requirement.niceToHaveFeatures: ['easy to use for non-developers']",
+        "topProjects[0].requiredChanges: ['需要开发从商品链接读取价格和优惠信息的功能', '需要将 Telegram 机器人集成到网页抓取功能']",
+        "topProjects[1].requiredChanges: ['需要开发从商品链接读取价格和优惠信息的功能', '需要将计算器与网页抓取集成']"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-3",
+      "role": "semantic",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "The report hardens the unspecified 'platform and data source' detail into a requirement that the project must work with any unspecified platform, which is unsupported.",
+      "evidenceRefs": [
+        "requirement.raw: '平台和数据来源暂时不确定。'",
+        "requirement.niceToHaveFeatures: ['platform and data source unspecified']",
+        "topProjects[1].risks: ['项目针对 Mercado Livre 平台，可能不适用于其他平台']"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-4",
+      "role": "semantic",
+      "severity": "P2",
+      "stage": "analysis",
+      "claim": "The report fails to note that both top projects require manual input, which directly contradicts the core 'reads from the page' feature.",
+      "evidenceRefs": [
+        "topProjects[0].evidenceCoverage[0].componentEvidence.object: ['仓库简介: Telegram bot for calculating discounts. Takes price and percent, returns a nice receipt', 'README: Enter the price and the discount percent — get a nice receipt with the final price.']",
+        "topProjects[1].evidenceCoverage[0].componentEvidence.object: ['仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.', 'README: Calculator to find the final price of a product, taking into account Mercado Livre fees.']",
+        "topProjects[1].risks: ['需要手动输入数据，不自动读取']"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-1",
+      "role": "evidence",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "Cabin303/Discount_Calculator has unknown status for feature 'Given a product link, it reads the price and discount details from the page'.",
+      "evidenceRefs": [
+        "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+        "README: Enter the price and the discount percent — get a nice receipt with the final price."
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-2",
+      "role": "evidence",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "Odisseu93/calculadora-ML has unknown status for feature 'Given a product link, it reads the price and discount details from the page'.",
+      "evidenceRefs": [
+        "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more...",
+        "README: ...rketplace commissions, fixed marketplace fee, and shipping cost."
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-3",
+      "role": "evidence",
+      "severity": "P2",
+      "stage": "analysis",
+      "claim": "Cabin303/Discount_Calculator has unknown status for feature 'It calculates the final price after discounts from the extracted data'.",
+      "evidenceRefs": [
+        "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+        "README: - Discount % - Final price"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-4",
+      "role": "evidence",
+      "severity": "P2",
+      "stage": "analysis",
+      "claim": "Odisseu93/calculadora-ML has unknown status for feature 'It calculates the final price after discounts from the extracted data'.",
+      "evidenceRefs": [
+        "README: Calculator to find the final price of a product, taking into account Mercado Livre fees."
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-5",
+      "role": "evidence",
+      "severity": "P3",
+      "stage": "report_delivery",
+      "claim": "The report returned 2 projects as 'adjacent' leads with a score of 15/100.",
+      "evidenceRefs": [
+        "topProjects[0].score: 15",
+        "topProjects[1].score: 15",
+        "decisionBrief.level: adjacent"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    }
+  ],
+  "note": "Agent severity is a triage suggestion. Only accepted findings enter the defect closure loop."
+}

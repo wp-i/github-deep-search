@@ -1,0 +1,15 @@
+{
+  "case_id": "pilot-nonexpert-link-price",
+  "raw_request": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+  "language": "zh-CN",
+  "scenario_family": "ambiguous-intent",
+  "core_outcome_direction": "从商品链接获得价格与优惠信息，并计算面向用户的最终价格。",
+  "optional_constraints": [
+    "商品平台和数据来源尚未指定"
+  ],
+  "risk_level": "high",
+  "evaluation_date": "2026-07-10",
+  "reviewer": "pending-independent-review",
+  "source": "Manually authored V1 pilot request",
+  "redaction": "No personal data, credentials, private URLs, or expected repositories included."
+}

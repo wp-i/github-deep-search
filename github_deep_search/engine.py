@@ -219,22 +219,17 @@ class DeepSearchEngine:
                     },
                     "planned_repo_queries_used": self._planned_repo_search_queries(requirement),
                     "top_ranked_candidates": [
-                        {
-                            "repo": item.full_name,
-                            "score": round(item.raw_score, 1),
-                            "core_signal": item.core_signal_score,
-                            "found_by": item.found_by[:4],
-                        }
+                        self._candidate_trace_item(item, include_found_by=True)
                         for item in ranked[:15]
                     ],
                     "deep_pool_candidates": [
-                        {
-                            "repo": item.full_name,
-                            "score": round(item.raw_score, 1),
-                            "core_signal": item.core_signal_score,
-                        }
+                        self._candidate_trace_item(item)
                         for item in deep_repos
                     ],
+                    "score_semantics": {
+                        "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+                        "topProjects.score": "Evidence-gated public match score on a 0-100 scale.",
+                    },
                     "core_requirement": self._core_requirement_feature(requirement),
                     "evidence_gate": evidence_gate_stats,
                     "low_confidence_filtered_count": len(low_confidence_not_returned),
@@ -291,6 +286,22 @@ class DeepSearchEngine:
 
     def _budgeted_github_limit(self) -> int:
         return self.settings.max_github_requests
+
+    @staticmethod
+    def _candidate_trace_item(
+        repo: CandidateRepository,
+        *,
+        include_found_by: bool = False,
+    ) -> dict[str, object]:
+        item: dict[str, object] = {
+            "repo": repo.full_name,
+            "discovery_score": round(repo.raw_score, 1),
+            "score_basis": "pre_analysis_retrieval",
+            "core_signal": repo.core_signal_score,
+        }
+        if include_found_by:
+            item["found_by"] = repo.found_by[:4]
+        return item
 
     def _budgeted_candidate_limit(self) -> int:
         return self.settings.max_candidates
@@ -2135,6 +2146,7 @@ class DeepSearchEngine:
             "explicit_missing_count": 0,
             "core_requirement_unconfirmed_count": 0,
             "repeated_analysis_text_count": 0,
+            "unverified_model_difference_count": 0,
             "ungated_generic_must_have_count": len(requirement.must_have_features) - len(gated_features),
         }
         if not gated_features:
@@ -2147,43 +2159,18 @@ class DeepSearchEngine:
                 coverage = self._build_evidence_coverage(analysis.repo, requirement)
             analysis.evidence_coverage = coverage
             reported_differences = list(analysis.different_features)
+            stats["unverified_model_difference_count"] += len(reported_differences)
             for item in coverage:
                 if item.covered and item.status == "unknown":
                     item.status = "supported"
-                if self._feature_has_confirmed_absence(item.feature, reported_differences):
-                    item.status = "missing"
-                    item.covered = False
-                    item.missing_reason = "核对结果明确说明该能力不提供"
-                elif item.status == "supported" and self._feature_has_confirmed_difference(
-                    item.feature, reported_differences
-                ):
-                    item.status = "different"
-                    item.covered = False
-            if self._reported_difference_overlaps_primary(requirement, reported_differences):
-                supported_count = sum(1 for item in coverage if item.status == "supported" or item.covered)
-                if supported_count < len(coverage):
-                    for item in coverage:
-                        if item.status == "supported" or item.covered:
-                            item.status = "different"
-                            item.covered = False
-                            if not item.difference_reason:
-                                item.difference_reason = "reported scope difference overlaps the requested capability"
             evidence_covered = [item.feature for item in coverage if item.status == "supported"]
             explicit_missing = [item.feature for item in coverage if item.status == "missing"]
             unknown = [item.feature for item in coverage if item.status == "unknown"]
             evidence_differences = [item.feature for item in coverage if item.status == "different"]
             constraint_differences, constraint_unknown = self._constraint_findings(requirement, analysis.repo)
             analysis.covered_features = evidence_covered[:8]
-            remaining_differences = [
-                difference
-                for difference in reported_differences
-                if not any(
-                    self._feature_has_confirmed_absence(feature, [difference])
-                    for feature in explicit_missing
-                )
-            ]
             analysis.different_features = list(
-                dict.fromkeys([*remaining_differences, *evidence_differences, *constraint_differences])
+                dict.fromkeys([*evidence_differences, *constraint_differences])
             )[:8]
             analysis.unknown_features = list(dict.fromkeys([*unknown, *constraint_unknown]))[:8]
             # A model guess is never enough to call a feature absent. Only an
@@ -2286,6 +2273,11 @@ class DeepSearchEngine:
         stats["repeated_analysis_text_count"] = self._degrade_repeated_analysis_text(gated, usage)
         if penalized:
             usage.warnings.append("Candidates with explicitly absent requirements: " + ", ".join(penalized[:5]))
+        if stats["unverified_model_difference_count"]:
+            usage.warnings.append(
+                "Discarded unverified model-reported differences: "
+                + str(stats["unverified_model_difference_count"])
+            )
         return sorted(gated, key=lambda item: item.match_score, reverse=True), stats
 
     def _coverage_evidence_summary(self, analysis: ProjectAnalysis) -> list[str]:

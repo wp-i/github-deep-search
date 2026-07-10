@@ -1,0 +1,72 @@
+{
+  "schema_version": "1",
+  "status": "partial",
+  "stages": [
+    {
+      "name": "parse",
+      "status": "completed",
+      "inputs": {
+        "query": 1
+      },
+      "outputs": {
+        "must_have": 2,
+        "nice_to_have": 3,
+        "planned_queries": 20
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "discovery",
+      "status": "completed",
+      "inputs": {
+        "planned_queries": 20
+      },
+      "outputs": {
+        "candidates": 84,
+        "requests": 116
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "evidence",
+      "status": "completed",
+      "inputs": {
+        "deep_pool": 22
+      },
+      "outputs": {
+        "coverage_items": 40
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "analysis",
+      "status": "partial",
+      "inputs": {
+        "deep_pool": 20
+      },
+      "outputs": {
+        "analyses": 1
+      },
+      "notes": [
+        "llm:failed:ReadTimeout"
+      ],
+      "failure": null
+    },
+    {
+      "name": "report_delivery",
+      "status": "completed",
+      "inputs": {
+        "projects": 1
+      },
+      "outputs": {
+        "markdown": 1
+      },
+      "notes": [],
+      "failure": null
+    }
+  ],
+  "failure": null
+}

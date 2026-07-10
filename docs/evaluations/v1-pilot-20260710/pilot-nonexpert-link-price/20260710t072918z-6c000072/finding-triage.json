@@ -1,0 +1,178 @@
+{
+  "schemaVersion": "1",
+  "status": "pending",
+  "findings": [
+    {
+      "id": "user-1",
+      "role": "user",
+      "severity": "P0",
+      "stage": "report_delivery",
+      "claim": "报告给出了一个决策：Odisseu93/calculadora-ML 是相邻线索，不应视为已验证匹配。",
+      "evidenceRefs": [
+        "decisionBrief.headline: Odisseu93/calculadora-ML 仅是相邻线索，不应视为已验证匹配。",
+        "topProjects[0].recommendation: 低相似线索：Given a product link, the project reads the price and discount details from the page、Calculates the final price after discounts from the extracted details",
+        "topProjects[0].directlyUsable: false"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-2",
+      "role": "user",
+      "severity": "P1",
+      "stage": "evidence",
+      "claim": "报告提供了最强证据来支持其结论。",
+      "evidenceRefs": [
+        "topProjects[0].evidence: []",
+        "topProjects[0].evidenceCoverage[0].covered: false",
+        "topProjects[0].evidenceCoverage[1].covered: false"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-3",
+      "role": "user",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "报告识别了核心差距：该项目是相邻线索，不适合直接采用。",
+      "evidenceRefs": [
+        "decisionBrief.gaps: []",
+        "topProjects[0].requiredChanges: [\"仅作为搜索线索，不建议作为候选项目采用\"]"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-4",
+      "role": "user",
+      "severity": "P2",
+      "stage": "report_delivery",
+      "claim": "报告给出了一个明确的下一步行动：打开 Odisseu93/calculadora-ML 的证据与源码，确认核心功能。",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: 打开 Odisseu93/calculadora-ML 的证据与源码，确认「Given a product link, the project reads the price and discount details from the page」。"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-1",
+      "role": "semantic",
+      "severity": "P0",
+      "stage": "analysis",
+      "claim": "Odisseu93/calculadora-ML is the closest adjacent direction (15/100) and is suitable for finding inspiration.",
+      "evidenceRefs": [
+        "topProjects[0].scoreReason: 'Calculator to find the final price of a product, taking into account Mercado Livre fees.'",
+        "topProjects[0].evidenceCoverage[0].componentEvidence.object: '仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.'",
+        "topProjects[0].evidenceCoverage[1].componentEvidence.object: 'README: ...helping Mercado Livre sellers calculate the final price of their products...'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-2",
+      "role": "semantic",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "The project's core feature is 'Given a product link, the project reads the price and discount details from the page' (coreConfirmed: false).",
+      "evidenceRefs": [
+        "topProjects[0].coreFeature: 'Given a product link, the project reads the price and discount details from the page'",
+        "topProjects[0].coreConfirmed: false",
+        "topProjects[0].evidenceCoverage[0].status: 'unknown'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-3",
+      "role": "semantic",
+      "severity": "P2",
+      "stage": "report_delivery",
+      "claim": "The report's next step is to 'confirm Given a product link, the project reads the price and discount details from the page' by opening the project's evidence and source code.",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: '打开 Odisseu93/calculadora-ML 的证据与源码，确认「Given a product link, the project reads the price and discount details from the page」。'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-4",
+      "role": "semantic",
+      "severity": "P3",
+      "stage": "analysis",
+      "claim": "The report's search was complete and returned 1 project after confidence filtering.",
+      "evidenceRefs": [
+        "raw.search_completeness: 'complete'",
+        "usage.warnings: 'Returned 1 project(s) because remaining candidates did not pass confidence filtering.'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-1",
+      "role": "evidence",
+      "severity": "P0",
+      "stage": "evidence",
+      "claim": "Odisseu93/calculadora-ML is the closest adjacent project with a score of 15/100.",
+      "evidenceRefs": [
+        "topProjects[0].score: 15",
+        "topProjects[0].scoreReason: 'Calculator to find the final price of a product, taking into account Mercado Livre fees.'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-4",
+      "role": "evidence",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "The project is a 'low similarity lead' and 'not directly usable'.",
+      "evidenceRefs": [
+        "topProjects[0].directlyUsable: false",
+        "topProjects[0].confidenceLevel: 'lead'",
+        "topProjects[0].recommendation: '低相似线索'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-5",
+      "role": "evidence",
+      "severity": "P2",
+      "stage": "discovery",
+      "claim": "The search was comprehensive, using 20 planned queries across multiple sources (GitHub, web) and returning 84 candidates.",
+      "evidenceRefs": [
+        "raw.candidate_count: 84",
+        "raw.planned_query_counts: {repo: 4, code: 4, topic: 4, issue: 4, web: 4}",
+        "raw.source_mix: {github_repo: 22, github_code: 14, github_topic: 22, github_issue: 22, tavily: 4}"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "evidence-6",
+      "role": "evidence",
+      "severity": "P3",
+      "stage": "report_delivery",
+      "claim": "The next step is to 'open Odisseu93/calculadora-ML evidence and source code to confirm the feature'.",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: '打开 Odisseu93/calculadora-ML 的证据与源码，确认「Given a product link, the project reads the price and discount details from the page」。'"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    }
+  ],
+  "note": "Agent severity is a triage suggestion. Only accepted findings enter the defect closure loop."
+}

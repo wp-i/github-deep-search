@@ -1,0 +1,803 @@
+{
+  "summary": "已整理 3 个相邻方向，最接近的是 davide97l/ecommerce_price_scraper（15/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "davide97l/ecommerce_price_scraper 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "davide97l/ecommerce_price_scraper",
+    "confirmedFeatures": [],
+    "gaps": [
+      "需求：给定一条商品链接。项目实际：使用商品关键词搜索，不接收商品链接。",
+      "需求：算出最终到手价。项目实际：比较价格并标记是否有折扣，但不计算最终到手价。"
+    ],
+    "unconfirmedFeatures": [
+      "Given a product link, read the price and discount details and calculate the final price."
+    ],
+    "nextStep": "打开 davide97l/ecommerce_price_scraper 的证据与源码，先核查「需求：给定一条商品链接。项目实际：使用商品关键词搜索，不接收商品链接。」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "Find an open-source project that, given a product link, reads the price and discount details and calculates the final price.",
+    "mustHaveFeatures": [
+      "Given a product link, read the price and discount details and calculate the final price."
+    ],
+    "niceToHaveFeatures": [
+      "Platform and data source unspecified, so flexibility in supported e-commerce platforms is a plus."
+    ],
+    "targetPlatforms": [
+      "command-line",
+      "API",
+      "web interface"
+    ],
+    "searchQueries": [
+      "open source product link price discount calculator",
+      "price scraper final price calculator",
+      "e-commerce price discount extractor open source",
+      "price calculator product link",
+      "discount extractor open source",
+      "final price from url",
+      "price discount calculation",
+      "product link price scraper",
+      "final price calculator",
+      "price-tracking",
+      "web-scraping",
+      "e-commerce",
+      "product link price discount",
+      "calculate final price from url",
+      "open source price scraper",
+      "open source project product link price discount final price",
+      "github price calculator from product url",
+      "scrape price and discount open source"
+    ],
+    "repoSearchQueries": [
+      "price calculator product link",
+      "discount extractor open source",
+      "final price from url"
+    ],
+    "codeSearchQueries": [
+      "price discount calculation",
+      "product link price scraper",
+      "final price calculator"
+    ],
+    "topicSearchQueries": [
+      "price-tracking",
+      "web-scraping",
+      "e-commerce"
+    ],
+    "issueSearchQueries": [
+      "product link price discount",
+      "calculate final price from url",
+      "open source price scraper"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount final price",
+      "github price calculator from product url",
+      "scrape price and discount open source"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价",
+        "开源项目"
+      ],
+      "domains": [
+        "e-commerce",
+        "price tracking",
+        "web scraping"
+      ],
+      "actions": [
+        "read",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "command-line",
+        "API",
+        "web interface"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, read the price and discount details and calculate the final price.": [
+        "product link",
+        "price",
+        "discount",
+        "final price",
+        "calculate"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, read the price and discount details and calculate the final price.": {
+        "action": [
+          "read",
+          "calculate"
+        ],
+        "object": [
+          "product link",
+          "price",
+          "discount details"
+        ],
+        "context": [
+          "e-commerce",
+          "web scraping"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 3 个相邻方向，最接近的是 davide97l/ecommerce_price_scraper（15/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. davide97l/ecommerce_price_scraper（相邻参考） · ★ 30 · 更新 2024-02-22\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：Scrape the prices of a set of products from different vendors via e-commerce website\n\n...[truncated]...\n\nall 天猫, and Jingdong 京东.。\n- 差异部分：需求：给定一条商品链接；项目实际：使用商品关键词搜索，不接收商品链接；需求：算出最终到手价\n- 地址：https://github.com/davide97l/ecommerce_price_scraper\n\n### 2. Dashboard-Design/Nilper_Scraping（相邻参考） · ★ 3 · 更新 2025-08-09\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A Python web scraping project that collects Nilper chair product data — including na\n\n...[truncated]...\n\nard for market analysis.。\n- 差异部分：需求：给定一条商品链接，读取该链接的价格和优惠明细；项目实际：从固定网站的商品列表页批量抓取所有商品的价格，不接收单个商品链接；需求：算出最终到手价（考虑优惠明细）\n- 地址：https://github.com/Dashboard-Design/Nilper_Scraping\n\n### 3. nexscope-ai/eCommerce-Skills（相邻参考） · ★ 342 · 更新 2026-06-10\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：E-commerce skills for AI agents — product research, marketing automation, supply cha\n\n...[truncated]...\n\nShop, and all platforms.。\n- 差异部分：需求：给定一条商品链接，读取价格和优惠明细，算出最终到手价；项目实际提供：AI代理技能（如利润计算器、定价策略），需要用户手动输入数据或依赖AI代理的上下文，不直接处理商品链接\n- 地址：https://github.com/nexscope-ai/eCommerce-Skills\n\n## 本次消耗\n- LLM Token：输入 32950，输出 5127，合计 38077。",
+  "topProjects": [
+    {
+      "repo": "davide97l/ecommerce_price_scraper",
+      "url": "https://github.com/davide97l/ecommerce_price_scraper",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：Scrape the prices of a set of products from different vendors via e-commerce website\n\n...[truncated]...\n\nall 天猫, and Jingdong 京东.。",
+      "coreFeature": "Given a product link, read the price and discount details and calculate the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 30,
+      "lastPushedAt": "2024-02-22T04:02:01Z",
+      "language": "Python",
+      "license": "Apache-2.0",
+      "recommendation": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "需求：给定一条商品链接。项目实际：使用商品关键词搜索，不接收商品链接。",
+        "需求：算出最终到手价。项目实际：比较价格并标记是否有折扣，但不计算最终到手价。"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要改为接收商品链接作为输入",
+        "需要增加从单个商品页面读取价格和优惠明细的功能",
+        "需要实现最终到手价的计算逻辑",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "当前基于关键词搜索，改为链接输入需要重构核心逻辑",
+        "优惠明细解析和最终价格计算需要额外开发",
+        "低相似线索：Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details and calculate the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao 淘宝, Tmall 天猫, and Jingdong 京东.",
+              "README: This project consists of a multifunctional tool designed to scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao, Tmall, and Jingdong.",
+              "README: This project consists of a multifunctional tool designed to scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao, Tmall, and Jingdong. The primary function is to compare the sc\n\n...[truncated]...\n\nsist users in finding the best deals for their desired products.",
+              "README: The primary function is to compare the scraped prices and identify discounted offers to assist users in finding the best deals for their desired products."
+            ],
+            "context": [
+              "仓库简介: Scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao 淘宝, Tmall 天猫, and Jingdong 京东.",
+              "README: This project consists of a multifunctional tool designed to scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao, Tmall, and Jingdong.",
+              "README: This project consists of a multifunctional tool designed to scrape the prices of a set of products from different vendors via e-commerce websites such as Taobao, Tmall, and Jingdong. The primary function is to compare the sc\n\n...[truncated]...\n\nsist users in finding the best deals for their desired products.",
+              "README: We have a list of products, for instance: `\"Danish Crown Ham Slices 800g\"`, `\"Danish Crown Barbecue Pork 500g\"`, `\"Danish Crown Sauce Pork Ribs 200g\"`. These keywords are used to search the e-commerce websites."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "tavily:scrape price and discount open source"
+      ]
+    },
+    {
+      "repo": "Dashboard-Design/Nilper_Scraping",
+      "url": "https://github.com/Dashboard-Design/Nilper_Scraping",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：A Python web scraping project that collects Nilper chair product data — including na\n\n...[truncated]...\n\nard for market analysis.。",
+      "coreFeature": "Given a product link, read the price and discount details and calculate the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 3,
+      "lastPushedAt": "2025-08-09T08:24:12Z",
+      "language": "Python",
+      "license": null,
+      "recommendation": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "需求：给定一条商品链接，读取该链接的价格和优惠明细。项目实际：从固定网站的商品列表页批量抓取所有商品的价格，不接收单个商品链接。",
+        "需求：算出最终到手价（考虑优惠明细）。项目实际：仅抓取标价，不处理优惠信息，也不计算最终价格。"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要改为接收单个商品链接作为输入",
+        "需要增加优惠明细的抓取和解析功能",
+        "需要实现最终到手价的计算逻辑",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "当前代码硬编码了特定网站和商品列表页，通用性差",
+        "没有处理优惠信息，需要大量新增功能",
+        "低相似线索：Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details and calculate the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: A Python web scraping project that collects Nilper chair product data — including names, prices, images, and links — from the official Nilper store using Selenium. The dataset is cleaned, converted from Rial to Toman, and visualized in a Power BI dashboard for market analysis.",
+              "README: This project scrapes product data from the [Nilper store](https://store.nilper.ir/) to collect chair model names, prices, images, and product links.",
+              "README: This project scrapes product data from the [Nilper store](https://store.nilper.ir/) to collect chair model names, prices, images, and product links. The data is then cleaned and exported for analysis in Power BI, where a dashboard visualizes price ranges and market trends.",
+              "README: The data is then cleaned and exported for analysis in Power BI, where a dashboard visualizes price ranges and market trends."
+            ],
+            "context": [
+              "仓库简介: A Python web scraping project that collects Nilper chair product data — including names, prices, images, and links — from the official Nilper store using Selenium. The dataset is cleaned, converted from Rial to Toman, and visualized in a Power BI dashboard for market analysis.",
+              "README: The data is then cleaned and exported for analysis in Power BI, where a dashboard visualizes price ranges and market trends. - Demonstrate Python web scraping skills using **Selenium**.",
+              "README: - Demonstrate Python web scraping skills using **Selenium**.",
+              "README: - Demonstrate Python web scraping skills using **Selenium**. - Collect structured product and pricing data for analysis."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-tracking"
+      ]
+    },
+    {
+      "repo": "nexscope-ai/eCommerce-Skills",
+      "url": "https://github.com/nexscope-ai/eCommerce-Skills",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；项目定位或使用方式也有差异；该项目可核对线索：E-commerce skills for AI agents — product research, marketing automation, supply cha\n\n...[truncated]...\n\nShop, and all platforms.。",
+      "coreFeature": "Given a product link, read the price and discount details and calculate the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 342,
+      "lastPushedAt": "2026-06-10T07:57:04Z",
+      "language": "Python",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, read the price and discount details and calculate the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [
+        "需求：给定一条商品链接，读取价格和优惠明细，算出最终到手价。项目实际提供：AI代理技能（如利润计算器、定价策略），需要用户手动输入数据或依赖AI代理的上下文，不直接处理商品链接。"
+      ],
+      "unknownFeatures": [
+        "Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要开发一个能接收商品链接、自动抓取页面价格和优惠信息的模块",
+        "需要实现优惠明细解析和最终到手价的计算逻辑",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目本身不包含网页抓取功能，需要大量额外开发",
+        "依赖AI代理环境，非独立可运行工具",
+        "低相似线索：Given a product link, read the price and discount details and calculate the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, read the price and discount details and calculate the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: --- E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read.",
+              "README: E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read.",
+              "README: E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read. Install a skill, ask your AI \n\n...[truncated]...\n\nansion, PPC campaigns — powered by proven e-commerce frameworks.",
+              "README.md: --- E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read."
+            ],
+            "object": [
+              "README: | [walmart-review-checker](./review-checker/walmart-review-checker) | Walmart review authenticity — fake reviews, WFS verified badge analysis, red flags. | ✅ Available | | [competitor-price-analysis](./competitor-price-analy\n\n...[truncated]...\n\nlysis — price mapping, gaps, elasticity signals. | ✅ Available |",
+              "README: | [competitor-price-analysis](./competitor-price-analysis) | Competitor pricing strategy analysis — price mapping, gaps, elasticity signals. | ✅ Available |",
+              "README: | [competitor-price-analysis](./competitor-price-analysis) | Competitor pricing strategy analysis — price mapping, gaps, elasticity signals. | ✅ Available | | [ecommerce-competitor-analysis](./ecommerce-competitor-analysis) \n\n...[truncated]...\n\n— multi-channel presence, strategy, positioning. | ✅ Available |",
+              "README: | [dynamic-pricing-ecommerce](./dynamic-pricing-ecommerce) | Dynamic pricing — demand-based, competitor-responsive, algorithmic repricing models. | 🔶 Beta | | [price-optimization-tool](./price-optimization-tool) | Price optimization — elasticity, A/B testing, margin modeling, competitor benchmarking. | 🔶 Beta |"
+            ],
+            "context": [
+              "仓库简介: E-commerce skills for AI agents — product research, marketing automation, supply chain optimization, and business analytics for online sellers across Amazon, Shopify, Etsy, TikTok Shop, and all platforms.",
+              "README: --- E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read.",
+              "README: E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read.",
+              "README: E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read. Install a skill, ask your AI \n\n...[truncated]...\n\nansion, PPC campaigns — powered by proven e-commerce frameworks."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "github:price calculator product in:name,description,readme"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, read the price and discount details and calculate the final price.」。可借鉴 davide97l/ecommerce_price_scraper 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 150,
+    "githubSearchRequests": 20,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 3,
+    "tavilyCredits": 3,
+    "llmInputTokens": 32950,
+    "llmOutputTokens": 5127,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 157275,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/1979139113/0day-today-exploits/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: shopware/shopware, dvishal485/flipkart-scraper-api, Cybrarist/Discount-Bandit, davide97l/ecommerce_price_scraper, Dashboard-Design/Nilper_Scraping",
+      "Excluded 17 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added relatively closest adjacent projects because stronger matches were insufficient: davide97l/ecommerce_price_scraper, Dashboard-Design/Nilper_Scraping, nexscope-ai/eCommerce-Skills",
+      "Low-confidence candidates below 50/100 not returned: shopware/shopware, dvishal485/flipkart-scraper-api, Cybrarist/Discount-Bandit, bit-of-a-shambles/open-tender-watch, bluevisiontec/GoogleShoppingApi",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": [
+      {
+        "provider": "github",
+        "operation": "/repos/1979139113/0day-today-exploits/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      }
+    ]
+  },
+  "raw": {
+    "candidate_count": 83,
+    "ranked_count": 83,
+    "deep_pool_count": 20,
+    "top_projects_returned": 3,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 3,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "limited",
+    "search_completeness_reasons": [
+      "github HTTPStatusError during evidence"
+    ],
+    "source_mix": {
+      "github_repo": 20,
+      "github_code": 20,
+      "github_topic": 20,
+      "github_issue": 20,
+      "tavily": 3,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 119,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 3,
+      "code": 3,
+      "topic": 3,
+      "issue": 3,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "price calculator product link",
+      "discount extractor open source",
+      "final price from url",
+      "open source product link price discount calculator",
+      "price scraper final price calculator",
+      "e-commerce price discount extractor open source",
+      "price discount calculation",
+      "product link price scraper",
+      "final price calculator",
+      "price-tracking"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "Dashboard-Design/Nilper_Scraping",
+        "discovery_score": 91.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 130.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 129.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 129.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 129.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 128.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 128.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 122.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "davide97l/ecommerce_price_scraper",
+        "discovery_score": 90.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "tavily:scrape price and discount open source"
+        ]
+      },
+      {
+        "repo": "nexscope-ai/eCommerce-Skills",
+        "discovery_score": 103.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github:price calculator product in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 117.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "parthbuilds-community/FitMart",
+        "discovery_score": 111.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:price calculator product in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "bmentges/django-cart",
+        "discovery_score": 110.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:price calculator product in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 102.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "nexscope-ai/eCommerce-Skills",
+        "discovery_score": 103.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "Dashboard-Design/Nilper_Scraping",
+        "discovery_score": 91.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "davide97l/ecommerce_price_scraper",
+        "discovery_score": 90.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "Cybrarist/Discount-Bandit",
+        "discovery_score": 28.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "bit-of-a-shambles/open-tender-watch",
+        "discovery_score": 17.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "bluevisiontec/GoogleShoppingApi",
+        "discovery_score": 15.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "aimadetools/race-xiaomi",
+        "discovery_score": 13.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "github/roadmap",
+        "discovery_score": 12.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "dvishal485/flipkart-scraper-api",
+        "discovery_score": 11.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "techdivision/import-product",
+        "discovery_score": 9.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "service-bot/servicebot",
+        "discovery_score": 4.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "lewisxhe/esp32-camera-series",
+        "discovery_score": 2.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "lcobbold/amazon-project",
+        "discovery_score": -1.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "yusra2323/tender-bel",
+        "discovery_score": -5.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "Makerfabs/MaUWB_ESP32S3-with-STM32-AT-Command",
+        "discovery_score": -7.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "preetshah7/walmart_scarper",
+        "discovery_score": -8.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "DFRobot/DFRobot_PH",
+        "discovery_score": -15.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "df2k2/m2cert",
+        "discovery_score": -26.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "weirdandwry/nr-local-spa",
+        "discovery_score": -26.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, read the price and discount details and calculate the final price.",
+    "evidence_gate": {
+      "gated_feature_count": 1,
+      "penalized_count": 0,
+      "score_capped_count": 1,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 20,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 20,
+      "repeated_analysis_text_count": 20,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 17,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "partial",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 1,
+          "nice_to_have": 1,
+          "planned_queries": 18
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "completed",
+        "inputs": {
+          "planned_queries": 18
+        },
+        "outputs": {
+          "candidates": 83,
+          "requests": 119
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 20
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 3
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 3
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

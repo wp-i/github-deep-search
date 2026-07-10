@@ -1,0 +1,229 @@
+{
+  "schemaVersion": "1",
+  "roles": [
+    "user",
+    "semantic",
+    "evidence"
+  ],
+  "status": "action_required",
+  "reviews": [
+    {
+      "role": "user",
+      "verdict": "concern",
+      "summary": "报告将用户需求判定为“相邻线索”，并推荐了 mikevidotto/trackprice-ai 作为最佳项目，但未提供任何可验证的代码或文档证据来证明该项目能够实现“给定商品链接，读取价格和优惠明细并计算最终到手价”这一核心功能。所有三个候选项目的证据覆盖状态均为“unknown”，且报告自身承认搜索完整性受限。因此，用户无法基于此报告做出任何有依据的决策。",
+      "findings": [
+        {
+          "severity": "P0",
+          "stage": "analysis",
+          "claim": "mikevidotto/trackprice-ai 是相邻线索，适合用来找灵感。",
+          "evidence_refs": [
+            "topProjects[0].scoreReason",
+            "topProjects[0].evidenceCoverage[0].status",
+            "topProjects[0].evidenceCoverage[1].status"
+          ],
+          "counterexample": "该项目的 evidenceCoverage 中两个核心 feature 的状态均为 'unknown'，且 evidence 数组为空。报告未提供任何 README 片段、源代码路径或 API 文档来证明该项目能读取任意商品链接的价格和优惠明细。",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "analysis",
+          "claim": "DoganayBalaban/PriceWise-AI 是相邻线索，适合用来找灵感。",
+          "evidence_refs": [
+            "topProjects[1].scoreReason",
+            "topProjects[1].evidenceCoverage[0].status",
+            "topProjects[1].evidenceCoverage[1].status"
+          ],
+          "counterexample": "该项目的 evidenceCoverage 中两个核心 feature 的状态均为 'unknown'，且 evidence 数组为空。报告未提供任何证据证明该项目能读取任意商品链接的价格和优惠明细。",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "analysis",
+          "claim": "johnzfitch/raley-bot 是相邻线索，适合用来找灵感。",
+          "evidence_refs": [
+            "topProjects[2].scoreReason",
+            "topProjects[2].evidenceCoverage[0].status",
+            "topProjects[2].evidenceCoverage[1].status"
+          ],
+          "counterexample": "该项目的 evidenceCoverage 中两个核心 feature 的状态均为 'unknown'，且 evidence 数组为空。报告未提供任何证据证明该项目能读取任意商品链接的价格和优惠明细。",
+          "verifiable": false
+        },
+        {
+          "severity": "P1",
+          "stage": "discovery",
+          "claim": "搜索完整性受限。",
+          "evidence_refs": [
+            "raw.search_completeness",
+            "raw.search_completeness_reasons",
+            "usage.warnings"
+          ],
+          "counterexample": "报告明确标注 search_completeness 为 'limited'，原因包括 GitHub HTTP 请求失败（404）和剩余配额低。这可能导致遗漏了真正匹配的项目。",
+          "verifiable": true
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "所有三个候选项目的核心功能均未确认。",
+          "evidence_refs": [
+            "topProjects[0].coreConfirmed",
+            "topProjects[1].coreConfirmed",
+            "topProjects[2].coreConfirmed"
+          ],
+          "counterexample": "三个项目的 coreConfirmed 字段均为 false，且 evidenceCoverage 中所有 feature 的状态均为 'unknown'。报告未提供任何可验证的代码或文档证据。",
+          "verifiable": true
+        },
+        {
+          "severity": "P3",
+          "stage": "analysis",
+          "claim": "用户需求的两个 must-have features 均未被任何项目覆盖。",
+          "evidence_refs": [
+            "topProjects[0].coveredFeatures",
+            "topProjects[1].coveredFeatures",
+            "topProjects[2].coveredFeatures"
+          ],
+          "counterexample": "所有三个项目的 coveredFeatures 数组均为空，而 unknownFeatures 数组包含两个 must-have features。",
+          "verifiable": true
+        }
+      ],
+      "raw_available": true
+    },
+    {
+      "role": "semantic",
+      "verdict": "concern",
+      "summary": "报告正确地识别了所有候选项目均为相邻线索而非直接匹配，并如实标注了核心功能未确认。但存在两个关键问题：1) 报告将 'mikevidotto/trackprice-ai' 的评分从原始排名中的 120.3 降为 20/100，但未提供任何新的证据或分析来支持这一大幅降分，导致评分与原始数据矛盾；2) 报告未对原始排名中评分更高（89.5）且核心信号更强的 'OrbisAPI/commerce-mcp' 进行任何分析或解释为何将其排除在 top 3 之外，这遗漏了可能更相关的候选项目。",
+      "findings": [
+        {
+          "severity": "P1",
+          "stage": "analysis",
+          "claim": "mikevidotto/trackprice-ai 的评分为 20/100，且被列为 'adjacent' 级别。",
+          "evidence_refs": [
+            "summary: '最接近的是 mikevidotto/trackprice-ai（20/100）'",
+            "topProjects[0].score: 20",
+            "topProjects[0].scoreReason: '公开线索...与...方向相近，公开证据只支持较弱相邻关系'"
+          ],
+          "counterexample": "在 raw.top_ranked_candidates 中，mikevidotto/trackprice-ai 的原始评分为 120.3，core_signal 为 2.5，远高于报告中最终采用的 20 分。报告未提供任何新的证据或分析来解释为何将评分从 120.3 降至 20，也未说明在 evidence 阶段发现了哪些具体问题导致降分。",
+          "verifiable": true
+        },
+        {
+          "severity": "P1",
+          "stage": "analysis",
+          "claim": "报告返回的 top 3 项目是 mikevidotto/trackprice-ai, DoganayBalaban/PriceWise-AI, johnzfitch/raley-bot。",
+          "evidence_refs": [
+            "topProjects: 包含上述三个项目",
+            "raw.top_projects_returned: 3"
+          ],
+          "counterexample": "在 raw.top_ranked_candidates 中，OrbisAPI/commerce-mcp 的原始评分为 89.5，core_signal 为 3.0，均高于报告中 top 3 项目的原始评分（120.3 但被降分，120.0，119.9）。报告未对 OrbisAPI/commerce-mcp 进行任何分析，也未解释为何将其排除在最终 top 3 之外。这遗漏了一个可能更相关的候选项目。",
+          "verifiable": true
+        },
+        {
+          "severity": "P2",
+          "stage": "evidence",
+          "claim": "所有三个 top 项目的核心功能 'Given a product link, read the price and discount details from the page' 的状态均为 'unknown'。",
+          "evidence_refs": [
+            "topProjects[0].evidenceCoverage[0].status: 'unknown'",
+            "topProjects[1].evidenceCoverage[0].status: 'unknown'",
+            "topProjects[2].evidenceCoverage[0].status: 'unknown'"
+          ],
+          "counterexample": "报告未提供任何具体的证据（如 README 片段、源码分析）来支持 'unknown' 状态。对于 mikevidotto/trackprice-ai，其简介明确提到 'automates competitor price tracking'，这暗示了价格读取功能，但报告未对此进行深入分析或提供反证。",
+          "verifiable": false
+        },
+        {
+          "severity": "P3",
+          "stage": "discovery",
+          "claim": "搜索完整性为 'limited'，原因是 GitHub HTTPStatusError。",
+          "evidence_refs": [
+            "raw.search_completeness: 'limited'",
+            "raw.search_completeness_reasons: ['github HTTPStatusError during discovery', 'github HTTPStatusError during evidence']",
+            "usage.warnings: 'GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/pricing/calculator''"
+          ],
+          "counterexample": "报告未说明这些失败的请求是否影响了关键候选项目的发现。例如，失败的请求是针对 'pricing/calculator' 仓库，而该仓库在 raw.top_ranked_candidates 中并未出现，因此影响可能有限。但报告未对此进行澄清。",
+          "verifiable": false
+        }
+      ],
+      "raw_available": true
+    },
+    {
+      "role": "evidence",
+      "verdict": "inconclusive",
+      "summary": "The report identifies three adjacent projects (mikevidotto/trackprice-ai, DoganayBalaban/PriceWise-AI, johnzfitch/raley-bot) but provides no local evidence that any of them can read price and discount details from a product link or calculate a final price. All three are correctly flagged as low-similarity leads with unknown feature coverage. The report's own evidence coverage tables show zero readme, source, or path evidence for the two must-have features. The search was limited by GitHub quota warnings and HTTP errors, and the top-ranked candidates (e.g., OrbisAPI/commerce-mcp, oxylabs/how-to-scrape-amazon-prices) were excluded from deep analysis. Therefore, the report cannot support a finding that any project meets the user's requirement.",
+      "findings": [
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "mikevidotto/trackprice-ai is the closest project (20/100) and is suitable for inspiration but not direct adoption.",
+          "evidence_refs": [
+            "topProjects[0].scoreReason",
+            "topProjects[0].evidenceCoverage[0].covered",
+            "topProjects[0].evidenceCoverage[1].covered"
+          ],
+          "counterexample": "The report's own evidence coverage shows both must-have features as 'covered: false' with zero readme, source, or path evidence. The score of 20 is based on a topic match ('price-tracking') and a truncated description that mentions 'automates competitor price tracking' but does not confirm reading price/discount details from a product link or calculating final price.",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "DoganayBalaban/PriceWise-AI is an adjacent lead with low similarity to the must-have features.",
+          "evidence_refs": [
+            "topProjects[1].scoreReason",
+            "topProjects[1].evidenceCoverage[0].covered",
+            "topProjects[1].evidenceCoverage[1].covered"
+          ],
+          "counterexample": "The report's evidence coverage shows both must-have features as 'covered: false' with zero readme, source, or path evidence. The description mentions 'price tracking, forecasting, review sentiment analysis' but does not confirm reading price/discount details from a product link or calculating final price.",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "johnzfitch/raley-bot is an adjacent lead with low similarity to the must-have features.",
+          "evidence_refs": [
+            "topProjects[2].scoreReason",
+            "topProjects[2].evidenceCoverage[0].covered",
+            "topProjects[2].evidenceCoverage[1].covered"
+          ],
+          "counterexample": "The report's evidence coverage shows both must-have features as 'covered: false' with zero readme, source, or path evidence. The description mentions 'grocery shopping assistant' and 'price tracking' but does not confirm reading price/discount details from a product link or calculating final price.",
+          "verifiable": false
+        },
+        {
+          "severity": "P1",
+          "stage": "discovery",
+          "claim": "The search was comprehensive, covering 83 candidates across multiple query types.",
+          "evidence_refs": [
+            "raw.candidate_count",
+            "raw.source_mix",
+            "usage.warnings"
+          ],
+          "counterexample": "The report itself notes 'search_completeness: limited' due to GitHub HTTP errors and low quota warnings. The top-ranked candidates (e.g., OrbisAPI/commerce-mcp with score 89.5, oxylabs/how-to-scrape-amazon-prices with score 89.1) were excluded from deep analysis, and 20 low-confidence candidates were filtered out. This indicates the search was not fully comprehensive.",
+          "verifiable": true
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "The three returned projects are the most relevant leads for the user's requirement.",
+          "evidence_refs": [
+            "raw.top_ranked_candidates",
+            "raw.deep_pool_candidates"
+          ],
+          "counterexample": "The raw data shows higher-scored candidates (e.g., OrbisAPI/commerce-mcp at 89.5, oxylabs/how-to-scrape-amazon-prices at 89.1) that were not returned as top projects. The report's own ranking placed mikevidotto/trackprice-ai at 120.3 in raw score but then capped it to 20/100, indicating a scoring inconsistency. The selection of these three as 'top' is not justified by the raw scores.",
+          "verifiable": true
+        },
+        {
+          "severity": "P3",
+          "stage": "report_delivery",
+          "claim": "The report provides a clear next step: '打开 mikevidotto/trackprice-ai 的证据与源码，确认「Given a product link, read the price and discount details from the page」。'",
+          "evidence_refs": [
+            "decisionBrief.nextStep"
+          ],
+          "counterexample": "The next step is reasonable as a suggestion, but the report does not provide any local evidence from the repository to support that this action would confirm the feature. The evidence coverage tables show zero evidence for this feature, so the next step is speculative.",
+          "verifiable": true
+        }
+      ],
+      "raw_available": true
+    }
+  ],
+  "usage": {
+    "llmInputTokens": 20018,
+    "llmOutputTokens": 3157,
+    "llmTokenEstimated": false,
+    "warnings": []
+  }
+}

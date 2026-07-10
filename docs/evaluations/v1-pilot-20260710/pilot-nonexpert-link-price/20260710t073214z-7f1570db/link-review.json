@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "status": "passed",
+  "results": [
+    {
+      "repo": "Cabin303/Discount_Calculator",
+      "initialUrl": "https://github.com/Cabin303/Discount_Calculator",
+      "renderedHref": "https://github.com/Cabin303/Discount_Calculator",
+      "finalUrl": "https://github.com/Cabin303/Discount_Calculator",
+      "httpStatus": 200,
+      "pageTitle": "GitHub - Cabin303/Discount_Calculator: Telegram bot for calculating discounts. Takes price and percent, returns a nice receipt 🧾. Just a useless training project on Python. · GitHub",
+      "status": "passed",
+      "reason": "identity_and_reachability",
+      "checkedAt": "2026-07-10T07:35:40.088423+00:00"
+    }
+  ]
+}

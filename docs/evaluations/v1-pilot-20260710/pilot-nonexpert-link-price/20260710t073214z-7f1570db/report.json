@@ -1,0 +1,775 @@
+{
+  "summary": "已整理 2 个相邻方向，最接近的是 Cabin303/Discount_Calculator（15/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "Cabin303/Discount_Calculator 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "Cabin303/Discount_Calculator",
+    "confirmedFeatures": [],
+    "gaps": [],
+    "unconfirmedFeatures": [
+      "Given a product link, it reads the price and discount details from the page",
+      "It calculates the final price after discounts from the extracted data"
+    ],
+    "nextStep": "打开 Cabin303/Discount_Calculator 的证据与源码，确认「Given a product link, it reads the price and discount details from the page」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "find an open-source project that, given a product link, reads price and discount details and calculates the final price",
+    "mustHaveFeatures": [
+      "Given a product link, it reads the price and discount details from the page",
+      "It calculates the final price after discounts from the extracted data"
+    ],
+    "niceToHaveFeatures": [
+      "open-source",
+      "easy to use for non-developers",
+      "platform and data source unspecified"
+    ],
+    "targetPlatforms": [
+      "API",
+      "CLI",
+      "web interface"
+    ],
+    "searchQueries": [
+      "product link price discount calculator open source",
+      "read price discount from URL calculate final price",
+      "e-commerce price scraper discount calculator",
+      "open source tool extract price discount from product link",
+      "price discount calculator product link",
+      "scrape price discount from URL",
+      "final price calculator open source",
+      "extract price discount from url",
+      "calculate final price after discount",
+      "product link price parser",
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper",
+      "product link price discount calculation",
+      "final price from URL feature request",
+      "open source price scraper discount",
+      "open source project product link price discount calculator",
+      "github tool extract price discount from product URL",
+      "calculate final price from product link open source"
+    ],
+    "repoSearchQueries": [
+      "price discount calculator product link",
+      "scrape price discount from URL",
+      "final price calculator open source"
+    ],
+    "codeSearchQueries": [
+      "extract price discount from url",
+      "calculate final price after discount",
+      "product link price parser"
+    ],
+    "topicSearchQueries": [
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper"
+    ],
+    "issueSearchQueries": [
+      "product link price discount calculation",
+      "final price from URL feature request",
+      "open source price scraper discount"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount calculator",
+      "github tool extract price discount from product URL",
+      "calculate final price from product link open source"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价"
+      ],
+      "domains": [
+        "e-commerce",
+        "price tracking",
+        "discount calculation"
+      ],
+      "actions": [
+        "read",
+        "parse",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "API",
+        "CLI",
+        "web interface"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, it reads the price and discount details from the page": [
+        "reads price and discount from product link",
+        "extracts price and discount from URL"
+      ],
+      "It calculates the final price after discounts from the extracted data": [
+        "calculates final price after discount",
+        "computes final price from price and discount"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, it reads the price and discount details from the page": {
+        "action": [
+          "reads",
+          "extracts"
+        ],
+        "object": [
+          "price",
+          "discount details"
+        ],
+        "context": [
+          "product link",
+          "URL"
+        ],
+        "output": [
+          "price and discount data"
+        ]
+      },
+      "It calculates the final price after discounts from the extracted data": {
+        "action": [
+          "calculates",
+          "computes"
+        ],
+        "object": [
+          "final price"
+        ],
+        "context": [
+          "after discounts",
+          "from extracted data"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 2 个相邻方向，最接近的是 Cabin303/Discount_Calculator（15/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. Cabin303/Discount_Calculator（相邻参考） · ★ 0 · 更新 2025-09-20\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；该项目可核对线索：Telegram bot for calculating discounts. Takes price and percent, returns a nice rece\n\n...[truncated]...\n\nining project on Python.。\n- 地址：https://github.com/Cabin303/Discount_Calculator\n\n### 2. Odisseu93/calculadora-ML（相邻参考） · ★ 0 · 更新 2023-07-29\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；该项目可核对线索：Calculator to find the final price of a product, taking into account Mercado Livre fees.。\n- 地址：https://github.com/Odisseu93/calculadora-ML\n\n## 本次消耗\n- LLM Token：输入 50333，输出 6779，合计 57112。",
+  "topProjects": [
+    {
+      "repo": "Cabin303/Discount_Calculator",
+      "url": "https://github.com/Cabin303/Discount_Calculator",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；该项目可核对线索：Telegram bot for calculating discounts. Takes price and percent, returns a nice rece\n\n...[truncated]...\n\nining project on Python.。",
+      "coreFeature": "Given a product link, it reads the price and discount details from the page",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2025-09-20T13:51:28Z",
+      "language": "Python",
+      "license": null,
+      "recommendation": "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, it reads the price and discount details from the page",
+        "It calculates the final price after discounts from the extracted data"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要开发从商品链接读取价格和优惠信息的功能",
+        "需要将 Telegram 机器人集成到网页抓取功能",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目是训练项目，功能简单",
+        "需要 Telegram 机器人 Token 才能使用",
+        "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, it reads the price and discount details from the page",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Telegram bot for calculating discounts. Takes price and percent, returns a nice receipt 🧾. Just a useless training project on Python.",
+              "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price. Built as a **training project** on Python using [PyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI)."
+            ]
+          },
+          "requiredComponentCount": 4
+        },
+        {
+          "feature": "It calculates the final price after discounts from the extracted data",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: A **totally useless** Telegram bot that calculates discounts.",
+              "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Built as a **training project** on Python using [PyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI). A totally useless Telegram bot that calculates discounts.",
+              "README: A totally useless Telegram bot that calculates discounts."
+            ],
+            "object": [
+              "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price. Built as a **training project** on Python using [PyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).",
+              "README: - Discount % - Final price"
+            ],
+            "output": [
+              "README: A **totally useless** Telegram bot that calculates discounts. Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price.",
+              "README: Enter the price and the discount percent — get a nice receipt with the final price. Built as a **training project** on Python using [PyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI).",
+              "README: - Discount % - Final price"
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "github_topic:discount-calculator"
+      ]
+    },
+    {
+      "repo": "Odisseu93/calculadora-ML",
+      "url": "https://github.com/Odisseu93/calculadora-ML",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；该项目可核对线索：Calculator to find the final price of a product, taking into account Mercado Livre fees.。",
+      "coreFeature": "Given a product link, it reads the price and discount details from the page",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2023-07-29T18:21:48Z",
+      "language": "HTML",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, it reads the price and discount details from the page",
+        "It calculates the final price after discounts from the extracted data"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要开发从商品链接读取价格和优惠信息的功能",
+        "需要将计算器与网页抓取集成",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目针对 Mercado Livre 平台，可能不适用于其他平台",
+        "需要手动输入数据，不自动读取",
+        "低相似线索：Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, it reads the price and discount details from the page",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: **English:** Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more\n\n...[truncated]...\n\nrketplace commissions, fixed marketplace fee, and shipping cost."
+            ]
+          },
+          "requiredComponentCount": 4
+        },
+        {
+          "feature": "It calculates the final price after discounts from the extracted data",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: **English:** Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more\n\n...[truncated]...\n\nrketplace commissions, fixed marketplace fee, and shipping cost."
+            ],
+            "output": [
+              "仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: **English:** Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more\n\n...[truncated]...\n\nrketplace commissions, fixed marketplace fee, and shipping cost."
+            ]
+          },
+          "requiredComponentCount": 4
+        }
+      ],
+      "foundBy": [
+        "tavily:calculate final price from product link open source"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, it reads the price and discount details from the page、It calculates the final price after discounts from the extracted data」。可借鉴 Cabin303/Discount_Calculator 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 108,
+    "githubSearchRequests": 20,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 3,
+    "tavilyCredits": 3,
+    "llmInputTokens": 50333,
+    "llmOutputTokens": 6779,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 145810,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: weakennN/cPrices, shopware/shopware, PrestaShop/PrestaShop, jez500/pricebuddy, adrianhajdin/pricewise",
+      "Discarded unverified model-reported differences: 53",
+      "Excluded 18 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added relatively closest adjacent projects because stronger matches were insufficient: Cabin303/Discount_Calculator, Odisseu93/calculadora-ML",
+      "Low-confidence candidates below 50/100 not returned: weakennN/cPrices, shopware/shopware, PrestaShop/PrestaShop, jez500/pricebuddy, adrianhajdin/pricewise",
+      "Returned 2 project(s) because remaining candidates did not pass confidence filtering.",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": []
+  },
+  "raw": {
+    "candidate_count": 83,
+    "ranked_count": 83,
+    "deep_pool_count": 20,
+    "top_projects_returned": 2,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 2,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "complete",
+    "search_completeness_reasons": [],
+    "source_mix": {
+      "github_repo": 27,
+      "github_code": 0,
+      "github_topic": 27,
+      "github_issue": 26,
+      "tavily": 3,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 77,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 3,
+      "code": 3,
+      "topic": 3,
+      "issue": 3,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "price discount calculator product link",
+      "scrape price discount from URL",
+      "read price discount from URL calculate final price",
+      "product link price discount calculator open source",
+      "open source tool extract price discount from product link",
+      "extract price discount from url",
+      "calculate final price after discount",
+      "final price from URL feature request",
+      "final price calculator open source",
+      "e-commerce price scraper discount calculator"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 90.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 129.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 92.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 93.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 92.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 91.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 130.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "parthbuilds-community/FitMart",
+        "discovery_score": 98.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:price discount calculator in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "nexscope-ai/eCommerce-Skills",
+        "discovery_score": 97.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:price discount calculator in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "bmentges/django-cart",
+        "discovery_score": 97.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:price discount calculator in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount calculation"
+        ]
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 90.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 83.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount calculation"
+        ]
+      },
+      {
+        "repo": "adrianhajdin/pricewise",
+        "discovery_score": 92.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:scrape price discount in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 28.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:discount-calculator"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "parthbuilds-community/FitMart",
+        "discovery_score": 98.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "bmentges/django-cart",
+        "discovery_score": 97.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "nexscope-ai/eCommerce-Skills",
+        "discovery_score": 97.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 93.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 92.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "adrianhajdin/pricewise",
+        "discovery_score": 92.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 92.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 91.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 90.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 90.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 83.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "jez500/pricebuddy",
+        "discovery_score": 36.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "Cabin303/Discount_Calculator",
+        "discovery_score": 33.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "Odisseu93/calculadora-ML",
+        "discovery_score": 30.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 28.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "venkatarangan/ProductsDigest",
+        "discovery_score": 15.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "projazzka/price-calc",
+        "discovery_score": 15.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "tidyverse/ellmer",
+        "discovery_score": -10.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "calesthio/OpenMontage",
+        "discovery_score": -10.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, it reads the price and discount details from the page",
+    "evidence_gate": {
+      "gated_feature_count": 2,
+      "penalized_count": 0,
+      "score_capped_count": 3,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 40,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 20,
+      "repeated_analysis_text_count": 20,
+      "unverified_model_difference_count": 53,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 18,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "completed",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 2,
+          "nice_to_have": 3,
+          "planned_queries": 19
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "completed",
+        "inputs": {
+          "planned_queries": 19
+        },
+        "outputs": {
+          "candidates": 83,
+          "requests": 77
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 40
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 2
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 2
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "status": "passed",
+  "results": [
+    {
+      "repo": "mikevidotto/trackprice-ai",
+      "initialUrl": "https://github.com/mikevidotto/trackprice-ai",
+      "renderedHref": "https://github.com/mikevidotto/trackprice-ai",
+      "finalUrl": "https://github.com/mikevidotto/trackprice-ai",
+      "httpStatus": 200,
+      "pageTitle": "GitHub - mikevidotto/trackprice-ai: TrackPrice AI automates competitor price tracking with a Go (Fiber) backend, PostgreSQL, Stripe, and SendGrid. The React + Vite frontend provides a dashboard for managing tracked prices and subscriptions. · GitHub",
+      "status": "passed",
+      "reason": "identity_and_reachability",
+      "checkedAt": "2026-07-10T07:18:19.897797+00:00"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "decisionCheck": {
+    "status": "pass",
+    "score": 5,
+    "maxScore": 5
+  },
+  "adversarialReview": {
+    "status": "triage_required",
+    "verifiableFindingCount": 12,
+    "severityCounts": {
+      "P0": 3,
+      "P1": 4,
+      "P2": 3,
+      "P3": 2
+    }
+  },
+  "linkReview": {
+    "status": "passed",
+    "reviewedCount": 1
+  },
+  "findingTriage": {
+    "status": "pending",
+    "pendingCount": 12,
+    "acceptedCount": 0
+  },
+  "status": "human_triage_required",
+  "note": "Independent human scoring remains required before release acceptance."
+}

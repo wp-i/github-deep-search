@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "decisionCheck": {
+    "status": "pass",
+    "score": 5,
+    "maxScore": 5
+  },
+  "adversarialReview": {
+    "status": "action_required",
+    "verifiableFindingCount": 8,
+    "severityCounts": {
+      "P0": 0,
+      "P1": 4,
+      "P2": 2,
+      "P3": 2
+    }
+  },
+  "linkReview": {
+    "status": "passed",
+    "reviewedCount": 1
+  },
+  "status": "action_required",
+  "note": "Independent human scoring remains required before release acceptance."
+}
