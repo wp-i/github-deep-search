@@ -1,0 +1,22 @@
+{
+  "case_id": "pilot-nonexpert-link-price",
+  "raw_request": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+  "language": "zh-CN",
+  "scenario_family": "ambiguous-intent",
+  "configuration": {
+    "fingerprint": "4287dda79b5933f7d295233e43a7cdd7daf89b10e6324262b0d4096d8b69a2da",
+    "public": {
+      "github_configured": true,
+      "llm_configured": true,
+      "tavily_configured": true,
+      "llm_base_url": "https://api.deepseek.com",
+      "llm_model": "deepseek-v4-flash",
+      "llm_thinking": "disabled",
+      "llm_reasoning_effort": null,
+      "max_github_requests": 200,
+      "max_tavily_credits": 4,
+      "max_candidates": 80,
+      "max_deep_analyze_repos": 3
+    }
+  }
+}

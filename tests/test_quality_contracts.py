@@ -15,6 +15,7 @@ from github_deep_search.models import (
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
+    EvidenceReference,
     ProjectAnalysis,
     ProviderEvent,
     Requirement,
@@ -105,6 +106,134 @@ def test_serialized_report_exposes_decision_brief_and_stage_trace() -> None:
         "analysis",
         "report_delivery",
     ]
+
+
+def test_evidence_reference_serializes_a_repository_local_locator() -> None:
+    report = _report()
+    report.top_projects[0].evidence_coverage[0].evidence_references = [
+        EvidenceReference(
+            kind="source",
+            locator="src/capability.py",
+            excerpt="def current_capability():",
+            matched_aliases=["current capability"],
+            line_start=8,
+            line_end=8,
+        )
+    ]
+
+    reference = report_to_dict(report)["topProjects"][0]["evidenceCoverage"][0]["evidenceReferences"][0]
+
+    assert reference == {
+        "kind": "source",
+        "locator": "src/capability.py",
+        "excerpt": "def current_capability():",
+        "matchedAliases": ["current capability"],
+        "lineStart": 8,
+        "lineEnd": 8,
+    }
+
+
+def test_evidence_reference_is_created_at_the_coverage_stage() -> None:
+    requirement = Requirement(
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=["current capability"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["current capability"],
+        evidence_aliases={"current capability": ["current capability"]},
+    )
+    repo = CandidateRepository(
+        "demo",
+        "project",
+        "https://github.com/demo/project",
+        readme="# Project\nThis project provides the current capability.\n",
+    )
+
+    coverage = DeepSearchEngine()._build_evidence_coverage(repo, requirement)[0]
+
+    assert coverage.status == "supported"
+    assert coverage.evidence_references[0].kind == "readme"
+    assert coverage.evidence_references[0].locator == "README"
+    assert coverage.evidence_references[0].matched_aliases == ["current capability"]
+    assert coverage.evidence_references[0].line_start == 2
+    assert coverage.evidence_references[0].line_end == 2
+
+
+def test_unknown_coverage_records_examined_material_without_a_support_claim() -> None:
+    requirement = Requirement(
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=["orchid signal transformer"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["orchid signal transformer"],
+        evidence_aliases={"orchid signal transformer": ["orchid signal transformer"]},
+    )
+    repo = CandidateRepository(
+        "demo",
+        "project",
+        "https://github.com/demo/project",
+        readme="# Project\nA harbor lattice tracer is documented here.\n",
+    )
+
+    coverage = DeepSearchEngine()._build_evidence_coverage(repo, requirement)[0]
+
+    assert coverage.status == "unknown"
+    assert coverage.covered is False
+    assert coverage.evidence_references[0].kind == "readme"
+    assert coverage.evidence_references[0].matched_aliases == []
+
+
+def test_unknown_coverage_without_collected_material_records_candidate_identity() -> None:
+    requirement = Requirement(
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=["orchid signal transformer"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["orchid signal transformer"],
+        evidence_aliases={"orchid signal transformer": ["orchid signal transformer"]},
+    )
+    repo = CandidateRepository("demo", "project", "https://github.com/demo/project")
+
+    coverage = DeepSearchEngine()._build_evidence_coverage(repo, requirement)[0]
+
+    assert coverage.status == "unknown"
+    assert coverage.covered is False
+    assert coverage.evidence_references[0].kind == "repository_metadata"
+    assert coverage.evidence_references[0].locator == "repository identity"
+    assert coverage.evidence_references[0].matched_aliases == []
+
+
+def test_unknown_component_coverage_retains_its_examined_material() -> None:
+    requirement = Requirement(
+        raw="Current request",
+        intent="Current outcome",
+        must_have_features=["orchid signal transformer"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["orchid signal transformer"],
+        evidence_aliases={"orchid signal transformer": ["orchid signal transformer"]},
+        evidence_components={
+            "orchid signal transformer": {
+                "first": ["orchid"],
+                "second": ["signal"],
+            }
+        },
+    )
+    repo = CandidateRepository(
+        "demo",
+        "project",
+        "https://github.com/demo/project",
+        readme="# Project\nA harbor lattice tracer is documented here.\n",
+    )
+
+    coverage = DeepSearchEngine()._build_evidence_coverage(repo, requirement)[0]
+
+    assert coverage.status == "unknown"
+    assert coverage.evidence_references[0].kind == "readme"
+    assert coverage.evidence_references[0].matched_aliases == []
 
 
 def test_run_trace_marks_limited_discovery_without_deleting_the_result() -> None:

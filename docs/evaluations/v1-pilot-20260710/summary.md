@@ -3,7 +3,7 @@
 - Release evaluation: `v1-pilot-20260710`
 - Case: `pilot-nonexpert-link-price`
 - Configuration fingerprint: `4287dda79b5933f7d295233e43a7cdd7daf89b10e6324262b0d4096d8b69a2da`
-- Real runs retained: 6 (including two final post-closure regressions)
+- Real runs retained: 11 (including two final post-closure regressions)
 - Automated conclusion: pass; independent human triage pending
 - Independent human score: pending
 
@@ -87,3 +87,22 @@ recommendation/reference mismatch. The latest integrated review passed the
 structural decision check (5/5) and real GitHub link review (HTTP 200 with
 owner/name identity preserved). Agent findings remain in human triage; their
 severity does not automatically become a defect conclusion.
+
+## Evidence-reference closure iteration
+
+The first live run after adding `EvidenceReference` returned only unknown
+coverage and therefore did not exercise a populated public reference. The
+follow-up traces showed that the selected projects reached the component-based
+coverage path, where unknown coverage had no observation record. The root-cause
+fix adds an empty-alias reference only for material actually inspected; when no
+README, path, or source material is available, it records the candidate identity
+as an audit observation. Neither form changes coverage status, score, tier, or
+public support claims.
+
+Final real run `20260710t081525z-d6fa0515` retained a complete, readable report
+and five-stage trace. Its evidence stage was `partial` because one GitHub file
+request returned 404, but it emitted six structured references; five were
+empty-alias unknown observations. All three returned projects kept the core
+capability unconfirmed and `differentFeatures` empty. This demonstrates the
+previously unobserved condition—unknown, component-based coverage would lose
+its audit record—without manufacturing capability evidence.

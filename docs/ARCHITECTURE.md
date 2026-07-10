@@ -51,7 +51,11 @@ See [ADR 0001](adr/0001-search-spec-semantic-ownership.md).
 ## Evidence and public claims
 
 `EvidenceCoverage` is the current compatibility contract for each requested
-feature. Its status is one of:
+feature. `EvidenceReference` is its additive, repository-local observation record:
+it identifies the evidence kind, README/path/source locator, bounded excerpt,
+matched aliases, and line position when the material is line-addressable. The
+existing evidence string fields remain the backward-compatible projection. Its
+status is one of:
 
 - `supported`: repository material confirms the capability;
 - `different`: repository material supports a materially different workflow;

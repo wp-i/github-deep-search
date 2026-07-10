@@ -7,7 +7,7 @@ import re
 import time
 from collections import OrderedDict
 from difflib import SequenceMatcher
-from typing import Sequence
+from typing import Literal, Sequence
 
 from github_deep_search.config import Settings, get_settings
 from github_deep_search.run_trace import (
@@ -20,6 +20,7 @@ from github_deep_search.models import (
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
+    EvidenceReference,
     ProjectAnalysis,
     ProviderEvent,
     Requirement,
@@ -1287,20 +1288,24 @@ class DeepSearchEngine:
             readme_hits = [] if is_catalog else self._matching_feature_terms(feature, capability_readme, aliases)
             description_hits = [] if is_catalog else self._matching_feature_terms(feature, public_description, aliases)
             path_evidence: list[str] = []
+            path_hits: list[tuple[str, list[str]]] = []
             for path in ([] if is_catalog else repo.file_paths):
                 if not self._path_can_prove_capability(path):
                     continue
                 hits = self._matching_feature_terms(feature, path, aliases)
                 if hits:
                     path_evidence.append(f"{path} ({', '.join(hits[:3])})")
+                    path_hits.append((path, hits))
                 if len(path_evidence) >= 5:
                     break
             source_evidence: list[str] = []
+            source_hits: list[tuple[str, str, list[str]]] = []
             for path, text in ({} if is_catalog else repo.key_files).items():
                 evidence_text = self._readme_capability_text(text) if path.lower().endswith((".md", ".mdx")) else text
                 hits = self._matching_feature_terms(feature, evidence_text, aliases)
                 if hits:
                     source_evidence.append(f"{path} ({', '.join(hits[:3])})")
+                    source_hits.append((path, text, hits))
                 if len(source_evidence) >= 5:
                     break
             explicit_missing = "" if is_catalog else self._explicit_missing_reason(repo.readme, aliases)
@@ -1339,6 +1344,46 @@ class DeepSearchEngine:
             if path_evidence or source_evidence or description_hits:
                 explicit_missing = ""
             status = "supported" if covered else ("missing" if explicit_missing else "unknown")
+            evidence_references: list[EvidenceReference] = []
+            if description_hits:
+                evidence_references.append(
+                    self._evidence_reference_from_text(
+                        "repository_metadata",
+                        "description/topics",
+                        public_description,
+                        description_hits,
+                    )
+                )
+            if readme_hits and readme_hits != ["核心平台、操作和对象在同一说明中得到确认"]:
+                evidence_references.append(
+                    self._evidence_reference_from_text("readme", "README", repo.readme, readme_hits)
+                )
+            evidence_references.extend(
+                self._evidence_reference_from_text("path", path, path, hits)
+                for path, hits in path_hits
+            )
+            evidence_references.extend(
+                self._evidence_reference_from_text("source", path, text, hits)
+                for path, text, hits in source_hits
+            )
+            if not evidence_references and repo.readme:
+                # Unknown remains unknown. This only shows a reviewer which local
+                # material was examined when no current-request alias was found.
+                evidence_references.append(
+                    self._evidence_reference_from_text("readme", "README", repo.readme, [])
+                )
+            if not evidence_references:
+                # A candidate identity is an audit observation, not capability
+                # proof. Empty aliases keep that distinction explicit when
+                # collection produced no README, path, or source material.
+                evidence_references.append(
+                    self._evidence_reference_from_text(
+                        "repository_metadata",
+                        "repository identity",
+                        "\n".join(item for item in [repo.full_name, repo.description] if item),
+                        [],
+                    )
+                )
             coverage.append(
                 EvidenceCoverage(
                     feature=feature,
@@ -1353,6 +1398,7 @@ class DeepSearchEngine:
                     path_evidence=path_evidence,
                     missing_reason=explicit_missing,
                     unknown_reason="" if covered or explicit_missing else "公开说明中暂未确认",
+                    evidence_references=evidence_references[:8],
                 )
             )
         return coverage
@@ -1391,6 +1437,7 @@ class DeepSearchEngine:
         full_readme_evidence: list[str] = []
         full_source_evidence: list[str] = []
         full_path_evidence: list[str] = []
+        full_references: list[EvidenceReference] = []
         if not is_catalog:
             materials: list[tuple[str, str, str]] = [
                 ("readme", "仓库简介", repo.description),
@@ -1430,6 +1477,19 @@ class DeepSearchEngine:
                         full_path_evidence.append(rendered)
                     elif rendered not in full_readme_evidence:
                         full_readme_evidence.append(rendered)
+                    reference = self._evidence_reference_from_text(
+                        "repository_metadata" if source_name == "仓库简介" else source_type,
+                        source_name,
+                        text,
+                        [
+                            alias
+                            for aliases in component_groups.values()
+                            for alias in aliases
+                            if self._literal_alias_present(alias.lower(), window.lower())
+                        ],
+                    )
+                    if reference not in full_references:
+                        full_references.append(reference)
 
         component_evidence = {
             label: snippets[:4]
@@ -1437,6 +1497,19 @@ class DeepSearchEngine:
             if snippets
         }
         covered = bool(full_readme_evidence or full_source_evidence or full_path_evidence)
+        if not full_references and repo.readme:
+            full_references.append(
+                self._evidence_reference_from_text("readme", "README", repo.readme, [])
+            )
+        if not full_references:
+            full_references.append(
+                self._evidence_reference_from_text(
+                    "repository_metadata",
+                    "repository identity",
+                    "\n".join(item for item in [repo.full_name, repo.description] if item),
+                    [],
+                )
+            )
         return EvidenceCoverage(
             feature=feature,
             covered=covered,
@@ -1447,6 +1520,40 @@ class DeepSearchEngine:
             unknown_reason="" if covered else "公开说明中暂未确认全部必需证据组件",
             component_evidence=component_evidence,
             required_component_count=len(component_groups),
+            evidence_references=full_references[:8],
+        )
+
+    @staticmethod
+    def _evidence_reference_from_text(
+        kind: Literal["repository_metadata", "readme", "path", "source"],
+        locator: str,
+        text: str,
+        aliases: Sequence[str],
+    ) -> EvidenceReference:
+        """Attach current-request aliases to their nearest repository-local text."""
+        normalized_aliases = list(OrderedDict.fromkeys(alias for alias in aliases if alias))
+        lines = str(text or "").splitlines()
+        for index, line in enumerate(lines):
+            line_aliases = [
+                alias
+                for alias in normalized_aliases
+                if DeepSearchEngine._literal_alias_present(alias.lower(), line.lower())
+            ]
+            if line_aliases:
+                excerpt = "\n".join(lines[max(0, index - 1) : index + 2])
+                return EvidenceReference(
+                    kind=kind,
+                    locator=locator,
+                    excerpt=compact_text(excerpt, 320),
+                    matched_aliases=line_aliases,
+                    line_start=index + 1,
+                    line_end=index + 1,
+                )
+        return EvidenceReference(
+            kind=kind,
+            locator=locator,
+            excerpt=compact_text(text, 320),
+            matched_aliases=normalized_aliases,
         )
 
     @staticmethod

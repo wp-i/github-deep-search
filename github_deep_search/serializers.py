@@ -81,6 +81,17 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
                         "unknownReason": coverage.unknown_reason,
                         "componentEvidence": coverage.component_evidence,
                         "requiredComponentCount": coverage.required_component_count,
+                        "evidenceReferences": [
+                            {
+                                "kind": reference.kind,
+                                "locator": reference.locator,
+                                "excerpt": reference.excerpt,
+                                "matchedAliases": reference.matched_aliases,
+                                "lineStart": reference.line_start,
+                                "lineEnd": reference.line_end,
+                            }
+                            for reference in coverage.evidence_references
+                        ],
                     }
                     for coverage in item.evidence_coverage
                 ],

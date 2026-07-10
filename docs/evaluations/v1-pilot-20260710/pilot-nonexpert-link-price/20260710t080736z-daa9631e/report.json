@@ -1,0 +1,779 @@
+{
+  "summary": "已整理 3 个相邻方向，最接近的是 Sheth007/ECommerce-Price-Scraper（20/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "Sheth007/ECommerce-Price-Scraper 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "Sheth007/ECommerce-Price-Scraper",
+    "confirmedFeatures": [],
+    "gaps": [],
+    "unconfirmedFeatures": [
+      "Given a product link, the project reads the price and discount details from the page and calculates the final price."
+    ],
+    "nextStep": "打开 Sheth007/ECommerce-Price-Scraper 的证据与源码，确认「Given a product link, the project reads the price and discount details from the page and calculates the final price.」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "find an open-source project that, given a product link, reads price and discount details and calculates the final price",
+    "mustHaveFeatures": [
+      "Given a product link, the project reads the price and discount details from the page and calculates the final price."
+    ],
+    "niceToHaveFeatures": [
+      "platform and data source are uncertain",
+      "user is not a developer, so ease of use is important"
+    ],
+    "targetPlatforms": [
+      "command line",
+      "API",
+      "web interface"
+    ],
+    "searchQueries": [
+      "open source product link price discount final price calculator",
+      "read price and discount from product URL calculate final price",
+      "e-commerce price scraper final price calculator",
+      "product link price discount extractor final price",
+      "product price discount calculator",
+      "price scraper final price",
+      "product link price reader",
+      "def calculate_final_price",
+      "price = soup.find",
+      "discount = soup.find",
+      "final_price = price - discount",
+      "price-scraper",
+      "e-commerce-tools",
+      "price-calculator",
+      "product link price discount final price",
+      "scrape price and discount from URL",
+      "calculate final price from product page",
+      "open source project product link price discount final price",
+      "github product link price calculator",
+      "free tool to calculate final price from product URL"
+    ],
+    "repoSearchQueries": [
+      "product price discount calculator",
+      "price scraper final price",
+      "product link price reader"
+    ],
+    "codeSearchQueries": [
+      "def calculate_final_price",
+      "price = soup.find",
+      "discount = soup.find",
+      "final_price = price - discount"
+    ],
+    "topicSearchQueries": [
+      "price-scraper",
+      "e-commerce-tools",
+      "price-calculator"
+    ],
+    "issueSearchQueries": [
+      "product link price discount final price",
+      "scrape price and discount from URL",
+      "calculate final price from product page"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount final price",
+      "github product link price calculator",
+      "free tool to calculate final price from product URL"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价"
+      ],
+      "domains": [
+        "e-commerce",
+        "price comparison",
+        "web scraping"
+      ],
+      "actions": [
+        "read",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "command line",
+        "API",
+        "web interface"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, the project reads the price and discount details from the page and calculates the final price.": [
+        "read price and discount from product link",
+        "calculate final price",
+        "price and discount extraction"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, the project reads the price and discount details from the page and calculates the final price.": {
+        "action": [
+          "read",
+          "calculate"
+        ],
+        "object": [
+          "product link",
+          "price",
+          "discount details",
+          "final price"
+        ],
+        "context/interface": [
+          "command line",
+          "API",
+          "web interface"
+        ],
+        "named specifics": [
+          "商品链接",
+          "读取价格",
+          "优惠明细",
+          "算出最终到手价"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 3 个相邻方向，最接近的是 Sheth007/ECommerce-Price-Scraper（20/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. Sheth007/ECommerce-Price-Scraper（相邻参考） · ★ 2 · 更新 2025-12-26\n- 关联度：20/100\n- 得分原因：公开线索「A powerful and flexible tool to track and compare prices of products from various sources.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/Sheth007/ECommerce-Price-Scraper\n\n### 2. faridhasani7/Torob-Price-Scraper（相邻参考） · ★ 1 · 更新 2025-04-14\n- 关联度：20/100\n- 得分原因：公开线索「A Python-based web scraping tool that uses Selenium to search Google and scrape price information from Torob website.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/faridhasani7/Torob-Price-Scraper\n\n### 3. oxylabs/amazon-scraper（相邻参考） · ★ 3116 · 更新 2026-06-19\n- 关联度：20/100\n- 得分原因：公开线索「Free Trial Amazon Scraper API for extracting search, product, offer listing, reviews\n\n...[truncated]...\n\nellers and sellers data.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/oxylabs/amazon-scraper\n\n## 本次消耗\n- LLM Token：输入 38246，输出 4829，合计 43075。",
+  "topProjects": [
+    {
+      "repo": "Sheth007/ECommerce-Price-Scraper",
+      "url": "https://github.com/Sheth007/ECommerce-Price-Scraper",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「A powerful and flexible tool to track and compare prices of products from various sources.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 2,
+      "lastPushedAt": "2025-12-26T09:15:42Z",
+      "language": "HTML",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: A powerful and flexible tool to track and compare prices of products from various sources.",
+              "README: A powerful and flexible tool to **track and compare prices** of products from multiple Indian e-commerce platforms. Whether you prefer a graphical UI, a command-line interface, or a web interface — this project has it all",
+              "README: A powerful and flexible tool to **track and compare prices** of products from multiple Indian e-commerce platforms. Whether you prefer a graphical UI, a command-line interface, or a web interface — this project has it all - 🔍 Search and scrape real-time product prices from popular e-commerce websites.",
+              "README: - 🔍 Search and scrape real-time product prices from popular e-commerce websites."
+            ],
+            "context/interface": [
+              "README: A powerful and flexible tool to **track and compare prices** of products from multiple Indian e-commerce platforms. Whether you prefer a graphical UI, a command-line interface, or a web interface — this project has it all",
+              "README: A powerful and flexible tool to **track and compare prices** of products from multiple Indian e-commerce platforms. Whether you prefer a graphical UI, a command-line interface, or a web interface — this project has it all - 🔍 Search and scrape real-time product prices from popular e-commerce websites.",
+              "README: - **CLI**: Terminal-based for quick and lightweight use. - **WebUI**: Flask-powered web interface.",
+              "README: - **WebUI**: Flask-powered web interface."
+            ]
+          },
+          "requiredComponentCount": 5,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-scraper"
+      ]
+    },
+    {
+      "repo": "faridhasani7/Torob-Price-Scraper",
+      "url": "https://github.com/faridhasani7/Torob-Price-Scraper",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「A Python-based web scraping tool that uses Selenium to search Google and scrape price information from Torob website.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 1,
+      "lastPushedAt": "2025-04-14T08:19:19Z",
+      "language": "Python",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: A Python-based web scraping tool that uses Selenium to search Google and scrape price information from Torob website."
+            ]
+          },
+          "requiredComponentCount": 5,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-scraper"
+      ]
+    },
+    {
+      "repo": "oxylabs/amazon-scraper",
+      "url": "https://github.com/oxylabs/amazon-scraper",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「Free Trial Amazon Scraper API for extracting search, product, offer listing, reviews\n\n...[truncated]...\n\nellers and sellers data.」与「Given a product link, the project reads the price and discount details from the page and calculates the final price.」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 3116,
+      "lastPushedAt": "2026-06-19T08:18:10Z",
+      "language": "Python",
+      "license": null,
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from the page and calculates the final price."
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "context/interface": [
+              "仓库简介: Free Trial Amazon Scraper API for extracting search, product, offer listing, reviews, question and answers, best sellers and sellers data."
+            ]
+          },
+          "requiredComponentCount": 5,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-scraper"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, the project reads the price and discount details from the page and calculates the final price.」。可借鉴 Sheth007/ECommerce-Price-Scraper 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 127,
+    "githubSearchRequests": 20,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 3,
+    "tavilyCredits": 3,
+    "llmInputTokens": 38246,
+    "llmOutputTokens": 4829,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 156581,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/pricing/calculator'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/tosdr/tosdr-snapshots/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: shopware/shopware, Sheth007/ECommerce-Price-Scraper, adrianhajdin/pricewise, Cybrarist/Discount-Bandit, aliattia02/data_scrapper",
+      "Discarded unverified model-reported differences: 25",
+      "Excluded 20 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added adjacent low-confidence leads from ranked candidates: Sheth007/ECommerce-Price-Scraper, faridhasani7/Torob-Price-Scraper, oxylabs/amazon-scraper",
+      "Low-confidence candidates below 50/100 not returned: shopware/shopware, adrianhajdin/pricewise, Cybrarist/Discount-Bandit, oxylabs/how-to-scrape-amazon-prices, aliattia02/data_scrapper",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": [
+      {
+        "provider": "github",
+        "operation": "/repos/pricing/calculator",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "discovery"
+      },
+      {
+        "provider": "github",
+        "operation": "/repos/tosdr/tosdr-snapshots/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      }
+    ]
+  },
+  "raw": {
+    "candidate_count": 83,
+    "ranked_count": 83,
+    "deep_pool_count": 20,
+    "top_projects_returned": 3,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 3,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "limited",
+    "search_completeness_reasons": [
+      "github HTTPStatusError during discovery",
+      "github HTTPStatusError during evidence"
+    ],
+    "source_mix": {
+      "github_repo": 20,
+      "github_code": 20,
+      "github_topic": 20,
+      "github_issue": 20,
+      "tavily": 3,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 96,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 3,
+      "code": 4,
+      "topic": 3,
+      "issue": 3,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "product price discount calculator",
+      "price scraper final price",
+      "open source product link price discount final price calculator",
+      "read price and discount from product URL calculate final price",
+      "e-commerce price scraper final price calculator",
+      "product link price discount extractor final price",
+      "product link price reader",
+      "def calculate_final_price",
+      "price = soup.find",
+      "discount = soup.find"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "adrianhajdin/pricewise",
+        "discovery_score": 109.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github:product price discount in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "Sheth007/ECommerce-Price-Scraper",
+        "discovery_score": 98.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "HasData/ecommerce-price-scraper",
+        "discovery_score": 129.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "faridhasani7/Torob-Price-Scraper",
+        "discovery_score": 129.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "oxylabs/amazon-scraper",
+        "discovery_score": 128.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "oxylabs/how-to-scrape-amazon-prices",
+        "discovery_score": 89.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "tavily:free tool to calculate final price from product URL"
+        ]
+      },
+      {
+        "repo": "apiguru-app/amazon-scraper-v2",
+        "discovery_score": 126.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "ScrapingAnt/amazon_scraper",
+        "discovery_score": 125.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "luminati-io/Amazon-scraper",
+        "discovery_score": 123.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "ScrapingAnt/alibaba_scraper",
+        "discovery_score": 122.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "omkarcloud/alibaba-scraper",
+        "discovery_score": 120.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "CasperKristiansson/Price-Tracker",
+        "discovery_score": 115.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-scraper"
+        ]
+      },
+      {
+        "repo": "bmentges/django-cart",
+        "discovery_score": 110.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product price discount in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount final price"
+        ]
+      },
+      {
+        "repo": "SASCYT9/OneCompany",
+        "discovery_score": 91.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount final price"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "adrianhajdin/pricewise",
+        "discovery_score": 109.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "Sheth007/ECommerce-Price-Scraper",
+        "discovery_score": 98.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "oxylabs/how-to-scrape-amazon-prices",
+        "discovery_score": 89.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "mariobignami/affiliate-monitor",
+        "discovery_score": 37.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "Cybrarist/Discount-Bandit",
+        "discovery_score": 28.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "weavejam/sites",
+        "discovery_score": 2.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "aliattia02/data_scrapper",
+        "discovery_score": 0.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "github/roadmap",
+        "discovery_score": -10.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Ananto30/zero",
+        "discovery_score": -13.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Percolation-Labs/percolate",
+        "discovery_score": -14.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Ulton321/Son_INF653",
+        "discovery_score": -15.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "doocs/leetcode",
+        "discovery_score": -16.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "balapriyac/python-basics",
+        "discovery_score": -17.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "orffen/cepheus-srd",
+        "discovery_score": -19.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Beveren-Software-Inc/KLiK_PoS",
+        "discovery_score": -21.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "squillero/computer-sciences",
+        "discovery_score": -23.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "pujan-modha/hexwagon.com",
+        "discovery_score": -24.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "teja156/thefoodiescript",
+        "discovery_score": -24.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "tosdr/tosdr-snapshots",
+        "discovery_score": -25.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, the project reads the price and discount details from the page and calculates the final price.",
+    "evidence_gate": {
+      "gated_feature_count": 1,
+      "penalized_count": 0,
+      "score_capped_count": 1,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 20,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 19,
+      "repeated_analysis_text_count": 20,
+      "unverified_model_difference_count": 25,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 19,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "partial",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 1,
+          "nice_to_have": 2,
+          "planned_queries": 20
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "partial",
+        "inputs": {
+          "planned_queries": 20
+        },
+        "outputs": {
+          "candidates": 83,
+          "requests": 96
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 20
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 3
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 3
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

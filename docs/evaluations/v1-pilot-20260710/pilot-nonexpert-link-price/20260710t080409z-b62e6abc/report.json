@@ -1,0 +1,797 @@
+{
+  "summary": "已整理 3 个相邻方向，最接近的是 Odisseu93/calculadora-ML（15/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "Odisseu93/calculadora-ML 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "Odisseu93/calculadora-ML",
+    "confirmedFeatures": [],
+    "gaps": [],
+    "unconfirmedFeatures": [
+      "Given a product link, the project reads price and discount details and calculates the final price"
+    ],
+    "nextStep": "打开 Odisseu93/calculadora-ML 的证据与源码，确认「Given a product link, the project reads price and discount details and calculates the final price」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "find an open-source project that, given a product link, reads price and discount details and calculates the final price",
+    "mustHaveFeatures": [
+      "Given a product link, the project reads price and discount details and calculates the final price"
+    ],
+    "niceToHaveFeatures": [
+      "platform and data source are uncertain",
+      "user is not a developer"
+    ],
+    "targetPlatforms": [
+      "command-line",
+      "API",
+      "web interface"
+    ],
+    "searchQueries": [
+      "open source product link price discount final price calculator",
+      "product URL price parser discount calculator",
+      "e-commerce price scraper final price tool",
+      "read product link calculate final price open source",
+      "product link price discount calculator",
+      "price scraper final price",
+      "e-commerce price parser",
+      "price discount final price",
+      "product link parse price",
+      "calculate final price from url",
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper",
+      "product link price discount final price",
+      "price calculator from url",
+      "discount details parser",
+      "open source project product link price discount final price",
+      "github price calculator from product url"
+    ],
+    "repoSearchQueries": [
+      "product link price discount calculator",
+      "price scraper final price",
+      "e-commerce price parser"
+    ],
+    "codeSearchQueries": [
+      "price discount final price",
+      "product link parse price",
+      "calculate final price from url"
+    ],
+    "topicSearchQueries": [
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper"
+    ],
+    "issueSearchQueries": [
+      "product link price discount final price",
+      "price calculator from url",
+      "discount details parser"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount final price",
+      "github price calculator from product url",
+      "read product link calculate final price open source"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价"
+      ],
+      "domains": [
+        "e-commerce",
+        "price tracking",
+        "discount calculation"
+      ],
+      "actions": [
+        "read",
+        "parse",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "command-line",
+        "API",
+        "web interface"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, the project reads price and discount details and calculates the final price": [
+        "reads price and discount from product link",
+        "calculates final price",
+        "product link input"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, the project reads price and discount details and calculates the final price": {
+        "action": [
+          "reads",
+          "calculates"
+        ],
+        "object": [
+          "price",
+          "discount details",
+          "final price"
+        ],
+        "context/interface": [
+          "product link"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 3 个相邻方向，最接近的是 Odisseu93/calculadora-ML（15/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. Odisseu93/calculadora-ML（相邻参考） · ★ 0 · 更新 2023-07-29\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；该项目可核对线索：Calculator to find the final price of a product, taking into account Mercado Livre fees.。\n- 地址：https://github.com/Odisseu93/calculadora-ML\n\n### 2. manuraj04/smartshopper-ai-extension（相邻参考） · ★ 0 · 更新 2025-12-06\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；该项目可核对线索：Smart price comparison Chrome extension with AI assistance。\n- 地址：https://github.com/manuraj04/smartshopper-ai-extension\n\n### 3. sanjay-jetx/Python（相邻参考） · ★ 0 · 更新 2026-03-19\n- 关联度：15/100\n- 得分原因：公开证据只支持较弱相邻关系；该项目可核对线索：Python fundamentals and mini projects demonstrating problem solving and core programming concepts。\n- 地址：https://github.com/sanjay-jetx/Python\n\n## 本次消耗\n- LLM Token：输入 38297，输出 5759，合计 44056。",
+  "topProjects": [
+    {
+      "repo": "Odisseu93/calculadora-ML",
+      "url": "https://github.com/Odisseu93/calculadora-ML",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；该项目可核对线索：Calculator to find the final price of a product, taking into account Mercado Livre fees.。",
+      "coreFeature": "Given a product link, the project reads price and discount details and calculates the final price",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2023-07-29T18:21:48Z",
+      "language": "HTML",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要增加从商品链接自动读取价格和优惠信息的功能。",
+        "需要将计算逻辑从卖家定价改为买家到手价计算。",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目仅针对 Mercado Livre 平台，其他平台无法使用。",
+        "项目需要手动输入数据，不符合自动化的需求。",
+        "低相似线索：Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads price and discount details and calculates the final price",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: **English:** Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more\n\n...[truncated]...\n\nrketplace commissions, fixed marketplace fee, and shipping cost."
+            ],
+            "output": [
+              "仓库简介: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: **English:** Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees.",
+              "README: Calculator to find the final price of a product, taking into account Mercado Livre fees. This browser extension was developed with the purpose of helping Mercado Livre sellers calculate the final price of their products more\n\n...[truncated]...\n\nrketplace commissions, fixed marketplace fee, and shipping cost."
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "tavily:read product link calculate final price open source"
+      ]
+    },
+    {
+      "repo": "manuraj04/smartshopper-ai-extension",
+      "url": "https://github.com/manuraj04/smartshopper-ai-extension",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；该项目可核对线索：Smart price comparison Chrome extension with AI assistance。",
+      "coreFeature": "Given a product link, the project reads price and discount details and calculates the final price",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2025-12-06T16:43:56Z",
+      "language": "JavaScript",
+      "license": "NOASSERTION",
+      "recommendation": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "需要增加计算优惠明细（如折扣、优惠券）并得出最终到手价的功能。",
+        "需要支持更多平台（如命令行或 API），而不仅仅是浏览器扩展。",
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目目前仅支持 Amazon.in、Flipkart.com 和 Myntra.com 三个印度网站，其他平台无法使用。",
+        "价格提取依赖于网页结构，如果网站改版可能导致功能失效。",
+        "项目是一个个人项目，可能缺乏长期维护。",
+        "低相似线索：Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads price and discount details and calculates the final price",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Smart price comparison Chrome extension with AI assistance",
+              "README: A powerful Chrome extension that helps you find the best deals across Amazon, Flipkart, and Myntra with AI-powered shopping assistance. - **Auto-Load**: Automatically compares prices when you open the extension on a product page",
+              "README: - **Auto-Load**: Automatically compares prices when you open the extension on a product page",
+              "README: - **Auto-Load**: Automatically compares prices when you open the extension on a product page - **Backend Fetching**: All price searches happen invisibly in the background (no tab clutter)"
+            ],
+            "context/interface": [
+              "README: - **Track Prices**: Add products to your watchlist (coming soon) - **Copy URL**: Paste product links with one click",
+              "README: - **Copy URL**: Paste product links with one click",
+              "README: - **Copy URL**: Paste product links with one click 1. **Download the Extension**"
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_code:\"product link input\" in:file,path:popup/popup.html"
+      ]
+    },
+    {
+      "repo": "sanjay-jetx/Python",
+      "url": "https://github.com/sanjay-jetx/Python",
+      "score": 15,
+      "functionalScore": 15,
+      "suitabilityScore": 15,
+      "scoreReason": "公开证据只支持较弱相邻关系；该项目可核对线索：Python fundamentals and mini projects demonstrating problem solving and core programming concepts。",
+      "coreFeature": "Given a product link, the project reads price and discount details and calculates the final price",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 0,
+      "lastPushedAt": "2026-03-19T16:09:15Z",
+      "language": "Python",
+      "license": null,
+      "recommendation": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads price and discount details and calculates the final price",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "项目是一个学习项目，不包含任何网络爬虫或链接解析功能。",
+        "无法处理真实的商品链接。",
+        "低相似线索：Given a product link, the project reads price and discount details and calculates the final price"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads price and discount details and calculates the final price",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: * Demonstrates string manipulation and logic * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts * Based on conditions like price and offers"
+            ],
+            "object": [
+              "README: * Demonstrates string manipulation and logic * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts * Based on conditions like price and offers",
+              "README: * Based on conditions like price and offers"
+            ],
+            "output": [
+              "README: * Demonstrates string manipulation and logic * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts",
+              "README: * Calculates final price after applying discounts * Based on conditions like price and offers"
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_code:\"calculates final price\" in:file,path:README.md"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, the project reads price and discount details and calculates the final price」。可借鉴 Odisseu93/calculadora-ML 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 121,
+    "githubSearchRequests": 20,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 3,
+    "tavilyCredits": 3,
+    "llmInputTokens": 38297,
+    "llmOutputTokens": 5759,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 165203,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/ToolCommons/toolcommons.github.io/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/Thiettan/node-proxy-canopy/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: manuraj04/smartshopper-ai-extension, Cybrarist/Discount-Bandit, Odisseu93/calculadora-ML, vipulmishra001/TRYoN, sanjay-jetx/Python",
+      "Discarded unverified model-reported differences: 29",
+      "Excluded 17 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added relatively closest adjacent projects because stronger matches were insufficient: Odisseu93/calculadora-ML, manuraj04/smartshopper-ai-extension, sanjay-jetx/Python",
+      "Low-confidence candidates below 50/100 not returned: Cybrarist/Discount-Bandit, vipulmishra001/TRYoN, greenbutton75/Booktown, briannabogos1157/threadtwin, shopware/shopware",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": [
+      {
+        "provider": "github",
+        "operation": "/repos/ToolCommons/toolcommons.github.io/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      },
+      {
+        "provider": "github",
+        "operation": "/repos/Thiettan/node-proxy-canopy/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      }
+    ]
+  },
+  "raw": {
+    "candidate_count": 83,
+    "ranked_count": 83,
+    "deep_pool_count": 20,
+    "top_projects_returned": 3,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 3,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "limited",
+    "search_completeness_reasons": [
+      "github HTTPStatusError during evidence"
+    ],
+    "source_mix": {
+      "github_repo": 20,
+      "github_code": 20,
+      "github_topic": 20,
+      "github_issue": 20,
+      "tavily": 3,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 90,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 3,
+      "code": 3,
+      "topic": 3,
+      "issue": 3,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "product link price discount calculator",
+      "price scraper final price",
+      "open source product link price discount final price calculator",
+      "e-commerce price scraper final price tool",
+      "read product link calculate final price open source",
+      "price discount final price",
+      "e-commerce price parser",
+      "product URL price parser discount calculator",
+      "product link parse price",
+      "calculate final price from url"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 84.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 120.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 120.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 120.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 120.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 119.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 113.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "abuanwar072/E-commerce-App-UI-Flutter",
+        "discovery_score": 84.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount final price"
+        ]
+      },
+      {
+        "repo": "OCA/e-commerce",
+        "discovery_score": 108.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 108.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "SASCYT9/OneCompany",
+        "discovery_score": 91.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount final price"
+        ]
+      },
+      {
+        "repo": "dgtlmoon/changedetection.io",
+        "discovery_score": 36.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "Dashboard-Design/Nilper_Scraping",
+        "discovery_score": 31.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "stripe-samples/subscription-use-cases",
+        "discovery_score": 27.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 85.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 84.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "abuanwar072/E-commerce-App-UI-Flutter",
+        "discovery_score": 84.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "manuraj04/smartshopper-ai-extension",
+        "discovery_score": 75.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "sanjay-jetx/Python",
+        "discovery_score": 68.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.0
+      },
+      {
+        "repo": "Odisseu93/calculadora-ML",
+        "discovery_score": 30.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "Cybrarist/Discount-Bandit",
+        "discovery_score": 22.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "dream-num/univer",
+        "discovery_score": 2.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "github/roadmap",
+        "discovery_score": 0.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "santifer/cv-santiago",
+        "discovery_score": 0.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "SolaceLabs/solace-agent-mesh",
+        "discovery_score": -0.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "vipulmishra001/TRYoN",
+        "discovery_score": -6.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "basisproject/paper",
+        "discovery_score": -7.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "greenbutton75/Booktown",
+        "discovery_score": -9.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Cleg83/tool_db",
+        "discovery_score": -10.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 1.0
+      },
+      {
+        "repo": "Flohhhhh/sharply",
+        "discovery_score": -16.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "briannabogos1157/threadtwin",
+        "discovery_score": -16.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "TheJedis2020/arch_katas_2020",
+        "discovery_score": -19.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "fmoda3/nix-configs",
+        "discovery_score": -19.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "ComPlat/chemotion_ELN",
+        "discovery_score": -23.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, the project reads price and discount details and calculates the final price",
+    "evidence_gate": {
+      "gated_feature_count": 1,
+      "penalized_count": 0,
+      "score_capped_count": 0,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 20,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 20,
+      "repeated_analysis_text_count": 20,
+      "unverified_model_difference_count": 29,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 17,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "partial",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 1,
+          "nice_to_have": 2,
+          "planned_queries": 18
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "completed",
+        "inputs": {
+          "planned_queries": 18
+        },
+        "outputs": {
+          "candidates": 83,
+          "requests": 90
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 20
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "completed",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 3
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 3
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

@@ -163,6 +163,18 @@ class CandidateRepository:
 
 
 @dataclass
+class EvidenceReference:
+    """A repository-local, reviewable location for one evidence observation."""
+
+    kind: Literal["repository_metadata", "readme", "path", "source"]
+    locator: str
+    excerpt: str
+    matched_aliases: list[str] = field(default_factory=list)
+    line_start: int | None = None
+    line_end: int | None = None
+
+
+@dataclass
 class EvidenceCoverage:
     feature: str
     covered: bool
@@ -175,6 +187,7 @@ class EvidenceCoverage:
     unknown_reason: str = ""
     component_evidence: dict[str, list[str]] = field(default_factory=dict)
     required_component_count: int = 0
+    evidence_references: list[EvidenceReference] = field(default_factory=list)
 
 
 @dataclass

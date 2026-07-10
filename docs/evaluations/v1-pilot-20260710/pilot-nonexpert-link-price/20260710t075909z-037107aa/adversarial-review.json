@@ -1,0 +1,247 @@
+{
+  "schemaVersion": "1",
+  "roles": [
+    "user",
+    "semantic",
+    "evidence"
+  ],
+  "status": "triage_required",
+  "reviews": [
+    {
+      "role": "user",
+      "verdict": "concern",
+      "summary": "The report correctly identifies that no project directly matches the user's requirement. However, it fails to provide a clear, actionable next step for the user. The recommended next action is vague and does not address the core gap: the complete absence of any project that demonstrably reads price and discount details from a generic product link and calculates a final price. The report's strongest evidence only shows adjacent, unconfirmed leads, and the decision brief does not give the user a clear decision on whether to proceed or abandon this search.",
+      "findings": [
+        {
+          "severity": "P0",
+          "stage": "report_delivery",
+          "claim": "The report gives the user a decision.",
+          "evidence_refs": [
+            "decisionBrief.level: adjacent",
+            "decisionBrief.headline: johnzfitch/raley-bot 仅是相邻线索，不应视为已验证匹配。"
+          ],
+          "counterexample": "The decision brief states the best project is 'adjacent' and 'should not be considered a verified match'. This is not a decision; it is a statement of non-match. A decision would be 'Do not use any of these projects; the search failed' or 'Use project X with these caveats'. The user is left without a clear go/no-go.",
+          "verifiable": true
+        },
+        {
+          "severity": "P0",
+          "stage": "report_delivery",
+          "claim": "The report provides the strongest evidence.",
+          "evidence_refs": [
+            "topProjects[0].evidenceCoverage[0].covered: false",
+            "topProjects[0].evidenceCoverage[1].covered: false",
+            "topProjects[0].score: 20"
+          ],
+          "counterexample": "The strongest evidence presented is that the top project, johnzfitch/raley-bot, has a score of 20/100 and its core features are explicitly marked as 'covered: false' and 'status: unknown'. This is not strong evidence; it is evidence of a weak, unconfirmed lead. The report fails to synthesize this into a conclusive statement about the lack of evidence.",
+          "verifiable": true
+        },
+        {
+          "severity": "P0",
+          "stage": "report_delivery",
+          "claim": "The report identifies the core gap.",
+          "evidence_refs": [
+            "summary: 已整理 3 个相邻方向，最接近的是 johnzfitch/raley-bot（20/100），目前更适合用来找灵感，不适合直接采用。",
+            "decisionBrief.gaps: []"
+          ],
+          "counterexample": "The summary mentions the project is 'not suitable for direct adoption', but the 'gaps' field in the decision brief is an empty array. The report does not explicitly state the core gap: that no project has been found that can take a generic product link and calculate the final price. The user is left to infer this from the low scores and unconfirmed features.",
+          "verifiable": true
+        },
+        {
+          "severity": "P1",
+          "stage": "report_delivery",
+          "claim": "The report provides a clear next action.",
+          "evidence_refs": [
+            "decisionBrief.nextStep: 打开 johnzfitch/raley-bot 的证据与源码，确认「Given a product link, the project reads the price and discount details from that link」。"
+          ],
+          "counterexample": "The next action is to 'open the evidence and source code' of a project that the report itself has already scored 20/100 and marked as having unconfirmed features. This is not a productive next step for a non-developer user who asked for a ready-to-use project. A better next action would be to advise the user that the search failed and suggest alternative approaches (e.g., hiring a developer, using a commercial service) or to clearly state that no suitable open-source project was found.",
+          "verifiable": true
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "The report's evidence coverage analysis is thorough.",
+          "evidence_refs": [
+            "topProjects[0].evidenceCoverage[0].componentEvidence",
+            "topProjects[0].evidenceCoverage[1].componentEvidence"
+          ],
+          "counterexample": "The component evidence for the first project (raley-bot) contains irrelevant or misattributed text snippets. For example, under 'action' for the first feature, it includes text about session cookies and file permissions, which has nothing to do with reading price and discount details from a link. This indicates a failure in the analysis stage to correctly map evidence to the required components, undermining the reliability of the coverage assessment.",
+          "verifiable": true
+        },
+        {
+          "severity": "P3",
+          "stage": "evidence",
+          "claim": "The report's search was comprehensive.",
+          "evidence_refs": [
+            "raw.search_completeness: limited",
+            "raw.search_completeness_reasons: [github HTTPStatusError during evidence]",
+            "usage.warnings: [GitHub remaining quota is low: 9, ...]"
+          ],
+          "counterexample": "The report itself states the search was 'limited' due to a GitHub HTTP error and low API quota. This means the evidence collection was incomplete, and there may be relevant projects that were not discovered or analyzed. The report does not adequately communicate this limitation to the user or adjust its conclusions accordingly.",
+          "verifiable": true
+        }
+      ],
+      "raw_available": true
+    },
+    {
+      "role": "semantic",
+      "verdict": "concern",
+      "summary": "The report correctly identifies that no project directly matches the core requirement of reading price and discount details from a product link and calculating the final price. However, the report has a significant omission: it fails to identify any project that demonstrably implements the core intent. The top three projects are all labeled as 'adjacent' or 'low similarity leads' with a score of 20/100, and the report explicitly states they are not suitable for direct use. This means the report's primary finding is that no suitable project was found, which is a valid but incomplete outcome. The report's structure and scoring system are sound, but the final output does not address the user's core need, leaving them without a viable candidate. The report should have been more explicit in its summary that no project meeting the core requirement was found, rather than presenting three adjacent projects as the top results.",
+      "findings": [
+        {
+          "severity": "P0",
+          "stage": "report_delivery",
+          "claim": "The report's top three projects (johnzfitch/raley-bot, DoganayBalaban/PriceWise-AI, xiaojiou176-open/dealwatcher) are the most relevant results for the user's request.",
+          "evidence_refs": [
+            "topProjects",
+            "decisionBrief"
+          ],
+          "counterexample": "The user's core requirement is to find a project that, given a product link, reads price and discount details and calculates the final price. None of the top three projects demonstrably implement this. The report itself labels them as 'adjacent' or 'low similarity leads' with a score of 20/100 and states they are not suitable for direct use. Presenting them as the top results is misleading because they do not fulfill the user's primary need.",
+          "verifiable": true
+        },
+        {
+          "severity": "P1",
+          "stage": "analysis",
+          "claim": "The report's analysis correctly identifies that the core features are unconfirmed for all top projects.",
+          "evidence_refs": [
+            "topProjects[0].evidenceCoverage",
+            "topProjects[1].evidenceCoverage",
+            "topProjects[2].evidenceCoverage"
+          ],
+          "counterexample": "While the analysis correctly marks the features as 'unknown', it does not go far enough. The evidence provided for each project (e.g., 'A grocery shopping assistant that wraps a grocery store’s web API') does not support the core requirement of reading from a generic product link. The analysis should have concluded that these projects are not just 'unknown' but are likely 'different' or 'missing' the core feature, as they are tied to specific store APIs, not generic product links.",
+          "verifiable": true
+        },
+        {
+          "severity": "P2",
+          "stage": "evidence",
+          "claim": "The evidence collection process was comprehensive, covering 40 coverage items across 22 deep pool candidates.",
+          "evidence_refs": [
+            "runTrace.stages[2]",
+            "raw.evidence_gate"
+          ],
+          "counterexample": "The evidence stage is marked as 'partial' due to a failed GitHub request (404 for dloeun03/Retail-Discount-Engine/readme) and a failed LLM request (ReadTimeout). While the report notes these failures, it does not assess their impact on the overall search completeness. The failure to retrieve evidence for one candidate and the failure of the LLM analysis could have missed a potential match. The report's conclusion that no suitable project exists is weakened by these incomplete evidence collection steps.",
+          "verifiable": true
+        },
+        {
+          "severity": "P3",
+          "stage": "discovery",
+          "claim": "The discovery phase used 18 planned queries and found 83 candidates, indicating a broad search.",
+          "evidence_refs": [
+            "runTrace.stages[1]",
+            "requirement.searchQueries"
+          ],
+          "counterexample": "The search queries are heavily focused on 'price-tracking', 'discount-calculator', and 'e-commerce-scraper'. While these are related, they do not precisely match the user's core intent of 'given a product link, read price and discount details and calculate final price'. A more targeted query like 'product link price discount extractor' was used, but the report does not explain why this query did not yield better results. The broad search may have missed projects that use different terminology (e.g., 'coupon', 'deal', 'offer') to describe the same functionality.",
+          "verifiable": true
+        }
+      ],
+      "raw_available": true
+    },
+    {
+      "role": "evidence",
+      "verdict": "concern",
+      "summary": "报告正确地将三个项目判定为相邻线索而非已验证匹配，但存在关键缺陷：所有项目均未提供任何本地证据（README、源码、路径）来支持用户的核心需求——给定商品链接读取价格和优惠明细并计算最终到手价。报告依赖的公开线索（如“price tracking”、“grocery shopping assistant”）与用户需求存在本质差异，且未引用任何可验证的本地证据。此外，报告在证据覆盖分析中错误地将README中关于会话cookie、搜索工具等无关内容标记为“action”或“object”证据，构成虚假关联。",
+      "findings": [
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "johnzfitch/raley-bot 的公开线索与「Given a product link, the project reads the price and discount details from that link」方向相近",
+          "evidence_refs": [
+            "仓库简介: A grocery shopping assistant that wraps a grocery store’s web API with intelligent product selection, price tracking, and more.",
+            "README: | `price` | Check price history from local tracking DB |"
+          ],
+          "counterexample": "仓库简介和README均未提及从任意商品链接读取价格和优惠明细；`price`命令仅检查本地跟踪数据库的价格历史，并非从外部链接实时提取。",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "DoganayBalaban/PriceWise-AI 的公开线索与「Given a product link, the project reads the price and discount details from that link」方向相近",
+          "evidence_refs": [
+            "仓库简介: Price tracking, forecasting, review sentiment analysis and RAG-powered Q&A platform for Turkish e-commerce"
+          ],
+          "counterexample": "仓库简介仅描述价格跟踪和预测平台，未提供任何证据表明项目接受商品链接作为输入并提取价格和优惠明细。",
+          "verifiable": false
+        },
+        {
+          "severity": "P0",
+          "stage": "evidence",
+          "claim": "xiaojiou176-open/dealwatcher 的公开线索与「Given a product link, the project reads the price and discount details from that link」方向相近",
+          "evidence_refs": [
+            "仓库简介: Open-source compare-first grocery price tracking with compare-aware watch groups, effective price, health, and alert history."
+          ],
+          "counterexample": "仓库简介描述的是杂货价格跟踪和比较，未提及从商品链接读取价格和优惠明细的功能。",
+          "verifiable": false
+        },
+        {
+          "severity": "P1",
+          "stage": "evidence",
+          "claim": "johnzfitch/raley-bot 的 evidenceCoverage 中 action 组件有 README 证据",
+          "evidence_refs": [
+            "README: | Saved results | `~/.local/share/raley-assistant/*.json` (mode 0600) | Session cookies are written with `0600` permissions ...",
+            "README: The `search` tool is read-only — it does not silently clip coupons or modify cart state."
+          ],
+          "counterexample": "引用的README内容描述的是文件权限、会话cookie和搜索工具只读性，与“从商品链接读取价格和优惠明细”这一action无关，属于错误关联。",
+          "verifiable": false
+        },
+        {
+          "severity": "P1",
+          "stage": "evidence",
+          "claim": "johnzfitch/raley-bot 的 evidenceCoverage 中 object 组件有 README 证据",
+          "evidence_refs": [
+            "README: | `price` | Check price history from local tracking DB |",
+            "README: | `plan` | Parse freeform grocery lists, find best matches (does not auto-add) |"
+          ],
+          "counterexample": "引用的README内容描述的是价格历史检查和杂货清单解析，并非从商品链接中提取价格和优惠明细这一object。",
+          "verifiable": false
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "johnzfitch/raley-bot 的 scoreReason 提到「公开线索与 Given a product link, the project reads the price and discount details from that link 方向相近」",
+          "evidence_refs": [
+            "scoreReason: 公开线索「A grocery shopping assistant that wraps a grocery store’s web API with intelligent p ...」与「Given a product link, the project reads the price and discount details from that link」方向相近"
+          ],
+          "counterexample": "公开线索描述的是杂货购物助手，通过包装特定杂货店的Web API工作，并非通用地从任意商品链接读取价格和优惠明细。方向相近的判定缺乏本地证据支持。",
+          "verifiable": false
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "DoganayBalaban/PriceWise-AI 的 scoreReason 提到「公开线索与 Given a product link, the project reads the price and discount details from that link 方向相近」",
+          "evidence_refs": [
+            "scoreReason: 公开线索「Price tracking, forecasting, review sentiment analysis and RAG-powered Q&A platform for Turkish e-commerce」与「Given a product link, the project reads the price and discount details from that link」方向相近"
+          ],
+          "counterexample": "公开线索描述的是土耳其电商的价格跟踪和预测平台，未提供任何证据表明项目接受商品链接作为输入并提取价格和优惠明细。",
+          "verifiable": false
+        },
+        {
+          "severity": "P2",
+          "stage": "analysis",
+          "claim": "xiaojiou176-open/dealwatcher 的 scoreReason 提到「公开线索与 Given a product link, the project reads the price and discount details from that link 方向相近」",
+          "evidence_refs": [
+            "scoreReason: 公开线索「Open-source compare-first grocery price tracking with compare-aware watch groups, ef ...」与「Given a product link, the project reads the price and discount details from that link」方向相近"
+          ],
+          "counterexample": "公开线索描述的是杂货价格跟踪和比较，未提及从商品链接读取价格和优惠明细的功能。",
+          "verifiable": false
+        },
+        {
+          "severity": "P3",
+          "stage": "report_delivery",
+          "claim": "报告返回了3个topProjects，每个都有evidenceCoverage分析",
+          "evidence_refs": [
+            "topProjects 数组包含3个项目",
+            "每个项目都有 evidenceCoverage 字段"
+          ],
+          "counterexample": "所有evidenceCoverage的covered均为false，status均为unknown，且readmeEvidence、sourceEvidence、pathEvidence均为空数组，表明未提供任何本地证据。",
+          "verifiable": false
+        }
+      ],
+      "raw_available": true
+    }
+  ],
+  "usage": {
+    "llmInputTokens": 24569,
+    "llmOutputTokens": 3724,
+    "llmTokenEstimated": false,
+    "warnings": []
+  }
+}

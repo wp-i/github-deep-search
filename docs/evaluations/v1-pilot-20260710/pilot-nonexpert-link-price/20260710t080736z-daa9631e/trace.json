@@ -1,0 +1,74 @@
+{
+  "schema_version": "1",
+  "status": "partial",
+  "stages": [
+    {
+      "name": "parse",
+      "status": "completed",
+      "inputs": {
+        "query": 1
+      },
+      "outputs": {
+        "must_have": 1,
+        "nice_to_have": 2,
+        "planned_queries": 20
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "discovery",
+      "status": "partial",
+      "inputs": {
+        "planned_queries": 20
+      },
+      "outputs": {
+        "candidates": 83,
+        "requests": 96
+      },
+      "notes": [
+        "github:failed:HTTPStatusError"
+      ],
+      "failure": null
+    },
+    {
+      "name": "evidence",
+      "status": "partial",
+      "inputs": {
+        "deep_pool": 22
+      },
+      "outputs": {
+        "coverage_items": 20
+      },
+      "notes": [
+        "github:failed:HTTPStatusError"
+      ],
+      "failure": null
+    },
+    {
+      "name": "analysis",
+      "status": "completed",
+      "inputs": {
+        "deep_pool": 20
+      },
+      "outputs": {
+        "analyses": 3
+      },
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "report_delivery",
+      "status": "completed",
+      "inputs": {
+        "projects": 3
+      },
+      "outputs": {
+        "markdown": 1
+      },
+      "notes": [],
+      "failure": null
+    }
+  ],
+  "failure": null
+}

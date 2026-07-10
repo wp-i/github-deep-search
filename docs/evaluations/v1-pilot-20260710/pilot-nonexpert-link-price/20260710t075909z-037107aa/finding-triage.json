@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1",
+  "status": "pending",
+  "findings": [
+    {
+      "id": "user-1",
+      "role": "user",
+      "severity": "P0",
+      "stage": "report_delivery",
+      "claim": "The report gives the user a decision.",
+      "evidenceRefs": [
+        "decisionBrief.level: adjacent",
+        "decisionBrief.headline: johnzfitch/raley-bot 仅是相邻线索，不应视为已验证匹配。"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-2",
+      "role": "user",
+      "severity": "P0",
+      "stage": "report_delivery",
+      "claim": "The report provides the strongest evidence.",
+      "evidenceRefs": [
+        "topProjects[0].evidenceCoverage[0].covered: false",
+        "topProjects[0].evidenceCoverage[1].covered: false",
+        "topProjects[0].score: 20"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-3",
+      "role": "user",
+      "severity": "P0",
+      "stage": "report_delivery",
+      "claim": "The report identifies the core gap.",
+      "evidenceRefs": [
+        "summary: 已整理 3 个相邻方向，最接近的是 johnzfitch/raley-bot（20/100），目前更适合用来找灵感，不适合直接采用。",
+        "decisionBrief.gaps: []"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-4",
+      "role": "user",
+      "severity": "P1",
+      "stage": "report_delivery",
+      "claim": "The report provides a clear next action.",
+      "evidenceRefs": [
+        "decisionBrief.nextStep: 打开 johnzfitch/raley-bot 的证据与源码，确认「Given a product link, the project reads the price and discount details from that link」。"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-5",
+      "role": "user",
+      "severity": "P2",
+      "stage": "analysis",
+      "claim": "The report's evidence coverage analysis is thorough.",
+      "evidenceRefs": [
+        "topProjects[0].evidenceCoverage[0].componentEvidence",
+        "topProjects[0].evidenceCoverage[1].componentEvidence"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "user-6",
+      "role": "user",
+      "severity": "P3",
+      "stage": "evidence",
+      "claim": "The report's search was comprehensive.",
+      "evidenceRefs": [
+        "raw.search_completeness: limited",
+        "raw.search_completeness_reasons: [github HTTPStatusError during evidence]",
+        "usage.warnings: [GitHub remaining quota is low: 9, ...]"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-1",
+      "role": "semantic",
+      "severity": "P0",
+      "stage": "report_delivery",
+      "claim": "The report's top three projects (johnzfitch/raley-bot, DoganayBalaban/PriceWise-AI, xiaojiou176-open/dealwatcher) are the most relevant results for the user's request.",
+      "evidenceRefs": [
+        "topProjects",
+        "decisionBrief"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-2",
+      "role": "semantic",
+      "severity": "P1",
+      "stage": "analysis",
+      "claim": "The report's analysis correctly identifies that the core features are unconfirmed for all top projects.",
+      "evidenceRefs": [
+        "topProjects[0].evidenceCoverage",
+        "topProjects[1].evidenceCoverage",
+        "topProjects[2].evidenceCoverage"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-3",
+      "role": "semantic",
+      "severity": "P2",
+      "stage": "evidence",
+      "claim": "The evidence collection process was comprehensive, covering 40 coverage items across 22 deep pool candidates.",
+      "evidenceRefs": [
+        "runTrace.stages[2]",
+        "raw.evidence_gate"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    },
+    {
+      "id": "semantic-4",
+      "role": "semantic",
+      "severity": "P3",
+      "stage": "discovery",
+      "claim": "The discovery phase used 18 planned queries and found 83 candidates, indicating a broad search.",
+      "evidenceRefs": [
+        "runTrace.stages[1]",
+        "requirement.searchQueries"
+      ],
+      "disposition": "pending",
+      "reviewer": "pending-independent-review",
+      "rationale": ""
+    }
+  ],
+  "note": "Agent severity is a triage suggestion. Only accepted findings enter the defect closure loop."
+}

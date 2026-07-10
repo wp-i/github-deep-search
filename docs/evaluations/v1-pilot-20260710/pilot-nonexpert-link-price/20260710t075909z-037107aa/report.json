@@ -1,0 +1,843 @@
+{
+  "summary": "已整理 3 个相邻方向，最接近的是 johnzfitch/raley-bot（20/100），目前更适合用来找灵感，不适合直接采用。",
+  "decisionBrief": {
+    "level": "adjacent",
+    "headline": "johnzfitch/raley-bot 仅是相邻线索，不应视为已验证匹配。",
+    "bestProject": "johnzfitch/raley-bot",
+    "confirmedFeatures": [],
+    "gaps": [],
+    "unconfirmedFeatures": [
+      "Given a product link, the project reads the price and discount details from that link",
+      "Given a product link, the project calculates the final price after discounts"
+    ],
+    "nextStep": "打开 johnzfitch/raley-bot 的证据与源码，确认「Given a product link, the project reads the price and discount details from that link」。"
+  },
+  "requirement": {
+    "raw": "我不懂开发，想找一个开源项目：给它一条商品链接，它能读取价格和优惠明细，算出最终到手价；平台和数据来源暂时不确定。",
+    "intent": "find an open-source project that, given a product link, reads price and discount details and calculates the final price",
+    "mustHaveFeatures": [
+      "Given a product link, the project reads the price and discount details from that link",
+      "Given a product link, the project calculates the final price after discounts"
+    ],
+    "niceToHaveFeatures": [],
+    "targetPlatforms": [
+      "product link input"
+    ],
+    "searchQueries": [
+      "open source product link price discount calculator",
+      "read price from product link calculate final price",
+      "product link price discount extractor",
+      "e-commerce price scraper discount calculator",
+      "product link price discount calculator",
+      "price scraper discount calculator",
+      "product link final price calculator",
+      "product link price discount",
+      "calculate final price from link",
+      "price discount extractor",
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper",
+      "calculate final price from product link",
+      "price scraper discount",
+      "open source project product link price discount calculator",
+      "github product link price discount calculator",
+      "open source price scraper discount calculator"
+    ],
+    "repoSearchQueries": [
+      "product link price discount calculator",
+      "price scraper discount calculator",
+      "product link final price calculator"
+    ],
+    "codeSearchQueries": [
+      "product link price discount",
+      "calculate final price from link",
+      "price discount extractor"
+    ],
+    "topicSearchQueries": [
+      "price-tracking",
+      "discount-calculator",
+      "e-commerce-scraper"
+    ],
+    "issueSearchQueries": [
+      "product link price discount",
+      "calculate final price from product link",
+      "price scraper discount"
+    ],
+    "webSearchQueries": [
+      "open source project product link price discount calculator",
+      "github product link price discount calculator",
+      "open source price scraper discount calculator"
+    ],
+    "featureConcepts": {
+      "literal_keywords": [
+        "商品链接",
+        "读取价格",
+        "优惠明细",
+        "算出最终到手价",
+        "开源项目"
+      ],
+      "domains": [
+        "e-commerce",
+        "price tracking",
+        "discount calculation"
+      ],
+      "actions": [
+        "read",
+        "calculate"
+      ],
+      "objects": [
+        "product link",
+        "price",
+        "discount details",
+        "final price"
+      ],
+      "outputs": [
+        "final price"
+      ],
+      "interfaces": [
+        "product link input"
+      ]
+    },
+    "evidenceAliases": {
+      "Given a product link, the project reads the price and discount details from that link": [
+        "read price from product link",
+        "extract discount details from link",
+        "product link price reader"
+      ],
+      "Given a product link, the project calculates the final price after discounts": [
+        "calculate final price from link",
+        "final price calculator",
+        "price after discount"
+      ]
+    },
+    "evidenceComponents": {
+      "Given a product link, the project reads the price and discount details from that link": {
+        "action": [
+          "read",
+          "extract"
+        ],
+        "object": [
+          "price",
+          "discount details"
+        ],
+        "context/interface": [
+          "product link"
+        ],
+        "output": [
+          "price and discount details"
+        ]
+      },
+      "Given a product link, the project calculates the final price after discounts": {
+        "action": [
+          "calculate"
+        ],
+        "object": [
+          "final price"
+        ],
+        "context/interface": [
+          "product link"
+        ],
+        "output": [
+          "final price"
+        ]
+      }
+    }
+  },
+  "reportMarkdown": "# 调研结论\n\n## 一句话判断\n已整理 3 个相邻方向，最接近的是 johnzfitch/raley-bot（20/100），目前更适合用来找灵感，不适合直接采用。\n\n## 已整理的线索\n\n### 1. johnzfitch/raley-bot（相邻参考） · ★ 1 · 更新 2026-06-15\n- 关联度：20/100\n- 得分原因：公开线索「A grocery shopping assistant that wraps a grocery store’s web API with intelligent p\n\n...[truncated]...\n\nModel Context Protocol).」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/johnzfitch/raley-bot\n\n### 2. DoganayBalaban/PriceWise-AI（相邻参考） · ★ 2 · 更新 2026-05-17\n- 关联度：20/100\n- 得分原因：公开线索「Price tracking, forecasting, review sentiment analysis and RAG-powered Q&A platform for Turkish e-commerce」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/DoganayBalaban/PriceWise-AI\n\n### 3. xiaojiou176-open/dealwatcher（相邻参考） · ★ 1 · 更新 2026-07-07\n- 关联度：20/100\n- 得分原因：公开线索「Open-source compare-first grocery price tracking with compare-aware watch groups, ef\n\n...[truncated]...\n\nalth, and alert history.」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。\n- 地址：https://github.com/xiaojiou176-open/dealwatcher\n\n## 本次消耗\n- LLM Token（估算）：输入 55035，输出 632，合计 55667。",
+  "topProjects": [
+    {
+      "repo": "johnzfitch/raley-bot",
+      "url": "https://github.com/johnzfitch/raley-bot",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「A grocery shopping assistant that wraps a grocery store’s web API with intelligent p\n\n...[truncated]...\n\nModel Context Protocol).」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from that link",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 1,
+      "lastPushedAt": "2026-06-15T17:07:23Z",
+      "language": "Python",
+      "license": "Unlicense",
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from that link",
+        "Given a product link, the project calculates the final price after discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from that link",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: | Saved results | `~/.local/share/raley-assistant/*.json` (mode 0600) | Session cookies are written with `0600` permissions (owner read/write only). Cookie values are sanitized for header injection characters before being pa\n\n...[truncated]...\n\nlicitly returns session status without exposing cookie contents.",
+              "README: Session cookies are written with `0600` permissions (owner read/write only). Cookie values are sanitized for header injection characters before being passed to curl. No credentials, tokens, or cookie values are ever logged, \n\n...[truncated]...\n\nlicitly returns session status without exposing cookie contents.",
+              "README: Session cookies are written with `0600` permissions (owner read/write only). Cookie values are sanitized for header injection characters before being passed to curl. No credentials, tokens, or cookie values are ever logged, \n\n...[truncated]...\n\nations (`add`, `remove`, `offers clip_all`) are always explicit.",
+              "README: The `search` tool is read-only — it does not silently clip coupons or modify cart state. Write operations (`add`, `remove`, `offers clip_all`) are always explicit."
+            ],
+            "object": [
+              "仓库简介: A grocery shopping assistant that wraps a grocery store’s web API with intelligent product selection, price tracking, and more. Automated agent integration via MCP (Model Context Protocol).",
+              "README: | `plan` | Parse freeform grocery lists, find best matches (does not auto-add) | | `price` | Check price history from local tracking DB |",
+              "README: | `price` | Check price history from local tracking DB |",
+              "README: | `price` | Check price history from local tracking DB | | `orders` | Order history with date range and spend totals |"
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        },
+        {
+          "feature": "Given a product link, the project calculates the final price after discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: Automated grocery shopping assistant with intelligent unit pricing, automatic coupon clipping, and an MCP server so your AI can argue with produce departments on your behalf. You tell Raley what you need. Raley finds the bes\n\n...[truncated]...\n\nons, and manages your cart. All through a CLI or Claude Desktop.",
+              "README: You tell Raley what you need. Raley finds the best deal, calculates unit pricing across every bizarre measurement the grocery industry has invented (per oz, per lb, per \"each\" — what even is an \"each\"), clips relevant coupons, and manages your cart. All through a CLI or Claude Desktop.",
+              "README: You tell Raley what you need. Raley finds the best deal, calculates unit pricing across every bizarre measurement the grocery industry has invented (per oz, per lb, per \"each\" — what even is an \"each\"), clips relevant coupon\n\n...[truncated]...\n\nmetimes the unglamorous solution is the one that actually works."
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-tracking"
+      ]
+    },
+    {
+      "repo": "DoganayBalaban/PriceWise-AI",
+      "url": "https://github.com/DoganayBalaban/PriceWise-AI",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「Price tracking, forecasting, review sentiment analysis and RAG-powered Q&A platform for Turkish e-commerce」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from that link",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 2,
+      "lastPushedAt": "2026-05-17T18:38:33Z",
+      "language": "TypeScript",
+      "license": null,
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from that link",
+        "Given a product link, the project calculates the final price after discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from that link",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "object": [
+              "仓库简介: Price tracking, forecasting, review sentiment analysis and RAG-powered Q&A platform for Turkish e-commerce",
+              "README: <div align=\"center\"> <a href=\"https://github.com/DoganayBalaban/PriceWise-AI\">",
+              "README: <a href=\"https://github.com/DoganayBalaban/PriceWise-AI\">",
+              "README: <a href=\"https://github.com/DoganayBalaban/PriceWise-AI\"> </a>"
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        },
+        {
+          "feature": "Given a product link, the project calculates the final price after discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {},
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-tracking"
+      ]
+    },
+    {
+      "repo": "xiaojiou176-open/dealwatcher",
+      "url": "https://github.com/xiaojiou176-open/dealwatcher",
+      "score": 20,
+      "functionalScore": 20,
+      "suitabilityScore": 20,
+      "scoreReason": "公开线索「Open-source compare-first grocery price tracking with compare-aware watch groups, ef\n\n...[truncated]...\n\nalth, and alert history.」与「Given a product link, the project reads the price and discount details from that link」方向相近，公开证据只支持较弱相邻关系，因此只作为相邻参考。",
+      "coreFeature": "Given a product link, the project reads the price and discount details from that link",
+      "coreConfirmed": false,
+      "isCatalog": false,
+      "stars": 1,
+      "lastPushedAt": "2026-07-07T08:17:29Z",
+      "language": "Python",
+      "license": "MIT",
+      "recommendation": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "directlyUsable": false,
+      "isReferenceCandidate": true,
+      "confidenceLevel": "lead",
+      "referenceReason": "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts",
+      "coveredFeatures": [],
+      "differentFeatures": [],
+      "unknownFeatures": [
+        "Given a product link, the project reads the price and discount details from that link",
+        "Given a product link, the project calculates the final price after discounts"
+      ],
+      "missingFeatures": [],
+      "requiredChanges": [
+        "仅作为搜索线索，不建议作为候选项目采用"
+      ],
+      "risks": [
+        "低相似线索：Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts"
+      ],
+      "evidence": [],
+      "evidenceCoverage": [
+        {
+          "feature": "Given a product link, the project reads the price and discount details from that link",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {
+            "action": [
+              "README: ``` Three commands. No `curl | sh`. No login. Read what you run.",
+              "README: Three commands. No `curl | sh`. No login. Read what you run.",
+              "README: Three commands. No `curl | sh`. No login. Read what you run. Install break",
+              "README: Install break Open your favorite agent and say *\"Read AGENTS.md and bootstrap dealwatcherer for me.\"* Agent fix own brain. Long version: [`docs/`](./docs/)."
+            ],
+            "object": [
+              "仓库简介: Open-source compare-first grocery price tracking with compare-aware watch groups, effective price, health, and alert history.",
+              "README: <p align=\"center\"> <strong>let prices fight, you sit and watch</strong>",
+              "README: <strong>let prices fight, you sit and watch</strong>",
+              "README: <strong>let prices fight, you sit and watch</strong> </p>"
+            ]
+          },
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        },
+        {
+          "feature": "Given a product link, the project calculates the final price after discounts",
+          "covered": false,
+          "status": "unknown",
+          "readmeEvidence": [],
+          "sourceEvidence": [],
+          "pathEvidence": [],
+          "missingReason": "",
+          "differenceReason": "",
+          "unknownReason": "公开说明中暂未确认全部必需证据组件",
+          "componentEvidence": {},
+          "requiredComponentCount": 4,
+          "evidenceReferences": []
+        }
+      ],
+      "foundBy": [
+        "github_topic:price-tracking"
+      ]
+    }
+  ],
+  "opportunity": "本次已经核对候选项目的公开说明和重点内容，仍未确认有项目同时具备「Given a product link, the project reads the price and discount details from that link、Given a product link, the project calculates the final price after discounts」。可借鉴 johnzfitch/raley-bot 的「现有项目的基础框架」；未覆盖的核心部分需要另找方案或单独实现。",
+  "usage": {
+    "githubRequests": 107,
+    "githubSearchRequests": 20,
+    "githubCodeSearchRequests": 5,
+    "githubTopicSearchRequests": 6,
+    "githubIssueSearchRequests": 3,
+    "tavilyCredits": 3,
+    "llmInputTokens": 55035,
+    "llmOutputTokens": 632,
+    "llmTokenEstimated": true,
+    "estimatedUsd": 0.024,
+    "estimatedUsdComplete": false,
+    "missingPriceComponents": [
+      "llm_input_usd_per_1m",
+      "llm_output_usd_per_1m"
+    ],
+    "elapsedMs": 149065,
+    "warnings": [
+      "GitHub remaining quota is low: 9",
+      "GitHub remaining quota is low: 8",
+      "GitHub remaining quota is low: 7",
+      "GitHub remaining quota is low: 6",
+      "GitHub remaining quota is low: 5",
+      "GitHub request failed: Client error '404 Not Found' for url 'https://api.github.com/repos/dloeun03/Retail-Discount-Engine/readme'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404",
+      "LLM request failed (ReadTimeout): ReadTimeout('')",
+      "Repeated low-confidence analysis text was made project-specific or downgraded: johnzfitch/raley-bot, adarsh3699/price-comparison-web, OCA/e-commerce, abuanwar072/E-commerce-App-UI-Flutter, DoganayBalaban/PriceWise-AI",
+      "Excluded 20 low-confidence candidate(s) with no meaningful project evidence.",
+      "Added adjacent low-confidence leads from ranked candidates: johnzfitch/raley-bot, DoganayBalaban/PriceWise-AI, xiaojiou176-open/dealwatcher",
+      "Low-confidence candidates below 50/100 not returned: adarsh3699/price-comparison-web, OCA/e-commerce, abuanwar072/E-commerce-App-UI-Flutter, sanuka27/TrustCart, weakennN/cPrices",
+      "LLM unit price is not configured; estimated cost excludes or undercounts LLM spend."
+    ],
+    "providerEvents": [
+      {
+        "provider": "github",
+        "operation": "/repos/dloeun03/Retail-Discount-Engine/readme",
+        "outcome": "failed",
+        "kind": "HTTPStatusError",
+        "stage": "evidence"
+      },
+      {
+        "provider": "llm",
+        "operation": "chat",
+        "outcome": "failed",
+        "kind": "ReadTimeout",
+        "stage": "analysis"
+      }
+    ]
+  },
+  "raw": {
+    "candidate_count": 83,
+    "ranked_count": 83,
+    "deep_pool_count": 20,
+    "top_projects_returned": 3,
+    "reliable_top_projects_count": 0,
+    "reference_candidate_count": 0,
+    "low_similarity_lead_count": 3,
+    "github_request_limit_reached": false,
+    "github_request_limit": 200,
+    "search_completeness": "limited",
+    "search_completeness_reasons": [
+      "github HTTPStatusError during evidence"
+    ],
+    "source_mix": {
+      "github_repo": 26,
+      "github_code": 0,
+      "github_topic": 27,
+      "github_issue": 27,
+      "tavily": 3,
+      "other": 0
+    },
+    "cache_stats": {
+      "readmes": 22,
+      "trees": 3,
+      "files": 6
+    },
+    "request_stages": {
+      "discovery": 76,
+      "readme": 22,
+      "source": 9
+    },
+    "planned_query_counts": {
+      "repo": 3,
+      "code": 3,
+      "topic": 3,
+      "issue": 3,
+      "web": 3
+    },
+    "planned_repo_queries_used": [
+      "product link price discount calculator",
+      "product link final price calculator",
+      "price scraper discount calculator",
+      "open source product link price discount calculator",
+      "read price from product link calculate final price",
+      "product link price discount extractor",
+      "product link price discount",
+      "e-commerce price scraper discount calculator",
+      "calculate final price from link",
+      "price discount extractor"
+    ],
+    "top_ranked_candidates": [
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 82.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "adarsh3699/price-comparison-web",
+        "discovery_score": 90.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "tavily:open source price scraper discount calculator"
+        ]
+      },
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 90.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 82.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "abuanwar072/E-commerce-App-UI-Flutter",
+        "discovery_score": 86.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme",
+          "github:product link final in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 79.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 76.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 84.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "OCA/e-commerce",
+        "discovery_score": 90.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github:product link price in:name,description,readme"
+        ]
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 84.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 84.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_topic:price-tracking"
+        ]
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 77.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 77.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:product link price discount"
+        ]
+      },
+      {
+        "repo": "litecart/litecart",
+        "discovery_score": 76.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5,
+        "found_by": [
+          "github_issue:calculate final price from product link"
+        ]
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 29.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0,
+        "found_by": [
+          "github_topic:discount-calculator"
+        ]
+      }
+    ],
+    "deep_pool_candidates": [
+      {
+        "repo": "johnzfitch/raley-bot",
+        "discovery_score": 90.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "adarsh3699/price-comparison-web",
+        "discovery_score": 90.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "OCA/e-commerce",
+        "discovery_score": 90.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "abuanwar072/E-commerce-App-UI-Flutter",
+        "discovery_score": 86.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "DoganayBalaban/PriceWise-AI",
+        "discovery_score": 84.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "xiaojiou176-open/dealwatcher",
+        "discovery_score": 84.4,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "sanuka27/TrustCart",
+        "discovery_score": 84.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "weakennN/cPrices",
+        "discovery_score": 82.9,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "OrbisAPI/commerce-mcp",
+        "discovery_score": 82.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "cryptosignalorg/crypto-signal-dashboard",
+        "discovery_score": 79.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "PrestaShop/PrestaShop",
+        "discovery_score": 77.6,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "shopware/shopware",
+        "discovery_score": 77.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "litecart/litecart",
+        "discovery_score": 76.3,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "mikevidotto/trackprice-ai",
+        "discovery_score": 76.2,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "PedroSilva370/discount-calculator-v2",
+        "discovery_score": 29.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 3.0
+      },
+      {
+        "repo": "projazzka/price-calc",
+        "discovery_score": 15.0,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "dloeun03/Retail-Discount-Engine",
+        "discovery_score": 7.8,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 2.5
+      },
+      {
+        "repo": "Ebazhanov/linkedin-skill-assessments-quizzes",
+        "discovery_score": -8.5,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "Dolibarr/dolibarr",
+        "discovery_score": -13.7,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      },
+      {
+        "repo": "magento/magento2",
+        "discovery_score": -20.1,
+        "score_basis": "pre_analysis_retrieval",
+        "core_signal": 0.0
+      }
+    ],
+    "score_semantics": {
+      "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
+      "topProjects.score": "Evidence-gated public match score on a 0-100 scale."
+    },
+    "core_requirement": "Given a product link, the project reads the price and discount details from that link",
+    "evidence_gate": {
+      "gated_feature_count": 2,
+      "penalized_count": 0,
+      "score_capped_count": 7,
+      "fully_covered_count": 0,
+      "unknown_feature_count": 40,
+      "explicit_missing_count": 0,
+      "core_requirement_unconfirmed_count": 19,
+      "repeated_analysis_text_count": 20,
+      "unverified_model_difference_count": 0,
+      "ungated_generic_must_have_count": 0
+    },
+    "low_confidence_filtered_count": 17,
+    "low_confidence_candidate_count": 20
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "partial",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "completed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {
+          "must_have": 2,
+          "nice_to_have": 0,
+          "planned_queries": 18
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "discovery",
+        "status": "completed",
+        "inputs": {
+          "planned_queries": 18
+        },
+        "outputs": {
+          "candidates": 83,
+          "requests": 76
+        },
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 22
+        },
+        "outputs": {
+          "coverage_items": 40
+        },
+        "notes": [
+          "github:failed:HTTPStatusError"
+        ],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "partial",
+        "inputs": {
+          "deep_pool": 20
+        },
+        "outputs": {
+          "analyses": 3
+        },
+        "notes": [
+          "llm:failed:ReadTimeout"
+        ],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "completed",
+        "inputs": {
+          "projects": 3
+        },
+        "outputs": {
+          "markdown": 1
+        },
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": null
+  }
+}

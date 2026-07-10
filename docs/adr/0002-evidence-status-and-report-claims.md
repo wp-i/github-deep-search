@@ -27,8 +27,8 @@ support for the requested one.
 - Adjacent projects remain visible when meaningful, but cannot imply core
   support or direct usability.
 - JSON, Markdown, Web, and MCP share the same evidence decision.
-- Stronger structured evidence references can be added later without changing
-  the status meanings.
+- `EvidenceReference` may add repository-local locators and excerpts without
+  changing the status meanings or the evidence-gate decision path.
 
 ## Rejected alternatives
 

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "status": "passed",
+  "results": [
+    {
+      "repo": "johnzfitch/raley-bot",
+      "initialUrl": "https://github.com/johnzfitch/raley-bot",
+      "renderedHref": "https://github.com/johnzfitch/raley-bot",
+      "finalUrl": "https://github.com/johnzfitch/raley-bot",
+      "httpStatus": 200,
+      "pageTitle": "GitHub - johnzfitch/raley-bot: A grocery shopping assistant that wraps a grocery store’s web API with intelligent product selection, price tracking, and more. Automated agent integration via MCP (Model Context Protocol). · GitHub",
+      "status": "passed",
+      "reason": "identity_and_reachability",
+      "checkedAt": "2026-07-10T08:03:15.370831+00:00"
+    }
+  ]
+}
