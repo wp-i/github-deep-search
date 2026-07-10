@@ -51,6 +51,30 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
                     "isReferenceCandidate": False,
                     "confidenceLevel": "reliable",
                     "referenceReason": "",
+                    "evidenceCoverage": [
+                        {
+                            "feature": "terminal UI",
+                            "status": "supported",
+                            "evidenceReferences": [
+                                {
+                                    "kind": "source",
+                                    "locator": "src/current.py",
+                                    "excerpt": "current capability is available",
+                                    "matchedAliases": ["current capability"],
+                                    "lineStart": 8,
+                                    "lineEnd": 8,
+                                },
+                                {
+                                    "kind": "readme",
+                                    "locator": "README",
+                                    "excerpt": "A separate item was inspected.",
+                                    "matchedAliases": [],
+                                    "lineStart": None,
+                                    "lineEnd": None,
+                                },
+                            ],
+                        }
+                    ],
                 }
             ],
             "reportMarkdown": (
@@ -118,6 +142,9 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
             assert "Textualize/rich" in report_text
             assert page.locator(".decision-brief").is_visible()
             assert "verified candidate" in page.locator(".decision-brief").inner_text()
+            assert page.locator(".evidence-references").is_visible()
+            assert "current capability" in page.locator(".evidence-references").inner_text()
+            assert "已检查，尚未确认" in page.locator(".evidence-references").inner_text()
             assert "优先候选" in report_text
             assert page.locator("#copyMarkdown").is_visible()
             assert page.locator("#downloadJson").is_visible()

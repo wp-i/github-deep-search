@@ -851,6 +851,48 @@ textarea::placeholder {
   overflow-wrap: anywhere;
 }
 
+.evidence-references {
+  margin: 22px 0;
+  padding: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.evidence-references h3 {
+  margin-top: 0;
+}
+
+.evidence-references > p {
+  color: #475569;
+  font-size: 14px;
+}
+
+.evidence-reference {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.evidence-reference span,
+.evidence-reference em {
+  color: #475569;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.evidence-reference.observed em {
+  color: #a16207;
+}
+
+.evidence-reference code {
+  display: block;
+  max-height: 76px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .report p {
   margin: 10px 0;
 }

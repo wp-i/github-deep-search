@@ -36,8 +36,8 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert 'id="downloadJson"' in html
     assert 'class="run-rail"' in html
     assert 'class="right-column"' in html
-    assert "/static/styles.css?v=20260703-01" in html
-    assert "/static/app.js?v=20260703-01" in html
+    assert "/static/styles.css?v=20260710-02" in html
+    assert "/static/app.js?v=20260710-02" in html
 
     assert "radial-gradient" not in styles.text
     assert "border-radius: 8px" in styles.text
@@ -51,8 +51,11 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert "report-loading" in script.text
     assert "error.message" in script.text
     assert "renderDecisionBrief" in script.text
+    assert "renderEvidenceReferences" in script.text
+    assert "已检查，尚未确认" in script.text
     assert "escapeHtml" in script.text
     assert ".decision-brief" in styles.text
+    assert ".evidence-references" in styles.text
 
 
 def test_status_reports_key_presence(monkeypatch) -> None:

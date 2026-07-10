@@ -150,7 +150,7 @@ async function runSearch() {
     }
     if (!response.ok) throw new Error(explainError(response, data));
     lastReport = data;
-    reportElement.innerHTML = `${renderDecisionBrief(data.decisionBrief)}${data.reportHtml || ""}`;
+    reportElement.innerHTML = `${renderDecisionBrief(data.decisionBrief)}${renderEvidenceReferences(data.topProjects)}${data.reportHtml || ""}`;
     resultsElement.classList.add("active");
     finishProgress(true);
     resultsElement.scrollIntoView({behavior: "smooth", block: "start"});
@@ -183,6 +183,38 @@ function renderDecisionBrief(brief) {
       <p>${escapeHtml(brief.headline)}</p>
       ${details}
       <div class="decision-brief-next"><span>下一步</span><strong>${escapeHtml(brief.nextStep)}</strong></div>
+    </section>`;
+}
+
+function renderEvidenceReferences(projects) {
+  if (!Array.isArray(projects)) return "";
+  const rows = projects.flatMap((project) => {
+    if (!Array.isArray(project.evidenceCoverage)) return [];
+    return project.evidenceCoverage.flatMap((coverage) => {
+      if (!Array.isArray(coverage.evidenceReferences)) return [];
+      return coverage.evidenceReferences.map((reference) => ({project, coverage, reference}));
+    });
+  }).slice(0, 12);
+  if (!rows.length) return "";
+  const items = rows.map(({project, coverage, reference}) => {
+    const location = [reference.kind, reference.locator, reference.lineStart ? `第 ${reference.lineStart} 行` : ""]
+      .filter(Boolean).join(" · ");
+    const aliases = Array.isArray(reference.matchedAliases) && reference.matchedAliases.length
+      ? `命中：${reference.matchedAliases.join("、")}`
+      : "已检查，尚未确认";
+    return `
+      <li class="evidence-reference ${reference.matchedAliases && reference.matchedAliases.length ? "matched" : "observed"}">
+        <strong>${escapeHtml(project.repo || "候选项目")} · ${escapeHtml(coverage.feature || "需求项")}</strong>
+        <span>${escapeHtml(location)}</span>
+        <em>${escapeHtml(aliases)}</em>
+        ${reference.excerpt ? `<code>${escapeHtml(reference.excerpt)}</code>` : ""}
+      </li>`;
+  }).join("");
+  return `
+    <section class="evidence-references" aria-label="可复核证据位置">
+      <h3>可复核证据位置</h3>
+      <p>命中内容才可支持能力判断；“已检查，尚未确认”不代表项目具备该能力。</p>
+      <ul>${items}</ul>
     </section>`;
 }
 
