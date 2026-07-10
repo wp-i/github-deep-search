@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from github_deep_search.models import BudgetUsage
+from github_deep_search.models import BudgetUsage, ProviderEvent
 from github_deep_search.utils import estimate_tokens
 
 
@@ -68,7 +68,13 @@ class LLMClient:
         except Exception as exc:
             self.usage.llm_input_tokens += estimated_input_tokens
             self.usage.llm_token_estimated = True
-            self.usage.warnings.append(f"LLM request failed: {exc}")
+            detail = str(exc).strip() or repr(exc)
+            self.usage.warnings.append(
+                f"LLM request failed ({type(exc).__name__}): {detail}"
+            )
+            self.usage.provider_events.append(
+                ProviderEvent("llm", "chat", "failed", type(exc).__name__)
+            )
             return ""
 
     @staticmethod
@@ -102,4 +108,7 @@ class LLMClient:
                 except json.JSONDecodeError:
                     pass
         self.usage.warnings.append("LLM did not return valid JSON; using the literal request plan.")
+        self.usage.provider_events.append(
+            ProviderEvent("llm", "json_chat", "failed", "invalid_response")
+        )
         return None

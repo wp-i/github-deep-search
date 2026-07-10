@@ -15,6 +15,87 @@ test-only rewrites, or downstream rescue logic as a development, debugging, or
 testing strategy. A change that only masks the observed failure without fixing
 the stage that produced it is invalid.
 
+## Regression Requirement for Confirmed Failures
+
+When a change addresses a confirmed failing test case, run that same case again
+against the real configured providers after the final code change. The
+regression run must produce a complete, readable report; a process that reaches
+report generation but fails while encoding, writing, or otherwise delivering
+the report does not count as a passing regression.
+
+LLM-assisted search is nondeterministic. For a confirmed failing case, perform
+at least two independent real regression runs after the final change and retain
+their outputs or traces for comparison. Assess the invariant rather than exact
+repository names or ordering: no fabricated capability evidence, no
+contradictory candidate tiering, and no empty result when meaningful verified
+adjacent projects survive. If outcomes differ, record the difference and trace
+any violation before declaring the fix complete.
+
+## Real-World Validation for Test Engineering Changes
+
+Any change to test code, evaluation harnesses, scenario cards, trace schemas,
+test fixtures, browser checks, test scripts, or test-report delivery is
+incomplete until it has been exercised against the real configured providers.
+Passing mocked, fixture-based, static, or self-referential tests alone is not
+evidence that the testing change works.
+
+After the final test-engineering change, run a real end-to-end case and retain
+the complete readable report and trace. The run must establish both:
+
+1. The changed test or evaluation mechanism records and validates the intended
+   production output correctly.
+2. The changed mechanism detects a condition that the prior test setup did not
+   verify, such as a missing stage artifact, unsupported claim, inconsistent
+   tier, incomplete report delivery, or other previously unobserved blind spot.
+
+Use the current request, real Provider responses, and repository evidence to
+demonstrate the second point; do not manufacture a passing demonstration with
+test-only phrases, fixed repositories, static aliases, or expected reports. If
+the real run does not establish both points, keep improving the test engineering
+and repeat the real validation. Record the case, configuration fingerprint,
+trace, report, observed blind spot, and conclusion in the release evaluation
+artifacts.
+
+## Regression Closure Loop
+
+Real validation is a closure loop, not a final checkbox. When a real run,
+browser verification, or independent review identifies a reproducible problem:
+
+1. Trace it to the earliest incorrect stage and make the smallest compliant fix.
+2. Run the affected deterministic tests and then rerun the same real case.
+3. Confirm from the new report, trace, and evidence that the original problem is
+   resolved without fabricated claims, contradictory tiering, or lost meaningful
+   adjacent results.
+4. Treat every newly discovered, evidence-backed problem as a new open item and
+   repeat this loop from step 1.
+
+Do not declare a test, fix, release candidate, or regression complete while the
+latest real run contains an unresolved evidence-backed issue in scope. For LLM-
+assisted search failures, the final successful iteration still requires at least
+two independent real runs as specified above.
+
+## No Premature Handoff During Active Validation
+
+Once a regression closure loop has started, do not stop at an intermediate
+diagnosis, a passing unit test, a repaired helper script, or a single successful
+provider call. Those are progress events, not completion events.
+
+- Keep an explicit plan with the next required action in progress until every
+  required deterministic check, real run, review, and closure condition has
+  passed.
+- When a command fails, inspect and repair the immediate execution boundary,
+  then retry the blocked command before reporting status. Do not turn a tool
+  failure into a handoff message.
+- When a real run discovers a new evidence-backed issue, update the plan and
+  continue its closure loop immediately; do not ask whether to proceed unless a
+  user decision or unavailable external state is genuinely required.
+- Before sending a completion message, explicitly verify that the current plan
+  has no in-progress regression step, the latest real runs meet their required
+  count, and no in-scope evidence-backed issue remains open.
+
+Use concise progress updates only to state the action now being executed. They
+must not imply that the work is complete.
+
 ## Mandatory Pre-Change Gate
 
 Before changing any search, parsing, evidence, ranking, report, or cost/usage

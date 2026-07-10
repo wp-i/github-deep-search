@@ -330,8 +330,9 @@ def test_no_candidate_report_states_the_gap_once() -> None:
 
     assert markdown.count("未找到") == 1
     assert "- 暂无。" not in markdown
-    assert "应优先补充核心功能相近或相关方向" in markdown
-    assert "没有留下可核对的相邻项目线索" not in markdown
+    assert "未列出项目：没有候选能用公开证据确认" in markdown
+    assert "SearchSpec" not in markdown
+    assert "应优先补充核心功能相近或相关方向" not in markdown
 
 
 def test_light_report_avoids_repeated_reference_reason_and_opportunity() -> None:

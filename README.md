@@ -227,7 +227,7 @@ docker compose up --build
 
 这是一个早期开源原型，目标是让产品想法和技术选型阶段的 GitHub 调研更快、更有证据感。后续会继续围绕召回质量、报告可读性和成本控制迭代。
 
-Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md) · [V1 delivery status](docs/V1_DELIVERY_STATUS.md) · [architecture](docs/ARCHITECTURE.md) · [AI-assisted engineering governance](docs/AI_ASSISTED_ENGINEERING_GOVERNANCE.md) · [V1 delivery test plan](docs/V1_DELIVERY_TEST_PLAN.md)
 
 ## MCP
 

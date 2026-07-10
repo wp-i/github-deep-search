@@ -10,11 +10,18 @@ from difflib import SequenceMatcher
 from typing import Sequence
 
 from github_deep_search.config import Settings, get_settings
+from github_deep_search.run_trace import (
+    RunTraceRecorder,
+    SearchRunFailed,
+    build_failure_artifact,
+    classify_failure,
+)
 from github_deep_search.models import (
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
     ProjectAnalysis,
+    ProviderEvent,
     Requirement,
     SearchReport,
 )
@@ -39,6 +46,7 @@ class DeepSearchEngine:
         started = time.perf_counter()
         usage = BudgetUsage()
         request_limit = self.settings.max_github_requests
+        trace = RunTraceRecorder()
         github = GitHubClient(self.settings.github_token, usage, request_limit=request_limit)
         tavily = TavilyClient(self.settings.tavily_api_key, usage) if self.settings.tavily_api_key else None
         llm = (
@@ -54,19 +62,51 @@ class DeepSearchEngine:
             else None
         )
         try:
+            trace.begin("parse", {"query": 1})
+            provider_event_index = len(usage.provider_events)
             spec = await SearchSpecParser().parse(query, llm)
             requirement = spec.to_requirement()
+            self._finish_trace_stage(
+                trace,
+                {
+                    "must_have": len(requirement.must_have_features),
+                    "nice_to_have": len(requirement.nice_to_have_features),
+                    "planned_queries": len(requirement.search_queries),
+                },
+                self._stage_provider_events(usage, provider_event_index, "parse"),
+            )
+            trace.begin("discovery", {"planned_queries": len(requirement.search_queries)})
+            provider_event_index = len(usage.provider_events)
             candidates = await self._collect_candidates(requirement, github, tavily, usage)
             discovery_requests = usage.github_requests
             ranked = self._rank_candidates(requirement, candidates)
-            await self._hydrate_readmes(ranked, github, usage)
+            readme_pool = self._evidence_hydration_pool(ranked)
+            self._finish_trace_stage(
+                trace,
+                {"candidates": len(candidates), "requests": usage.github_requests},
+                self._stage_provider_events(usage, provider_event_index, "discovery"),
+            )
+            trace.begin("evidence", {"deep_pool": len(readme_pool)})
+            provider_event_index = len(usage.provider_events)
+            await self._hydrate_readmes(readme_pool, github, usage)
             readme_requests = usage.github_requests - discovery_requests
             reranked = self._rank_candidates(requirement, ranked)
             deep_pool_limit = self._deep_pool_limit()
-            deep_repos = reranked[:deep_pool_limit]
+            readme_pool_names = {repo.full_name.lower() for repo in readme_pool}
+            verified_reranked = [
+                repo for repo in reranked if repo.full_name.lower() in readme_pool_names
+            ]
+            deep_repos = self._evidence_hydration_pool(verified_reranked, deep_pool_limit)
             await self._hydrate_source_evidence(deep_repos, github, usage, requirement)
             source_requests = usage.github_requests - discovery_requests - readme_requests
             deep_repos = self._rerank_by_evidence(deep_repos, requirement)
+            self._finish_trace_stage(
+                trace,
+                {"coverage_items": sum(len(item.evidence_coverage) for item in deep_repos)},
+                self._stage_provider_events(usage, provider_event_index, "evidence"),
+            )
+            trace.begin("analysis", {"deep_pool": len(deep_repos)})
+            provider_event_index = len(usage.provider_events)
             analyses = await self._analyze_top_projects(requirement, deep_repos, llm)
             analyses, evidence_gate_stats = self._apply_evidence_gate(requirement, analyses, usage)
             low_confidence_analyses = [item for item in analyses if item.match_score < 50]
@@ -74,13 +114,19 @@ class DeepSearchEngine:
             low_confidence = [item.repo.full_name for item in low_confidence_analyses]
             analyses = self._with_reference_candidates(reliable_analyses, low_confidence_analyses, usage, requirement)
             if len(analyses) < self.settings.max_deep_analyze_repos and not analyses:
+                incompatible_analysis_names = {
+                    item.repo.full_name.lower()
+                    for item in low_confidence_analyses
+                    if item.different_features
+                }
                 analyses.extend(
                     self._adjacent_low_confidence_leads(
                         requirement,
                         reranked,
                         usage,
                         slots=self.settings.max_deep_analyze_repos - len(analyses),
-                        excluded_projects={item.repo.full_name.lower() for item in analyses},
+                        excluded_projects={item.repo.full_name.lower() for item in analyses}
+                        | incompatible_analysis_names,
                         excluded_families={self._project_family_key(item) for item in analyses},
                     )
                 )
@@ -104,6 +150,13 @@ class DeepSearchEngine:
                     f"Returned {len(analyses)} project(s) because remaining candidates did not pass confidence filtering."
                 )
             opportunity = await self._analyze_opportunity(requirement, analyses, llm)
+            self._finish_trace_stage(
+                trace,
+                {"analyses": len(analyses)},
+                self._stage_provider_events(usage, provider_event_index, "analysis"),
+            )
+            trace.begin("report_delivery", {"projects": len(analyses)})
+            provider_event_index = len(usage.provider_events)
             usage.elapsed_ms = int((time.perf_counter() - started) * 1000)
             usage.estimated_usd = self._estimate_usd(usage)
             self._mark_cost_completeness(usage)
@@ -119,6 +172,11 @@ class DeepSearchEngine:
                 search_completeness,
             )
             summary = self._write_summary(analyses, opportunity)
+            self._finish_trace_stage(
+                trace,
+                {"markdown": int(bool(report_markdown.strip()))},
+                self._stage_provider_events(usage, provider_event_index, "report_delivery"),
+            )
             return SearchReport(
                 query=query,
                 requirement=requirement,
@@ -182,13 +240,54 @@ class DeepSearchEngine:
                     "low_confidence_filtered_count": len(low_confidence_not_returned),
                     "low_confidence_candidate_count": len(low_confidence),
                 },
+                run_trace=trace.build(),
             )
+        except SearchRunFailed:
+            raise
+        except Exception as exc:
+            stage = trace.active_name or trace.next_name
+            self._stage_provider_events(usage, provider_event_index, stage)
+            usage.elapsed_ms = int((time.perf_counter() - started) * 1000)
+            failure = classify_failure(stage, exc)
+            trace.fail(failure)
+            raise SearchRunFailed(
+                build_failure_artifact(query, usage, trace.build(), failure)
+            ) from exc
         finally:
             await github.close()
             if tavily:
                 await tavily.close()
             if llm:
                 await llm.close()
+
+    @staticmethod
+    def _stage_provider_events(
+        usage: BudgetUsage,
+        start: int,
+        stage: str,
+    ) -> list[ProviderEvent]:
+        events = usage.provider_events[start:]
+        for event in events:
+            if not event.stage:
+                event.stage = stage
+        return events
+
+    @staticmethod
+    def _finish_trace_stage(
+        trace: RunTraceRecorder,
+        outputs: dict[str, int],
+        provider_events: list[ProviderEvent],
+    ) -> None:
+        if not provider_events:
+            trace.complete(outputs)
+            return
+        notes = list(
+            dict.fromkeys(
+                f"{event.provider}:{event.outcome}:{event.kind}"
+                for event in provider_events
+            )
+        )
+        trace.partial(outputs, notes)
 
     def _budgeted_github_limit(self) -> int:
         return self.settings.max_github_requests
@@ -198,6 +297,54 @@ class DeepSearchEngine:
 
     def _deep_pool_limit(self) -> int:
         return 20
+
+    def _evidence_hydration_pool(
+        self,
+        ranked: list[CandidateRepository],
+        limit: int | None = None,
+    ) -> list[CandidateRepository]:
+        """Keep one candidate from each executed discovery angle for verification.
+
+        Ranking before README retrieval is necessarily based on sparse metadata.  A
+        single broad query must therefore not consume the entire evidence budget and
+        prevent the other SearchSpec-planned discovery angles from being checked.
+        This only chooses verification work; it is not capability evidence or a
+        score boost.
+        """
+        target = limit if limit is not None else self._deep_pool_limit() + 2
+        if target <= 0:
+            return []
+        selected: list[CandidateRepository] = []
+        selected_names: set[str] = set()
+        source_counts: dict[str, int] = {}
+
+        # Two rounds protect against a broad first result from a useful angle
+        # masking its next-best candidate, while still leaving capacity for the
+        # strongest overall metadata matches.
+        for per_source_limit in (1, 2):
+            for repo in ranked:
+                sources = {str(source).strip() for source in repo.found_by if str(source).strip()}
+                if (
+                    repo.full_name.lower() in selected_names
+                    or not sources
+                    or not any(source_counts.get(source, 0) < per_source_limit for source in sources)
+                ):
+                    continue
+                selected.append(repo)
+                selected_names.add(repo.full_name.lower())
+                for source in sources:
+                    source_counts[source] = source_counts.get(source, 0) + 1
+                if len(selected) >= target:
+                    return selected
+
+        for repo in ranked:
+            if repo.full_name.lower() in selected_names:
+                continue
+            selected.append(repo)
+            selected_names.add(repo.full_name.lower())
+            if len(selected) >= target:
+                break
+        return selected
 
     def _evidence_request_reserve(self) -> int:
         """Requests discovery cannot borrow: README plus focused checks for final candidates."""
@@ -359,10 +506,16 @@ class DeepSearchEngine:
                 github, usage, issue_batch, per_page=issue_per_page, request_limit=request_limit
             )
         )
-        for repo in [item for batch in results for item in batch]:
-            self._merge_repo(repos, repo)
-            if len(repos) >= candidate_limit:
-                break
+        # Merge channel results round-robin. A broad repository query must not
+        # consume the full candidate budget before code, topic, or issue
+        # evidence gets a chance to contribute.
+        for index in range(max((len(batch) for batch in results), default=0)):
+            for batch in results:
+                if index >= len(batch):
+                    continue
+                self._merge_repo(repos, batch[index])
+                if len(repos) >= candidate_limit:
+                    return
 
     def _has_github_wave_queries(
         self,
@@ -472,13 +625,14 @@ class DeepSearchEngine:
     def _planned_code_search_queries(self, requirement: Requirement) -> list[str]:
         limit = 5
         queries: list[str] = []
-        core_feature = self._core_requirement_feature(requirement)
-        core_aliases = (
-            sorted(self._feature_aliases(core_feature, requirement), key=self._query_specificity_key)
-            if core_feature
-            else []
-        )
-        planned = [*core_aliases, *requirement.code_search_queries]
+        feature_groups = [
+            sorted(self._feature_aliases(feature, requirement), key=self._query_specificity_key)
+            for feature in requirement.must_have_features
+        ]
+        planned = [
+            *self._round_robin_query_groups(feature_groups, limit=limit),
+            *requirement.code_search_queries,
+        ]
         for phrase in self._merge_queries(planned, limit=limit):
             token = self._github_search_token(phrase)
             if token:
@@ -489,9 +643,8 @@ class DeepSearchEngine:
         self,
         requirement: Requirement,
     ) -> list[str]:
-        """Put narrow core-capability angles before secondary output/interface queries."""
+        """Give every must-have a search opportunity before filling spare slots."""
         limit = 10
-        core_feature = self._core_requirement_feature(requirement)
         concepts = requirement.feature_concepts or {}
         domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
         targets = [
@@ -499,33 +652,54 @@ class DeepSearchEngine:
             for item in [*concepts.get("objects", []), *concepts.get("actions", [])]
             if str(item).strip()
         ]
-        core_queries: list[str] = []
+        concept_queries: list[str] = []
         for domain in domains[:4]:
             for target in targets[:6]:
                 if self._same_query_language(domain, target):
-                    core_queries.append(f"{domain} {target}")
-        if core_feature:
-            core_aliases = self._feature_aliases(core_feature, requirement)
-            aliases = [
-                alias
-                for alias in sorted(core_aliases, key=self._query_specificity_key)
-                if self._searchable_repo_phrase(alias, core_feature)
-            ]
-            aliases.extend(self._combined_core_alias_queries(core_aliases))
-            core_queries.extend(aliases)
-        core_queries.extend(domains[:4])
+                    concept_queries.append(f"{domain} {target}")
         channel_queries = self._merge_queries(
             [*requirement.repo_search_queries, *requirement.search_queries],
             limit=20,
         )
-        planned = [
+        feature_groups: list[list[str]] = []
+        for feature in requirement.must_have_features:
+            aliases = self._feature_aliases(feature, requirement)
+            matched_channel_queries = [
+                query
+                for query in channel_queries
+                if self._matching_terms(query, aliases)
+            ]
+            proof_queries = self._combined_core_alias_queries(aliases)
+            proof_queries.extend(
+                [
+                alias
+                for alias in sorted(aliases, key=self._query_specificity_key)
+                if self._searchable_repo_phrase(alias, feature)
+                ]
+            )
+            feature_groups.append(
+                self._merge_queries([*matched_channel_queries, *proof_queries], limit=6)
+            )
+        planned = self._round_robin_query_groups(feature_groups, limit=limit)
+        remaining = [
             query
-            for query in [*channel_queries, *core_queries]
-            if self._searchable_repo_phrase(query, core_feature or "", allow_single_signal=query in channel_queries)
+            for query in [*channel_queries, *concept_queries, *domains[:4]]
+            if self._searchable_repo_phrase(
+                query,
+                "",
+                allow_single_signal=query in channel_queries,
+            )
         ]
-        if not planned:
-            planned = [*channel_queries, *core_queries]
-        planned = sorted(planned, key=lambda query: self._repo_query_priority_key(query, requirement, core_feature))
+        return self._merge_queries([*planned, *remaining], limit=limit)
+
+    def _round_robin_query_groups(self, groups: list[list[str]], *, limit: int) -> list[str]:
+        planned: list[str] = []
+        for index in range(max((len(group) for group in groups), default=0)):
+            for group in groups:
+                if index < len(group):
+                    planned.append(group[index])
+                    if len(list(OrderedDict.fromkeys(planned))) >= limit:
+                        return self._merge_queries(planned, limit=limit)
         return self._merge_queries(planned, limit=limit)
 
     def _query_specificity_key(self, query: str) -> tuple[int, int, int, str]:
@@ -848,9 +1022,11 @@ class DeepSearchEngine:
 
     def _is_catalog_repository(self, repo: CandidateRepository) -> bool:
         readme = str(repo.readme or "")
+        external_links = len(re.findall(r"https?://", readme, flags=re.IGNORECASE))
+        if len(readme) >= 80_000 and external_links >= 50:
+            return True
         if len(readme) >= 20_000:
             github_links = len(re.findall(r"https?://github\.com/[^)\s]+", readme, flags=re.IGNORECASE))
-            external_links = len(re.findall(r"https?://", readme, flags=re.IGNORECASE))
             if github_links >= 50 and external_links >= github_links:
                 return True
         return False
@@ -1081,6 +1257,18 @@ class DeepSearchEngine:
         is_catalog = self._is_catalog_repository(repo)
         capability_readme = self._readme_capability_text(repo.readme)
         for feature in self._evidence_gate_features(requirement):
+            component_groups = self._feature_evidence_components(feature, requirement)
+            if component_groups:
+                coverage.append(
+                    self._build_component_evidence_coverage(
+                        repo,
+                        feature,
+                        component_groups,
+                        is_catalog=is_catalog,
+                        capability_readme=capability_readme,
+                    )
+                )
+                continue
             aliases = self._feature_aliases(feature, requirement)
             if not aliases:
                 continue
@@ -1157,6 +1345,117 @@ class DeepSearchEngine:
                 )
             )
         return coverage
+
+    def _feature_evidence_components(
+        self,
+        feature: str,
+        requirement: Requirement,
+    ) -> dict[str, list[str]]:
+        for key, groups in (requirement.evidence_components or {}).items():
+            if not self._same_feature_key(feature, key) or not isinstance(groups, dict):
+                continue
+            return {
+                str(label).strip(): [
+                    str(alias).strip()
+                    for alias in aliases
+                    if str(alias).strip()
+                ]
+                for label, aliases in groups.items()
+                if str(label).strip() and isinstance(aliases, list)
+            }
+        return {}
+
+    def _build_component_evidence_coverage(
+        self,
+        repo: CandidateRepository,
+        feature: str,
+        component_groups: dict[str, list[str]],
+        *,
+        is_catalog: bool,
+        capability_readme: str,
+    ) -> EvidenceCoverage:
+        component_evidence: dict[str, list[str]] = {
+            label: [] for label in component_groups
+        }
+        full_readme_evidence: list[str] = []
+        full_source_evidence: list[str] = []
+        full_path_evidence: list[str] = []
+        if not is_catalog:
+            materials: list[tuple[str, str, str]] = [
+                ("readme", "仓库简介", repo.description),
+                ("readme", "README", capability_readme),
+            ]
+            materials.extend(("path", path, path) for path in repo.file_paths if self._path_can_prove_capability(path))
+            materials.extend(
+                (
+                    "source",
+                    path,
+                    self._readme_capability_text(text) if path.lower().endswith((".md", ".mdx")) else text,
+                )
+                for path, text in repo.key_files.items()
+                if text
+            )
+            for source_type, source_name, text in materials:
+                if not text:
+                    continue
+                for window in self._local_evidence_windows(text):
+                    matched_labels = [
+                        label
+                        for label, aliases in component_groups.items()
+                        if any(self._literal_alias_present(alias.lower(), window.lower()) for alias in aliases)
+                    ]
+                    if not matched_labels:
+                        continue
+                    snippet = compact_text(window, 320)
+                    rendered = f"{source_name}: {snippet}"
+                    for label in matched_labels:
+                        if rendered not in component_evidence[label]:
+                            component_evidence[label].append(rendered)
+                    if len(matched_labels) != len(component_groups):
+                        continue
+                    if source_type == "source" and rendered not in full_source_evidence:
+                        full_source_evidence.append(rendered)
+                    elif source_type == "path" and rendered not in full_path_evidence:
+                        full_path_evidence.append(rendered)
+                    elif rendered not in full_readme_evidence:
+                        full_readme_evidence.append(rendered)
+
+        component_evidence = {
+            label: snippets[:4]
+            for label, snippets in component_evidence.items()
+            if snippets
+        }
+        covered = bool(full_readme_evidence or full_source_evidence or full_path_evidence)
+        return EvidenceCoverage(
+            feature=feature,
+            covered=covered,
+            status="supported" if covered else "unknown",
+            readme_evidence=full_readme_evidence[:5],
+            source_evidence=full_source_evidence[:5],
+            path_evidence=full_path_evidence[:5],
+            unknown_reason="" if covered else "公开说明中暂未确认全部必需证据组件",
+            component_evidence=component_evidence,
+            required_component_count=len(component_groups),
+        )
+
+    @staticmethod
+    def _local_evidence_windows(text: str) -> list[str]:
+        statements = [
+            item.strip()
+            for item in re.split(r"[\r\n。！？!?；;]+", str(text or ""))
+            if item.strip()
+        ]
+        windows: list[str] = []
+        for index, statement in enumerate(statements):
+            windows.append(statement)
+            if index + 1 < len(statements):
+                windows.append(f"{statement} {statements[index + 1]}")
+            if len(statement) > 420:
+                windows.extend(
+                    statement[start : start + 360]
+                    for start in range(0, len(statement), 260)
+                )
+        return list(OrderedDict.fromkeys(windows))
 
     def _core_evidence_is_compositional(self, requirement: Requirement, repo: CandidateRepository) -> bool:
         concepts = requirement.feature_concepts or {}
@@ -1307,8 +1606,7 @@ class DeepSearchEngine:
     ) -> float:
         if not coverage:
             return 0.0
-        core_feature = self._core_requirement_feature(requirement) if requirement else None
-        weights = [4.0 if item.feature == core_feature else 1.0 for item in coverage]
+        weights = [1.0 for _ in coverage]
         total_weight = sum(weights)
         covered = sum(
             weight
@@ -1685,6 +1983,7 @@ class DeepSearchEngine:
                     "must_have_features": requirement.must_have_features,
                     "target_platforms": requirement.target_platforms,
                     "feature_concepts": requirement.feature_concepts,
+                    "evidence_components": requirement.evidence_components,
                 },
                 "repositories": [
                     {
@@ -1702,6 +2001,8 @@ class DeepSearchEngine:
                                 "source_evidence": item.source_evidence,
                                 "path_evidence": item.path_evidence,
                                 "missing_reason": item.missing_reason,
+                                "component_evidence": item.component_evidence,
+                                "required_component_count": item.required_component_count,
                             }
                             for item in repo.evidence_coverage
                         ],
@@ -1892,7 +2193,9 @@ class DeepSearchEngine:
             stats["explicit_missing_count"] += len(explicit_missing)
 
             core_feature = self._core_requirement_feature(requirement)
-            weights = [4.0 if item.feature == core_feature else 1.0 for item in coverage]
+            # Every must-have is a hard requirement. A single selected feature
+            # must not outweigh the rest of a compound workflow.
+            weights = [1.0 for _ in coverage]
             total_weight = max(1.0, sum(weights))
             evidence_fit = round(
                 100
@@ -1908,13 +2211,9 @@ class DeepSearchEngine:
             if functional_score > score_cap:
                 functional_score = score_cap
                 stats["score_capped_count"] += 1
-            core_coverage = next(
-                (item for item in coverage if item.feature == core_feature),
-                None,
-            )
-            core_supported = bool(
-                core_coverage
-                and (core_coverage.status == "supported" or core_coverage.covered)
+            core_supported = bool(coverage) and all(
+                item.status == "supported" or item.covered
+                for item in coverage
             )
             confirmed_weight = sum(
                 weight * self._evidence_strength(item)
@@ -1957,6 +2256,16 @@ class DeepSearchEngine:
             analysis.suitability_score = max(0, functional_score - suitability_penalty)
             analysis.score_reason = self._score_reason(analysis)
             analysis.evidence = self._coverage_evidence_summary(analysis)
+            analysis.required_changes = [
+                change
+                for change in analysis.required_changes
+                if not any(
+                    re.sub(r"\s+", "", feature.casefold())
+                    in re.sub(r"\s+", "", str(change).casefold())
+                    for feature in evidence_covered
+                    if feature
+                )
+            ]
             if unknown or analysis.different_features:
                 analysis.directly_usable = False
 
@@ -2198,7 +2507,11 @@ class DeepSearchEngine:
             for item in remaining
             if not selected
             and item.repo.full_name not in reference_names
-            and (item.match_score >= 15 or self._has_multi_feature_core_evidence(item, requirement))
+            and (
+                item.match_score >= 15
+                or self._has_multi_feature_core_evidence(item, requirement)
+                or self._has_meaningful_requirement_component_coverage(item.evidence_coverage)
+            )
             and self._has_meaningful_adjacent_value(item, requirement)
             and (self._is_usable_reference_candidate(item, requirement) or item.repo.core_signal_score >= 2.0)
         ]
@@ -2296,14 +2609,27 @@ class DeepSearchEngine:
             )
             coverage = repo.evidence_coverage or self._build_evidence_coverage(repo, requirement)
             covered_features = self._supported_adjacent_features(requirement, coverage)
+            component_adjacent_evidence = self._has_meaningful_requirement_component_coverage(
+                coverage
+            )
             core_supported = any(
                 item.feature == core_feature and (item.status == "supported" or item.covered)
                 for item in coverage
             )
             core_related_features = self._core_related_adjacent_features(requirement, covered_features)
-            core_aligned = self._core_evidence_is_compositional(requirement, repo)
+            strict_component_mode = bool(requirement.evidence_components)
+            core_aligned = (
+                False
+                if strict_component_mode
+                else self._core_evidence_is_compositional(requirement, repo)
+            )
             discovery_evidence = self._has_planned_discovery_evidence(repo)
-            has_adjacent_evidence = bool(core_related_features or core_supported or discovery_evidence)
+            has_adjacent_evidence = bool(
+                core_related_features
+                or core_supported
+                or component_adjacent_evidence
+                or discovery_evidence
+            )
             if not has_adjacent_evidence:
                 continue
             if repo.raw_score < 15 and not adjacent_signal and not has_adjacent_evidence:
@@ -2312,9 +2638,21 @@ class DeepSearchEngine:
                 continue
             if covered_features and not core_related_features and not core_aligned:
                 continue
-            if not covered_features and not core_supported and not core_aligned and not discovery_evidence:
+            if (
+                not covered_features
+                and not core_supported
+                and not core_aligned
+                and not component_adjacent_evidence
+                and not discovery_evidence
+            ):
                 continue
-            if repo.core_signal_score <= 0 and not covered_features and not core_supported and not discovery_evidence:
+            if (
+                repo.core_signal_score <= 0
+                and not covered_features
+                and not core_supported
+                and not component_adjacent_evidence
+                and not discovery_evidence
+            ):
                 continue
             unknown_features = [
                 feature
@@ -2327,13 +2665,25 @@ class DeepSearchEngine:
                 covered_features,
                 core_supported=core_supported,
                 core_aligned=core_aligned,
-                adjacent_signal=adjacent_signal,
+                adjacent_signal=adjacent_signal or component_adjacent_evidence,
             )
             if discovery_evidence:
                 score = max(score, 20)
-            if not covered_features and not core_supported and repo.core_signal_score < 2.0:
+            if (
+                not covered_features
+                and not core_supported
+                and not component_adjacent_evidence
+                and repo.core_signal_score < 2.0
+                and not discovery_evidence
+            ):
                 continue
-            if not covered_features and not core_supported and score < 20 and not discovery_evidence:
+            if (
+                not covered_features
+                and not core_supported
+                and score < 20
+                and not component_adjacent_evidence
+                and not discovery_evidence
+            ):
                 continue
             analysis = ProjectAnalysis(
                 repo=repo,
@@ -2395,17 +2745,54 @@ class DeepSearchEngine:
             score = max(score, 15)
         return max(1, min(39, score))
 
+    @staticmethod
+    def _has_meaningful_component_coverage(item: EvidenceCoverage) -> bool:
+        required = item.required_component_count
+        matched = len(item.component_evidence)
+        if required <= 0 or matched < 2:
+            return False
+        return matched / required >= 0.5
+
+    @classmethod
+    def _has_meaningful_requirement_component_coverage(
+        cls,
+        coverage: Sequence[EvidenceCoverage],
+    ) -> bool:
+        component_items = [
+            item for item in coverage if item.required_component_count > 0
+        ]
+        if not component_items:
+            return False
+        if len(component_items) == 1:
+            return cls._has_meaningful_component_coverage(component_items[0])
+        matched_counts = [len(item.component_evidence) for item in component_items]
+        features_with_evidence = sum(1 for count in matched_counts if count > 0)
+        total_matched = sum(matched_counts)
+        distinct_components = {
+            str(label).strip().casefold()
+            for item in component_items
+            for label in item.component_evidence
+            if str(label).strip()
+        }
+        return (
+            features_with_evidence >= 2
+            and total_matched >= 3
+            and len(distinct_components) >= 2
+            and (
+                max(matched_counts[1:], default=0) >= 2
+                or sum(1 for count in matched_counts[1:] if count > 0) >= 3
+            )
+        )
+
     def _has_planned_discovery_evidence(self, repo: CandidateRepository) -> bool:
-        if repo.core_signal_score < 2.0:
+        if self._is_catalog_repository(repo):
+            return False
+        if not (repo.description or repo.readme or repo.topics):
             return False
         sources = [str(source) for source in repo.found_by or []]
         for source in sources:
             signal_count = self._discovery_source_signal_count(source)
             if source.startswith(("github_topic:", "github_code:")) and signal_count >= 2:
-                return True
-            if source.startswith("github:") and repo.core_signal_score >= 2.5 and signal_count >= 3:
-                return True
-            if source.startswith("tavily:") and repo.core_signal_score >= 2.5 and signal_count >= 3:
                 return True
         return False
 
@@ -2519,14 +2906,18 @@ class DeepSearchEngine:
         analysis: ProjectAnalysis,
         requirement: Requirement | None,
     ) -> None:
-        if analysis.match_score > 0:
-            return
         adjacent_features = (
             self._supported_adjacent_features(requirement, analysis.evidence_coverage)
             if requirement
             else []
         )
-        analysis.match_score = 15 if adjacent_features else 1
+        has_component_evidence = self._has_meaningful_requirement_component_coverage(
+            analysis.evidence_coverage
+        )
+        minimum = 15 if adjacent_features or has_component_evidence else 1
+        if analysis.match_score >= minimum:
+            return
+        analysis.match_score = minimum
         analysis.functional_score = analysis.match_score
         analysis.suitability_score = max(analysis.suitability_score, analysis.match_score)
 
@@ -2537,6 +2928,10 @@ class DeepSearchEngine:
     ) -> bool:
         if self._is_catalog_candidate(analysis):
             return False
+        if requirement and requirement.evidence_components:
+            return self._has_meaningful_requirement_component_coverage(
+                analysis.evidence_coverage
+            )
         core_feature = self._core_requirement_feature(requirement) if requirement else analysis.core_feature
         if (
             core_feature
@@ -2571,6 +2966,10 @@ class DeepSearchEngine:
         core_feature = self._core_requirement_feature(requirement) or analysis.core_feature
         if core_feature and self._feature_has_confirmed_difference(core_feature, analysis.different_features):
             return False
+        if requirement.evidence_components:
+            return self._has_meaningful_requirement_component_coverage(
+                analysis.evidence_coverage
+            )
         if analysis.repo.core_signal_score <= 0:
             analysis.repo.core_signal_score = self._core_direction_score(requirement, analysis.repo)
         supported = self._supported_adjacent_features(requirement, analysis.evidence_coverage)
@@ -2621,6 +3020,7 @@ class DeepSearchEngine:
         analysis.is_reference_candidate = True
         analysis.confidence_level = "lead"
         analysis.reference_reason = reason
+        analysis.recommendation = reason
         analysis.directly_usable = False
         if reason not in analysis.risks:
             analysis.risks.append(reason)
@@ -2646,6 +3046,7 @@ class DeepSearchEngine:
         analysis.is_reference_candidate = True
         analysis.confidence_level = "reference"
         analysis.reference_reason = reason
+        analysis.recommendation = reason
         analysis.directly_usable = False
         if reason not in analysis.risks:
             analysis.risks.append(reason)
@@ -2720,7 +3121,7 @@ class DeepSearchEngine:
 
     def _write_summary(self, analyses: list[ProjectAnalysis], opportunity: str) -> str:
         if not analyses:
-            return "本次未找到可直接采用的项目；若候选发现阶段有可复核仓库，应优先补充核心功能相近或相关方向。"
+            return "本次未找到有公开证据可核对的项目。"
         best = analyses[0]
         if all(item.confidence_level == "lead" for item in analyses):
             return (
@@ -2763,7 +3164,6 @@ class DeepSearchEngine:
         lines.append("")
         lines.append("## 已整理的线索")
         if not analyses:
-            lines.append("- 未形成可核对项目清单；这不是理想结果，应优先追溯 SearchSpec 解析、检索渠道和证据门槛。")
             self._append_empty_result_context(lines, requirement)
         for project_index, analysis in enumerate(analyses, start=1):
             lines.append("")
@@ -2797,11 +3197,9 @@ class DeepSearchEngine:
             self._core_requirement_feature(requirement)
             or (requirement.must_have_features[0] if requirement.must_have_features else "核心需求")
         )
-        lines.append("")
-        lines.append("### 本次为什么没有列出项目")
         lines.append(f"- 已查找方向：{'、'.join(channels)}。")
         lines.append(
-            f"- 筛选原因：没有候选能用公开证据完整确认「{core}」。按核心规则，这种情况下应继续展示核心功能相近或相关方向，而不是输出空报告。"
+            f"- 未列出项目：没有候选能用公开证据确认「{core}」。"
         )
         if core:
             lines.append(f"- 关键缺口：未确认核心能力「{core}」。")
@@ -2856,8 +3254,12 @@ class DeepSearchEngine:
         reasons: list[str] = []
         if usage.github_requests >= request_limit:
             reasons.append("GitHub request limit reached")
-        if usage.warnings and any("rate limit" in warning.lower() for warning in usage.warnings):
-            reasons.append("GitHub rate limit warning")
+        for event in usage.provider_events:
+            if event.provider not in {"github", "tavily"}:
+                continue
+            reason = f"{event.provider} {event.kind} during {event.stage or 'search'}"
+            if reason not in reasons:
+                reasons.append(reason)
         return {"level": "limited" if reasons else "complete", "reasons": reasons}
 
     def _mark_cost_completeness(self, usage: BudgetUsage) -> None:

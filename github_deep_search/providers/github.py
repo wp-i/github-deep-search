@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from github_deep_search.models import BudgetUsage, CandidateRepository
+from github_deep_search.models import BudgetUsage, CandidateRepository, ProviderEvent
 
 
 class GitHubClient:
@@ -42,6 +42,9 @@ class GitHubClient:
         if self.request_limit is not None and self.usage.github_requests >= self.request_limit:
             self.paused = True
             self.usage.warnings.append("GitHub request limit reached; further GitHub calls were stopped.")
+            self.usage.provider_events.append(
+                ProviderEvent("github", path, "limited", "request_limit")
+            )
             return None
         self.usage.github_requests += 1
         try:
@@ -57,6 +60,9 @@ class GitHubClient:
                 if retry_after:
                     message += f" Retry-after header suggests {retry_after}s."
                 self.usage.warnings.append(message)
+                self.usage.provider_events.append(
+                    ProviderEvent("github", path, "limited", "rate_limit")
+                )
                 return None
             response.raise_for_status()
             remaining = response.headers.get("x-ratelimit-remaining")
@@ -65,9 +71,15 @@ class GitHubClient:
                 if int(remaining) <= 2:
                     self.paused = True
                     self.usage.warnings.append("GitHub requests paused to avoid exhausting the API quota.")
+                    self.usage.provider_events.append(
+                        ProviderEvent("github", path, "limited", "quota_guard")
+                    )
             return response.json()
         except httpx.HTTPError as exc:
             self.usage.warnings.append(f"GitHub request failed: {exc}")
+            self.usage.provider_events.append(
+                ProviderEvent("github", path, "failed", type(exc).__name__)
+            )
             return None
 
     async def search_repositories(self, query: str, per_page: int = 10) -> list[CandidateRepository]:
@@ -166,6 +178,9 @@ class GitHubClient:
             return base64.b64decode(encoded, validate=False).decode("utf-8", errors="replace")
         except Exception as exc:
             self.usage.warnings.append(f"README decode failed for {repo.full_name}: {exc}")
+            self.usage.provider_events.append(
+                ProviderEvent("github", f"readme:{repo.full_name}", "failed", "decode_error")
+            )
             return ""
 
     async def fetch_tree_paths(self, repo: CandidateRepository, limit: int = 1200) -> list[str]:
@@ -175,6 +190,9 @@ class GitHubClient:
             return []
         if data.get("truncated"):
             self.usage.warnings.append(f"GitHub tree truncated for {repo.full_name}; source evidence is partial.")
+            self.usage.provider_events.append(
+                ProviderEvent("github", f"tree:{repo.full_name}", "limited", "truncated_response")
+            )
         paths: list[str] = []
         for item in data.get("tree", []):
             if item.get("type") != "blob":
@@ -200,6 +218,9 @@ class GitHubClient:
             decoded = base64.b64decode(encoded, validate=False).decode("utf-8", errors="replace")
         except Exception as exc:
             self.usage.warnings.append(f"File decode failed for {repo.full_name}/{path}: {exc}")
+            self.usage.provider_events.append(
+                ProviderEvent("github", f"file:{repo.full_name}/{path}", "failed", "decode_error")
+            )
             return ""
         return decoded[:max_chars]
 

@@ -112,6 +112,113 @@ def test_deep_pool_grows_with_available_candidates() -> None:
     assert engine._deep_pool_limit() == 20
 
 
+def test_evidence_hydration_pool_preserves_distinct_discovery_angles() -> None:
+    engine = DeepSearchEngine()
+    broad_query_candidates = [
+        CandidateRepository(
+            owner="demo",
+            name=f"broad-{index}",
+            url=f"https://github.com/demo/broad-{index}",
+            raw_score=100 - index,
+            found_by=["github:shared broad query"],
+        )
+        for index in range(4)
+    ]
+    topic_candidate = CandidateRepository(
+        owner="demo",
+        name="topic-result",
+        url="https://github.com/demo/topic-result",
+        raw_score=10,
+        found_by=["github_topic:separate direction"],
+    )
+    code_candidate = CandidateRepository(
+        owner="demo",
+        name="code-result",
+        url="https://github.com/demo/code-result",
+        raw_score=9,
+        found_by=["github_code:another direction"],
+    )
+
+    selected = engine._evidence_hydration_pool(
+        [*broad_query_candidates, topic_candidate, code_candidate],
+        limit=3,
+    )
+
+    assert {repo.name for repo in selected} == {"broad-0", "topic-result", "code-result"}
+
+
+def test_strict_compound_requirement_can_return_verified_discovery_lead() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need a workflow that gathers Aster records and produces a Boreal report.",
+        intent="Find an Aster workflow",
+        must_have_features=["gather Aster records and produce a Boreal report"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["Aster workflow Boreal report"],
+        evidence_aliases={
+            "gather Aster records and produce a Boreal report": [
+                "Aster record collection",
+                "Boreal report output",
+            ]
+        },
+        evidence_components={
+            "gather Aster records and produce a Boreal report": {
+                "collection": ["Aster record collection"],
+                "report": ["Boreal report output"],
+            }
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="workflow-helper",
+        url="https://github.com/demo/workflow-helper",
+        description="A maintained workflow helper project.",
+        topics=["aster-workflow"],
+        found_by=["github_topic:aster workflow"],
+    )
+
+    leads = engine._adjacent_low_confidence_leads(requirement, [repo], BudgetUsage())
+
+    assert len(leads) == 1
+    assert leads[0].confidence_level == "lead"
+    assert leads[0].core_confirmed is False
+    assert leads[0].covered_features == []
+
+    excluded = engine._adjacent_low_confidence_leads(
+        requirement,
+        [repo],
+        BudgetUsage(),
+        excluded_projects={repo.full_name.lower()},
+    )
+    assert excluded == []
+
+
+def test_empty_report_uses_user_facing_explanation_without_internal_diagnostics() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Need a sample capability",
+        intent="Find a sample capability",
+        must_have_features=["sample capability"],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["sample capability"],
+        evidence_aliases={"sample capability": ["sample capability"]},
+    )
+
+    report = engine._write_report(
+        requirement.raw,
+        requirement,
+        [],
+        "",
+        BudgetUsage(),
+    )
+
+    assert "未找到有公开证据可核对的项目" in report
+    assert "SearchSpec" not in report
+    assert "这不是理想结果" not in report
+
+
 def test_multilingual_queries_are_interleaved_and_repo_query_preserves_request_terms() -> None:
     engine = DeepSearchEngine()
 
@@ -146,7 +253,7 @@ def test_chinese_terminal_ui_query_does_not_drop_request_terms_by_static_word_li
     planned = engine._planned_repo_search_queries(requirement)
 
     assert any("terminal ui library" in item.lower() for item in planned)
-    assert any("python tui" in item.lower() for item in planned)
+    assert any("python tui" in item.lower() for item in planned), planned
     assert "python" not in planned
     assert engine._to_github_repo_query("开源 Python 终端 UI 库") == "开源 Python 终端 in:name,description,readme"
     assert "terminal ui library" in engine._requirement_aliases(requirement)
@@ -308,7 +415,8 @@ def test_core_capability_queries_run_before_secondary_output_queries() -> None:
 
     assert "星河平台 评论" in planned
     assert "StarRiver comments" in planned
-    assert planned.index("StarRiver comments") < planned.index("PDF report MCP")
+    assert planned.index("星河平台内容和评论查询") < 2
+    assert planned.index("PDF report MCP") < 2
 
 
 def test_analysis_keeps_unreturned_repositories_for_evidence_gate() -> None:

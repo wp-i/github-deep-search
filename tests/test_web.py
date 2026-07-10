@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from github_deep_search import web
+from github_deep_search.models import BudgetUsage, RunFailure
+from github_deep_search.run_trace import RunTraceRecorder, SearchRunFailed, build_failure_artifact
 
 
 def test_web_index_exposes_real_search_trust_contract() -> None:
@@ -48,6 +50,9 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert "Research in progress" in script.text
     assert "report-loading" in script.text
     assert "error.message" in script.text
+    assert "renderDecisionBrief" in script.text
+    assert "escapeHtml" in script.text
+    assert ".decision-brief" in styles.text
 
 
 def test_status_reports_key_presence(monkeypatch) -> None:
@@ -84,3 +89,27 @@ def test_web_search_calls_deep_search_with_query(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert calls == ["find an accessible diagram editor"]
+
+
+def test_web_search_returns_serialized_failure_trace(monkeypatch) -> None:
+    trace = RunTraceRecorder()
+    trace.begin("parse", {"query": 1})
+    failure = RunFailure(
+        kind="provider",
+        stage="parse",
+        exception_type="TimeoutError",
+        message="A configured provider failed during parse.",
+        retryable=True,
+    )
+    trace.fail(failure)
+    artifact = build_failure_artifact("current request", BudgetUsage(), trace.build(), failure)
+
+    async def failed_search(query: str):
+        raise SearchRunFailed(artifact)
+
+    monkeypatch.setattr(web, "deep_search", failed_search)
+    response = TestClient(web.app).post("/api/search", json={"query": "current request"})
+
+    assert response.status_code == 502
+    assert response.json()["failureArtifact"]["runTrace"]["status"] == "failed"
+    assert response.json()["failureArtifact"]["runTrace"]["stages"][1]["status"] == "not_started"

@@ -4,6 +4,47 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
+StageStatus = Literal["not_started", "completed", "partial", "failed"]
+FailureKind = Literal["invalid_request", "provider", "execution", "report_delivery"]
+ProviderOutcome = Literal["failed", "limited"]
+
+
+@dataclass
+class ProviderEvent:
+    provider: str
+    operation: str
+    outcome: ProviderOutcome
+    kind: str
+    stage: str = ""
+
+
+@dataclass(frozen=True)
+class RunFailure:
+    kind: FailureKind
+    stage: str
+    exception_type: str
+    message: str
+    retryable: bool = False
+
+
+@dataclass(frozen=True)
+class StageOutcome:
+    name: str
+    status: StageStatus
+    inputs: dict[str, int] = field(default_factory=dict)
+    outputs: dict[str, int] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
+    failure: RunFailure | None = None
+
+
+@dataclass(frozen=True)
+class RunTrace:
+    schema_version: str
+    status: Literal["completed", "partial", "failed"]
+    stages: list[StageOutcome]
+    failure: RunFailure | None = None
+
+
 @dataclass
 class BudgetUsage:
     github_requests: int = 0
@@ -20,6 +61,7 @@ class BudgetUsage:
     missing_price_components: list[str] = field(default_factory=list)
     elapsed_ms: int = 0
     warnings: list[str] = field(default_factory=list)
+    provider_events: list[ProviderEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -37,6 +79,7 @@ class Requirement:
     web_search_queries: list[str] = field(default_factory=list)
     feature_concepts: dict[str, list[str]] = field(default_factory=dict)
     evidence_aliases: dict[str, list[str]] = field(default_factory=dict)
+    evidence_components: dict[str, dict[str, list[str]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -59,6 +102,7 @@ class SearchSpec:
     issue_search_queries: list[str] = field(default_factory=list)
     web_search_queries: list[str] = field(default_factory=list)
     evidence_aliases: dict[str, list[str]] = field(default_factory=dict)
+    evidence_components: dict[str, dict[str, list[str]]] = field(default_factory=dict)
 
     @property
     def feature_concepts(self) -> dict[str, list[str]]:
@@ -86,6 +130,7 @@ class SearchSpec:
             web_search_queries=self.web_search_queries,
             feature_concepts=self.feature_concepts,
             evidence_aliases=self.evidence_aliases,
+            evidence_components=self.evidence_components,
         )
 
 
@@ -128,6 +173,8 @@ class EvidenceCoverage:
     missing_reason: str = ""
     difference_reason: str = ""
     unknown_reason: str = ""
+    component_evidence: dict[str, list[str]] = field(default_factory=dict)
+    required_component_count: int = 0
 
 
 @dataclass
@@ -165,3 +212,14 @@ class SearchReport:
     report_markdown: str
     usage: BudgetUsage
     raw: dict[str, Any] = field(default_factory=dict)
+    run_trace: RunTrace | None = None
+
+
+@dataclass(frozen=True)
+class SearchFailureArtifact:
+    schema_version: str
+    query: str
+    error_report_markdown: str
+    usage: BudgetUsage
+    run_trace: RunTrace
+    failure: RunFailure

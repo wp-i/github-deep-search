@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from github_deep_search.models import BudgetUsage
+from github_deep_search.models import BudgetUsage, ProviderEvent
 
 
 class TavilyClient:
@@ -19,6 +19,9 @@ class TavilyClient:
     async def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         if self.usage.tavily_credits >= 4:
             self.usage.warnings.append("Tavily budget reached; skipped extra web search.")
+            self.usage.provider_events.append(
+                ProviderEvent("tavily", "search", "limited", "budget_limit")
+            )
             return []
         payload = {
             "api_key": self.api_key,
@@ -43,5 +46,7 @@ class TavilyClient:
             return list(data.get("results") or [])
         except httpx.HTTPError as exc:
             self.usage.warnings.append(f"Tavily search failed: {exc}")
+            self.usage.provider_events.append(
+                ProviderEvent("tavily", "search", "failed", type(exc).__name__)
+            )
             return []
-

@@ -300,7 +300,8 @@ def test_candidate_stays_visible_without_static_license_phrase_detection() -> No
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert gated[0].match_score >= 70
+    assert gated[0].match_score >= 40
+    assert gated[0].core_confirmed is False
     assert gated[0].suitability_score == gated[0].functional_score
     assert "开源许可带有额外使用限制" not in gated[0].different_features
     assert gated[0].missing_features == []
@@ -580,7 +581,7 @@ def test_two_confirmed_features_cannot_score_near_full_match() -> None:
 
     gated, _ = engine._apply_evidence_gate(requirement, [analysis], BudgetUsage())
 
-    assert gated[0].core_confirmed is True
+    assert gated[0].core_confirmed is False
     assert gated[0].match_score <= 60
 
 
@@ -766,6 +767,23 @@ def test_large_link_index_is_catalog_by_structure_not_static_words() -> None:
         readme=("# Title\n" + links + "\n") * 20,
     )
 
+    assert engine._is_catalog_repository(repo) is True
+
+
+def test_very_large_external_link_index_is_catalog_by_structure() -> None:
+    engine = DeepSearchEngine()
+    links = "\n".join(
+        f"- [resource {index}](https://resources.example/{index})"
+        for index in range(80)
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="resource-index",
+        url="https://github.com/demo/resource-index",
+        readme=links + "\n" + ("reference material " * 6_000),
+    )
+
+    assert len(repo.readme) >= 80_000
     assert engine._is_catalog_repository(repo) is True
 
 
@@ -1591,7 +1609,7 @@ def test_single_signal_discovery_source_does_not_keep_adjacent_lead() -> None:
     assert leads == []
 
 
-def test_multi_signal_repo_discovery_source_can_keep_adjacent_lead() -> None:
+def test_repo_discovery_source_cannot_alone_keep_adjacent_lead() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1619,12 +1637,10 @@ def test_multi_signal_repo_discovery_source_can_keep_adjacent_lead() -> None:
 
     leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
-    assert len(leads) == 1
-    assert leads[0].confidence_level == "lead"
-    assert leads[0].core_confirmed is False
+    assert leads == []
 
 
-def test_multi_signal_web_discovery_source_can_keep_adjacent_lead() -> None:
+def test_web_discovery_source_cannot_alone_keep_adjacent_lead() -> None:
     engine = DeepSearchEngine()
     usage = BudgetUsage()
     requirement = Requirement(
@@ -1652,9 +1668,7 @@ def test_multi_signal_web_discovery_source_can_keep_adjacent_lead() -> None:
 
     leads = engine._adjacent_low_confidence_leads(requirement, [repo], usage)
 
-    assert len(leads) == 1
-    assert leads[0].confidence_level == "lead"
-    assert leads[0].core_confirmed is False
+    assert leads == []
 
 
 def test_adjacent_candidate_rejected_when_difference_contradicts_core() -> None:
@@ -2125,6 +2139,241 @@ def test_evidence_gate_removes_unverifiable_llm_evidence_and_covered_claims() ->
     assert gated[0].evidence == []
     assert gated[0].directly_usable is False
     assert gated[0].match_score < 50
+
+
+def test_component_evidence_does_not_treat_shared_suffix_as_compound_support() -> None:
+    engine = DeepSearchEngine()
+    feature = "collect Aster, Boreal, and Cygnus sensor readings"
+    requirement = Requirement(
+        raw=feature,
+        intent=feature,
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["sensor readings collector"],
+        evidence_aliases={
+            feature: [
+                "Aster sensor collection",
+                "Boreal sensor collection",
+                "Cygnus sensor collection",
+            ]
+        },
+        evidence_components={
+            feature: {
+                "first required source": ["Aster sensor"],
+                "second required source": ["Boreal sensor"],
+                "third required source": ["Cygnus sensor"],
+            }
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="generic-sensor-collector",
+        url="https://github.com/demo/generic-sensor-collector",
+        readme="Automated generic sensor reading collection and report export.",
+    )
+
+    coverage = engine._build_evidence_coverage(repo, requirement)
+
+    assert coverage[0].status == "unknown"
+    assert coverage[0].covered is False
+    assert coverage[0].readme_evidence == []
+    assert coverage[0].component_evidence == {}
+
+
+def test_component_evidence_requires_all_groups_in_one_local_window() -> None:
+    engine = DeepSearchEngine()
+    feature = "combine Aster and Boreal measurements"
+    requirement = Requirement(
+        raw=feature,
+        intent=feature,
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["measurement combiner"],
+        evidence_aliases={feature: ["Aster measurement", "Boreal measurement"]},
+        evidence_components={
+            feature: {
+                "first measurement": ["Aster measurement"],
+                "second measurement": ["Boreal measurement"],
+            }
+        },
+    )
+    separated = CandidateRepository(
+        owner="demo",
+        name="separated",
+        url="https://github.com/demo/separated",
+        readme=(
+            "The Aster measurement is recorded.\n"
+            "Installation and configuration details.\n"
+            "The Boreal measurement is displayed."
+        ),
+    )
+    local = CandidateRepository(
+        owner="demo",
+        name="local",
+        url="https://github.com/demo/local",
+        readme="Combines the Aster measurement with the Boreal measurement.",
+    )
+
+    separated_coverage = engine._build_evidence_coverage(separated, requirement)[0]
+    local_coverage = engine._build_evidence_coverage(local, requirement)[0]
+
+    assert separated_coverage.status == "unknown"
+    assert len(separated_coverage.component_evidence) == 2
+    assert local_coverage.status == "supported"
+    assert local_coverage.readme_evidence
+    assert "Combines the Aster measurement" in local_coverage.readme_evidence[0]
+
+
+def test_evidence_gate_cannot_promote_one_supported_hard_requirement_to_confirmed_core() -> None:
+    engine = DeepSearchEngine()
+    features = ["collect Aster measurements", "produce Boreal summary"]
+    requirement = Requirement(
+        raw="collect Aster measurements and produce Boreal summary",
+        intent="measurement workflow",
+        must_have_features=features,
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["measurement workflow"],
+        evidence_aliases={
+            features[0]: ["Aster measurements"],
+            features[1]: ["Boreal summary"],
+        },
+        evidence_components={
+            features[0]: {"measurement": ["Aster measurements"]},
+            features[1]: {"output": ["Boreal summary"]},
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="partial-workflow",
+        url="https://github.com/demo/partial-workflow",
+        readme="Collects Aster measurements.",
+    )
+    analysis = ProjectAnalysis(
+        repo=repo,
+        match_score=90,
+        recommendation="candidate",
+        directly_usable=True,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[f"Add {features[0]}", f"Add {features[1]}"],
+        risks=[],
+        evidence=[],
+    )
+
+    gated, _ = engine._apply_evidence_gate(
+        requirement,
+        [analysis],
+        BudgetUsage(),
+    )
+
+    assert gated[0].core_confirmed is False
+    assert gated[0].match_score < 50
+    assert features[0] in gated[0].covered_features
+    assert features[1] in gated[0].unknown_features
+    assert all(features[0] not in change for change in gated[0].required_changes)
+
+
+def test_adjacent_component_coverage_requires_breadth_across_workflow() -> None:
+    narrow = [
+        EvidenceCoverage(
+            feature="first workflow capability",
+            covered=False,
+            component_evidence={"action": ["source"], "object": ["source"]},
+            required_component_count=4,
+        ),
+        EvidenceCoverage(
+            feature="second workflow capability",
+            covered=False,
+            required_component_count=4,
+        ),
+    ]
+    broad = [
+        EvidenceCoverage(
+            feature="first workflow capability",
+            covered=False,
+            component_evidence={"object": ["source"]},
+            required_component_count=4,
+        ),
+        EvidenceCoverage(
+            feature="second workflow capability",
+            covered=False,
+            component_evidence={"action": ["source"], "output": ["source"]},
+            required_component_count=4,
+        ),
+    ]
+
+    assert DeepSearchEngine._has_meaningful_requirement_component_coverage(narrow) is False
+    assert DeepSearchEngine._has_meaningful_requirement_component_coverage(broad) is True
+
+    repeated = [
+        EvidenceCoverage(
+            feature="first workflow capability",
+            covered=False,
+            component_evidence={"shared component": ["source"]},
+            required_component_count=3,
+        ),
+        EvidenceCoverage(
+            feature="second workflow capability",
+            covered=False,
+            component_evidence={"shared component": ["source"]},
+            required_component_count=3,
+        ),
+        EvidenceCoverage(
+            feature="third workflow capability",
+            covered=False,
+            component_evidence={"shared component": ["source"]},
+            required_component_count=3,
+        ),
+    ]
+
+    assert DeepSearchEngine._has_meaningful_requirement_component_coverage(repeated) is False
+
+
+    helper_heavy = [
+        EvidenceCoverage(
+            feature="first workflow capability",
+            covered=False,
+            component_evidence={
+                "action": ["source"],
+                "object": ["source"],
+                "context": ["source"],
+            },
+            required_component_count=4,
+        ),
+        EvidenceCoverage(
+            feature="second workflow capability",
+            covered=False,
+            component_evidence={"object": ["source"]},
+            required_component_count=4,
+        ),
+    ]
+
+    assert DeepSearchEngine._has_meaningful_requirement_component_coverage(helper_heavy) is False
+
+    split_workflow = [
+        EvidenceCoverage(
+            feature="first workflow capability",
+            covered=False,
+            component_evidence={"object": ["source"]},
+            required_component_count=4,
+        ),
+        *[
+            EvidenceCoverage(
+                feature=f"later workflow capability {index}",
+                covered=False,
+                component_evidence={"action": [f"source {index}"]},
+                required_component_count=4,
+            )
+            for index in range(3)
+        ],
+    ]
+
+    assert DeepSearchEngine._has_meaningful_requirement_component_coverage(split_workflow) is True
+
+
 
 
 def test_primary_scope_difference_prevents_fragment_from_becoming_reliable() -> None:

@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 
 from github_deep_search.config import get_settings
 from github_deep_search.engine import deep_search
-from github_deep_search.serializers import report_to_dict
+from github_deep_search.run_trace import SearchRunFailed
+from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -44,7 +45,18 @@ async def api_status() -> JSONResponse:
 
 @app.post("/api/search")
 async def api_search(request: SearchRequest) -> JSONResponse:
-    report = await deep_search(request.query)
+    try:
+        report = await deep_search(request.query)
+    except SearchRunFailed as exc:
+        artifact = failure_artifact_to_dict(exc.artifact)
+        status_code = 400 if exc.artifact.failure.kind == "invalid_request" else 502 if exc.artifact.failure.kind == "provider" else 500
+        return JSONResponse(
+            {
+                "error": exc.artifact.failure.message,
+                "failureArtifact": artifact,
+            },
+            status_code=status_code,
+        )
     return JSONResponse(report_to_dict(report, include_html=True))
 
 

@@ -150,7 +150,7 @@ async function runSearch() {
     }
     if (!response.ok) throw new Error(explainError(response, data));
     lastReport = data;
-    reportElement.innerHTML = data.reportHtml || "";
+    reportElement.innerHTML = `${renderDecisionBrief(data.decisionBrief)}${data.reportHtml || ""}`;
     resultsElement.classList.add("active");
     finishProgress(true);
     resultsElement.scrollIntoView({behavior: "smooth", block: "start"});
@@ -163,6 +163,36 @@ async function runSearch() {
   } finally {
     setBusy(false);
   }
+}
+
+function renderDecisionBrief(brief) {
+  if (!brief || !brief.headline || !brief.nextStep) return "";
+  const sections = [
+    ["已确认", brief.confirmedFeatures],
+    ["核心缺口", brief.gaps],
+    ["尚未确认", brief.unconfirmedFeatures]
+  ].filter(([, values]) => Array.isArray(values) && values.length);
+  const details = sections.map(([label, values]) => `
+    <div class="decision-brief-row">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(values.slice(0, 3).join("、"))}</strong>
+    </div>`).join("");
+  return `
+    <section class="decision-brief" aria-label="决策速览">
+      <span class="decision-brief-kicker">Decision brief</span>
+      <p>${escapeHtml(brief.headline)}</p>
+      ${details}
+      <div class="decision-brief-next"><span>下一步</span><strong>${escapeHtml(brief.nextStep)}</strong></div>
+    </section>`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 async function loadStatus() {

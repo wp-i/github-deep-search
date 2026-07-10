@@ -21,7 +21,7 @@ class SearchSpecParser:
                     "Return JSON with keys: intent, literal_keywords, domains, actions, objects, outputs, "
                     "interfaces, must_have, nice_to_have, negative_filters, search_queries, "
                     "repo_search_queries, code_search_queries, topic_search_queries, issue_search_queries, "
-                    "web_search_queries, evidence_aliases.\n"
+                    "web_search_queries, evidence_aliases, evidence_components.\n"
                     "Rules:\n"
                     "- Preserve exact named entities and important phrases from the user in literal_keywords.\n"
                     "- Do not replace a specific named entity with a broad category.\n"
@@ -67,6 +67,14 @@ class SearchSpecParser:
                     "fallback terms.\n"
                     "- Every must_have item must have a matching evidence_aliases key. The key text must exactly match "
                     "the corresponding must_have string.\n"
+                    "- evidence_components must be an object keyed by every must_have item. Each feature value is an "
+                    "object whose keys are current-request component labels and whose values are short lists of "
+                    "literal repository phrases that prove that component. The components must collectively cover "
+                    "the action, object, context/interface, named specifics, and output that are necessary for that "
+                    "feature. Keep separately required specifics in separate components so a shared broad phrase "
+                    "cannot prove the whole feature. Derive every component and phrase from this request only.\n"
+                    "- evidence_components are proof requirements, not extra search suggestions. A repository must "
+                    "support every component locally before the corresponding must_have can be confirmed.\n"
                     "- evidence_aliases must not contain extra core capability keys that are missing from must_have. "
                     "If a capability needs aliases, it belongs in must_have or nice_to_have explicitly.\n"
                     "- Keep must_have items non-overlapping. If one item already contains another item as the same "
@@ -105,14 +113,37 @@ class SearchSpecParser:
                     )
                 data = await llm.json_chat(system_prompt, prompt)
                 spec = self._from_llm_data(query, data)
-                if spec and self._valid(spec):
+                if spec and self._valid(spec, require_components=True):
                     return spec
                 if spec and attempt:
                     anchored = self._with_anchor_queries(spec, explicit_clauses)
-                    if self._valid(anchored):
+                    if self._valid(anchored, require_components=True):
                         return anchored
+            recovery_data = await llm.json_chat(
+                "Return JSON only.",
+                self._recovery_prompt(query, explicit_clauses),
+            )
+            recovery_spec = self._from_llm_data(query, recovery_data)
+            if recovery_spec and self._valid(recovery_spec, require_components=True):
+                return recovery_spec
             return self._literal_only_spec(query)
         return self._literal_only_spec(query)
+
+    @staticmethod
+    def _recovery_prompt(query: str, anchors: list[str]) -> str:
+        return (
+            "The previous requirement plan was empty or structurally invalid. Re-plan only from the current "
+            "requirement below. Return JSON with intent, literal_keywords, domains, actions, objects, outputs, "
+            "interfaces, must_have, nice_to_have, search_queries, repo_search_queries, code_search_queries, "
+            "topic_search_queries, issue_search_queries, web_search_queries, evidence_aliases, and "
+            "evidence_components. Every must_have must be a complete repository-searchable capability, have an "
+            "exact evidence_aliases key, and have non-empty evidence_components. Keep uncertain context in "
+            "nice_to_have. Do not return empty lists for the core capability, planned repository queries, or "
+            "evidence fields. Do not use examples, product word lists, translation tables, known repositories, "
+            "or fixed phrases from other requests.\n"
+            f"Requirement anchors: {anchors}\n"
+            f"Requirement: {query}"
+        )
 
     def _with_anchor_queries(self, spec: SearchSpec, anchors: list[str]) -> SearchSpec:
         anchor_queries = [anchor for anchor in anchors if anchor.strip()]
@@ -157,6 +188,7 @@ class SearchSpecParser:
             return None
         search_queries = self._list(data.get("search_queries"), limit=10)
         evidence_aliases = self._evidence_aliases(data.get("evidence_aliases"))
+        evidence_components = self._evidence_components(data.get("evidence_components"))
         repo_queries = self._list(data.get("repo_search_queries"), limit=10) or search_queries
         code_queries = self._list(data.get("code_search_queries"), limit=10) or self._queries_from_aliases(evidence_aliases)
         topic_queries = self._topic_queries(
@@ -214,6 +246,7 @@ class SearchSpecParser:
             issue_search_queries=issue_queries,
             web_search_queries=web_queries,
             evidence_aliases=evidence_aliases,
+            evidence_components=evidence_components,
         )
 
     def _split_core_and_extension_features(self, query: str, features: list[str]) -> tuple[list[str], list[str]]:
@@ -365,6 +398,10 @@ class SearchSpecParser:
         issue_queries = repo_queries[:6]
         web_queries = [f"site:github.com {item}" for item in repo_queries[:3]]
         evidence_aliases = {item: self._literal_aliases(item) for item in features}
+        evidence_components = {
+            item: {"literal_requirement": self._literal_aliases(item)}
+            for item in features
+        }
         return SearchSpec(
             raw=query,
             intent=query[:120],
@@ -384,9 +421,10 @@ class SearchSpecParser:
             issue_search_queries=issue_queries,
             web_search_queries=web_queries,
             evidence_aliases=evidence_aliases,
+            evidence_components=evidence_components,
         )
 
-    def _valid(self, spec: SearchSpec) -> bool:
+    def _valid(self, spec: SearchSpec, *, require_components: bool = False) -> bool:
         if not spec.search_queries:
             return False
         if not spec.repo_search_queries:
@@ -403,6 +441,8 @@ class SearchSpecParser:
             return False
         if not self._evidence_aliases_match_must_have(spec):
             return False
+        if require_components and not self._evidence_components_match_must_have(spec):
+            return False
         if self._splits_numbered_requirement_steps(spec.raw, spec.must_have):
             return False
         if not spec.literal_keywords and not any([spec.domains, spec.actions, spec.objects, spec.outputs]):
@@ -414,8 +454,9 @@ class SearchSpecParser:
         raw_signals = self._signals(spec.raw)
         if not raw_signals:
             return True
+        interpreted_plan = self._has_complete_interpreted_plan(spec) and self._uses_different_script(spec)
         grounded_queries = " ".join([*spec.repo_search_queries[:3], *spec.issue_search_queries[:3]])
-        if not raw_signals.intersection(self._signals(grounded_queries)):
+        if not raw_signals.intersection(self._signals(grounded_queries)) and not interpreted_plan:
             return False
         planned = " ".join(
             [
@@ -435,7 +476,7 @@ class SearchSpecParser:
             ]
         )
         overlap = raw_signals & self._signals(planned)
-        if len(overlap) < min(3, max(1, len(raw_signals) // 5)):
+        if len(overlap) < min(3, max(1, len(raw_signals) // 5)) and not interpreted_plan:
             return False
         structured = " ".join(
             [
@@ -470,7 +511,11 @@ class SearchSpecParser:
         for clause in self._planning_anchors(spec.raw):
             clause_signals = self._anchor_signals(clause)
             required_overlap = min(8, max(2, len(clause_signals) // 4))
-            if clause_signals and len(clause_signals.intersection(structured_signals)) < required_overlap:
+            if (
+                clause_signals
+                and len(clause_signals.intersection(structured_signals)) < required_overlap
+                and not interpreted_plan
+            ):
                 return False
             secondary_overlap = len(clause_signals.intersection(secondary_signals))
             primary_overlap = len(clause_signals.intersection(primary_signals))
@@ -479,9 +524,45 @@ class SearchSpecParser:
             combined_primary_secondary = clause_signals.intersection(primary_signals | secondary_signals)
             if secondary_overlap and primary_overlap >= 2 and len(combined_primary_secondary) >= required_overlap:
                 continue
-            if clause_signals and len(clause_signals.intersection(discovery_signals)) < required_overlap:
+            if (
+                clause_signals
+                and len(clause_signals.intersection(discovery_signals)) < required_overlap
+                and not interpreted_plan
+            ):
                 return False
         return True
+
+    def _has_complete_interpreted_plan(self, spec: SearchSpec) -> bool:
+        return bool(
+            spec.must_have
+            and self._evidence_aliases_match_must_have(spec)
+            and self._evidence_components_match_must_have(spec)
+            and any([spec.domains, spec.actions, spec.objects, spec.outputs, spec.interfaces])
+        )
+
+    @staticmethod
+    def _uses_different_script(spec: SearchSpec) -> bool:
+        raw_has_non_ascii = bool(re.search(r"[^\x00-\x7f]", spec.raw))
+        plan = " ".join(
+            [spec.intent, *spec.domains, *spec.actions, *spec.objects, *spec.outputs, *spec.interfaces, *spec.must_have]
+        )
+        return raw_has_non_ascii != bool(re.search(r"[^\x00-\x7f]", plan))
+
+    def _evidence_components_match_must_have(self, spec: SearchSpec) -> bool:
+        expected = {self._norm_key(item) for item in spec.must_have if self._norm_key(item)}
+        actual = {self._norm_key(item) for item in spec.evidence_components if self._norm_key(item)}
+        if not expected or actual != expected:
+            return False
+        for feature, groups in spec.evidence_components.items():
+            if not isinstance(groups, dict) or not groups:
+                return False
+            for label, aliases in groups.items():
+                if not str(label).strip() or not aliases:
+                    return False
+                if not all(str(alias).strip() for alias in aliases):
+                    return False
+        return True
+
 
     def _requires_structured_interpretation(self, query: str) -> bool:
         clauses = self._explicit_requirement_clauses(query)
@@ -626,6 +707,24 @@ class SearchSpecParser:
             if items:
                 aliases[feature] = items
         return aliases
+
+    def _evidence_components(self, value: object) -> dict[str, dict[str, list[str]]]:
+        if not isinstance(value, dict):
+            return {}
+        components: dict[str, dict[str, list[str]]] = {}
+        for raw_feature, raw_groups in value.items():
+            feature = str(raw_feature).strip()
+            if not feature or not isinstance(raw_groups, dict):
+                continue
+            groups: dict[str, list[str]] = {}
+            for raw_label, raw_aliases in raw_groups.items():
+                label = str(raw_label).strip()
+                aliases = self._list(raw_aliases, limit=12)
+                if label and aliases:
+                    groups[label] = aliases
+            if groups:
+                components[feature] = groups
+        return components
 
     def _queries_from_aliases(self, aliases: dict[str, list[str]]) -> list[str]:
         items: list[str] = []

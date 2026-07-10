@@ -66,6 +66,15 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
                 "<ul><li><a href='https://github.com/Textualize/rich'>打开 GitHub 仓库</a></li>"
                 "<li>判断：可作为终端 UI 能力的优先候选。</li></ul>"
             ),
+            "decisionBrief": {
+                "level": "verified",
+                "headline": "A verified candidate is available for further evaluation.",
+                "bestProject": "Textualize/rich",
+                "confirmedFeatures": ["terminal UI"],
+                "gaps": ["workflow review"],
+                "unconfirmedFeatures": [],
+                "nextStep": "Review the project evidence before adopting it.",
+            },
             "usage": {"elapsedMs": 1200},
             "raw": {
                 "candidate_count": 8,
@@ -107,6 +116,8 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
             report_text = page.locator("#report").inner_text()
             assert page.locator("#report h1").inner_text() == "调研结论"
             assert "Textualize/rich" in report_text
+            assert page.locator(".decision-brief").is_visible()
+            assert "verified candidate" in page.locator(".decision-brief").inner_text()
             assert "优先候选" in report_text
             assert page.locator("#copyMarkdown").is_visible()
             assert page.locator("#downloadJson").is_visible()

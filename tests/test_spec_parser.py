@@ -40,6 +40,40 @@ def test_spec_parser_accepts_evidence_aliases_from_llm_data() -> None:
     assert requirement.web_search_queries == ["site:github.com task deadline app"]
 
 
+def test_strict_parser_validation_requires_component_groups_for_every_must_have() -> None:
+    parser = SearchSpecParser()
+    spec = parser._from_llm_data(
+        "Need an automated sensor report",
+        {
+            "intent": "Automate sensor reports",
+            "literal_keywords": ["sensor report"],
+            "domains": ["measurement"],
+            "actions": ["collect"],
+            "objects": ["sensor readings"],
+            "outputs": ["report"],
+            "interfaces": [],
+            "must_have": ["collect sensor readings and produce a report"],
+            "search_queries": ["sensor report automation"],
+            "repo_search_queries": ["sensor report automation"],
+            "code_search_queries": ["sensor readings report"],
+            "topic_search_queries": ["sensor-report"],
+            "issue_search_queries": ["sensor report automation"],
+            "evidence_aliases": {
+                "collect sensor readings and produce a report": [
+                    "collect sensor readings",
+                    "produce a report",
+                ]
+            },
+        },
+    )
+
+    assert spec is not None
+    assert parser._valid(spec) is True
+    assert parser._valid(spec, require_components=True) is False
+
+
+
+
 def test_spec_parser_removes_contained_duplicate_features_without_domain_rules() -> None:
     parser = SearchSpecParser()
 
@@ -197,6 +231,12 @@ def test_spec_parser_replans_once_after_ungrounded_llm_output() -> None:
                 "topic_search_queries": ["bird-audio"],
                 "issue_search_queries": [repo_query],
                 "evidence_aliases": {"offline classification": ["offline classification"]},
+                "evidence_components": {
+                    "offline classification": {
+                        "operating mode": ["offline"],
+                        "capability": ["classification"],
+                    }
+                },
             }
 
     llm = SequencedLLM()
@@ -300,10 +340,17 @@ def test_invalid_llm_plan_uses_literal_spec_without_translation_pass() -> None:
     llm = InvalidLLM()
     spec = asyncio.run(SearchSpecParser().parse("跨平台色彩对比度检查器", llm))  # type: ignore[arg-type]
 
-    assert len(llm.prompts) == 3
+    assert len(llm.prompts) == 4
+    assert "previous requirement plan was empty or structurally invalid" in llm.prompts[-1]
     assert spec.must_have
     assert not any(("Translate requirement " + "phrases") in prompt for prompt in llm.prompts)
     assert not any(("literal " + "English") in prompt for prompt in llm.prompts)
+
+
+def test_parser_grounding_signals_include_non_ascii_requirement_text() -> None:
+    signals = SearchSpecParser()._signals("当前用户描述了一个完整的工作流结果")
+
+    assert signals
 
 
 def test_parser_trusts_llm_core_and_optional_split_without_marker_tables() -> None:

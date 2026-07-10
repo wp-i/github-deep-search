@@ -5,7 +5,8 @@ import asyncio
 import json
 
 from github_deep_search.engine import deep_search
-from github_deep_search.serializers import report_to_dict
+from github_deep_search.run_trace import SearchRunFailed
+from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
 
 
 def parse_args() -> argparse.Namespace:
@@ -17,7 +18,14 @@ def parse_args() -> argparse.Namespace:
 
 async def main_async() -> None:
     args = parse_args()
-    report = await deep_search(args.query)
+    try:
+        report = await deep_search(args.query)
+    except SearchRunFailed as exc:
+        if args.format == "json":
+            print(json.dumps(failure_artifact_to_dict(exc.artifact), ensure_ascii=False, indent=2))
+        else:
+            print(exc.artifact.error_report_markdown)
+        raise SystemExit(1) from exc
     if args.format == "json":
         print(
             json.dumps(

@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 
 from github_deep_search.engine import deep_search
-from github_deep_search.serializers import report_to_dict
+from github_deep_search.run_trace import SearchRunFailed
+from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
 
 
 try:
@@ -18,7 +19,10 @@ mcp = FastMCP("github-deep-search")
 @mcp.tool()
 async def github_deep_search(query: str, max_results: int = 3) -> dict:
     """Search and analyze GitHub repositories for a natural-language requirement."""
-    report = await deep_search(query)  # type: ignore[arg-type]
+    try:
+        report = await deep_search(query)  # type: ignore[arg-type]
+    except SearchRunFailed as exc:
+        return failure_artifact_to_dict(exc.artifact)
     data = report_to_dict(report)
     data["topProjects"] = data["topProjects"][:max_results]
     return data

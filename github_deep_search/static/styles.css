@@ -698,6 +698,56 @@ textarea::placeholder {
   overflow-wrap: anywhere;
 }
 
+.decision-brief {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 26px;
+  padding: 18px 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+  color: #1e3a5f;
+}
+
+.decision-brief-kicker {
+  color: var(--primary);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.decision-brief p {
+  margin: 0;
+  color: #0f2f55;
+  font-size: 17px;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.decision-brief-row,
+.decision-brief-next {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.decision-brief-row span,
+.decision-brief-next span {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.decision-brief-row strong,
+.decision-brief-next strong {
+  color: #1e3a5f;
+  font-weight: 650;
+}
+
 .results.loading .report {
   display: flex;
   align-items: stretch;
