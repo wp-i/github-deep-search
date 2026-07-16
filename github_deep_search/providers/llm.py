@@ -89,7 +89,10 @@ class LLMClient:
         return None
 
     async def json_chat(self, system: str, user: str) -> dict[str, Any] | None:
-        content = await self.chat(system, user)
+        # Structured planning and evidence decisions are contracts, not creative
+        # prose. Use deterministic sampling so repeated runs do not start from
+        # materially different search plans merely because of model temperature.
+        content = await self.chat(system, user, temperature=0.0)
         if not content:
             return None
         cleaned = content.strip()

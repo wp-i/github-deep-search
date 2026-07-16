@@ -140,11 +140,8 @@ def test_rendered_desktop_first_run_flow_is_usable() -> None:
             report_text = page.locator("#report").inner_text()
             assert page.locator("#report h1").inner_text() == "调研结论"
             assert "Textualize/rich" in report_text
-            assert page.locator(".decision-brief").is_visible()
-            assert "verified candidate" in page.locator(".decision-brief").inner_text()
-            assert page.locator(".evidence-references").is_visible()
-            assert "current capability" in page.locator(".evidence-references").inner_text()
-            assert "已检查，尚未确认" in page.locator(".evidence-references").inner_text()
+            assert page.locator(".decision-brief").count() == 0
+            assert page.locator(".evidence-references").count() == 0
             assert "优先候选" in report_text
             assert page.locator("#copyMarkdown").is_visible()
             assert page.locator("#downloadJson").is_visible()

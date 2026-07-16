@@ -20,15 +20,22 @@ from github_deep_search.models import (
     ProviderEvent,
     Requirement,
     RunFailure,
+    RunTrace,
     SearchReport,
+    StageOutcome,
 )
 from github_deep_search.run_trace import (
     RunTraceRecorder,
     SearchRunFailed,
     build_failure_artifact,
-    build_run_trace,
+    classify_failure,
 )
-from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
+from github_deep_search.providers.github import GitHubClient
+from github_deep_search.serializers import (
+    diagnostic_report_to_dict,
+    failure_artifact_to_dict,
+    report_to_dict,
+)
 from github_deep_search.spec_parser import SearchSpecParser
 
 
@@ -80,6 +87,14 @@ def _report() -> SearchReport:
             "search_completeness": "complete",
             "search_completeness_reasons": [],
         },
+        run_trace=RunTrace(
+            "1",
+            "completed",
+            [
+                StageOutcome(name, "completed")
+                for name in ("parse", "discovery", "evidence", "analysis", "report_delivery")
+            ],
+        ),
     )
 
 
@@ -93,8 +108,29 @@ def test_decision_brief_uses_evidence_states_without_business_rules() -> None:
     assert any(line.startswith("- 下一步：") for line in format_decision_brief(brief))
 
 
-def test_serialized_report_exposes_decision_brief_and_stage_trace() -> None:
-    data = report_to_dict(_report())
+def test_decision_brief_exposes_the_boundary_for_adjacent_leads() -> None:
+    report = _report()
+    analysis = report.top_projects[0]
+    analysis.confidence_level = "lead"
+    analysis.core_confirmed = False
+    analysis.evidence_coverage[0].covered = False
+    analysis.evidence_coverage[0].status = "unknown"
+
+    brief = build_decision_brief(report.requirement, [analysis])
+
+    assert brief is not None
+    assert brief.level == "adjacent"
+    assert brief.best_project is None
+    assert brief.confirmed_features == []
+    assert brief.unconfirmed_features == ["core capability", "extension"]
+    assert "指定首选" in brief.headline
+    assert "并列核对" in brief.next_step
+    assert "decisionBrief" not in report_to_dict(report)
+    assert diagnostic_report_to_dict(report)["decisionBrief"]["level"] == "adjacent"
+
+
+def test_diagnostic_report_exposes_decision_brief_and_stage_trace() -> None:
+    data = diagnostic_report_to_dict(_report())
 
     assert data["decisionBrief"]["level"] == "verified"
     assert data["decisionBrief"]["confirmedFeatures"] == ["core capability"]
@@ -121,7 +157,7 @@ def test_evidence_reference_serializes_a_repository_local_locator() -> None:
         )
     ]
 
-    reference = report_to_dict(report)["topProjects"][0]["evidenceCoverage"][0]["evidenceReferences"][0]
+    reference = diagnostic_report_to_dict(report)["topProjects"][0]["evidenceCoverage"][0]["evidenceReferences"][0]
 
     assert reference == {
         "kind": "source",
@@ -236,12 +272,17 @@ def test_unknown_component_coverage_retains_its_examined_material() -> None:
     assert coverage.evidence_references[0].matched_aliases == []
 
 
-def test_run_trace_marks_limited_discovery_without_deleting_the_result() -> None:
-    report = _report()
-    report.raw["search_completeness"] = "limited"
-    report.raw["search_completeness_reasons"] = ["request limit reached"]
+def test_run_trace_recorder_marks_limited_discovery_without_deleting_the_result() -> None:
+    recorder = RunTraceRecorder()
+    recorder.begin("parse", {"query": 1})
+    recorder.complete({"planned_queries": 1})
+    recorder.begin("discovery", {"planned_queries": 1})
+    recorder.partial({"candidates": 2}, ["request limit reached"])
+    for stage in ("evidence", "analysis", "report_delivery"):
+        recorder.begin(stage, {})
+        recorder.complete({})
 
-    trace = build_run_trace(report)
+    trace = recorder.build()
 
     discovery = next(stage for stage in trace.stages if stage.name == "discovery")
     assert trace.status == "partial"
@@ -250,9 +291,13 @@ def test_run_trace_marks_limited_discovery_without_deleting_the_result() -> None
 
 
 def test_engine_failure_preserves_failed_and_not_started_stages(monkeypatch) -> None:
+    async def authenticate(self):
+        return None
+
     async def fail_parse(self, query, llm):
         raise RuntimeError("internal details must not be exported")
 
+    monkeypatch.setattr(GitHubClient, "validate_authentication", authenticate)
     monkeypatch.setattr(SearchSpecParser, "parse", fail_parse)
 
     with pytest.raises(SearchRunFailed) as raised:
@@ -311,6 +356,16 @@ def test_failure_artifact_is_readable_and_serializable() -> None:
     assert data["runTrace"]["status"] == "failed"
     assert data["errorReportMarkdown"].startswith("# Search run failed")
     assert data["failure"]["retryable"] is True
+
+
+def test_parse_failure_retains_structural_validation_detail() -> None:
+    failure = classify_failure(
+        "parse",
+        ValueError("repo_search_queries must contain exactly 10 distinct queries; got 0"),
+    )
+
+    assert failure.kind == "invalid_request"
+    assert "repo_search_queries" in failure.message
 
 
 def test_reference_tiering_replaces_unverified_model_recommendation() -> None:

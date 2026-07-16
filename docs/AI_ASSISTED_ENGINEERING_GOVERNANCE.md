@@ -164,8 +164,8 @@ Provider adapters（GitHub / LLM / Tavily）
 
 **当前实现：**
 
-- `github_deep_search/decision_brief.py` 从现有 `Requirement`、证据状态和候选分析生成结构化 `decisionBrief`；Web 将它作为可选决策卡呈现，Markdown 仍保持精简且不暴露未知项。
-- `github_deep_search/run_trace.py` 从已完成的 `SearchReport` 建立稳定的五阶段 `runTrace` 投影，供 JSON 导出、评测工件和审查 Agent 使用。
+- `github_deep_search/decision_brief.py` 从现有 `Requirement`、证据状态和候选分析生成结构化 `decisionBrief`，仅用于诊断评测工件；用户 JSON/API 与 Web 只呈现精简报告。
+- `DeepSearchEngine` 在真实执行过程中记录稳定的五阶段 `runTrace`；诊断序列化器只投影该工件，不从最终报告事后补造 trace。
 - `github_deep_search/adversarial_review.py` 只消费已导出的报告和可选源码上下文，定义独立角色与可复核 finding schema；它不参与搜索、排序或报告结论。
 
 对抗审查默认复用当前 `LLM_API_KEY`、`LLM_BASE_URL` 与 `LLM_MODEL`，但每个角色在独立上下文中运行。这样 V1 不增加新的密钥面；需要模型多样性时，使用不同 Provider 配置独立执行同一命令并比较工件，而不是把第二模型写死在代码中。

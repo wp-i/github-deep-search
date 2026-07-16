@@ -147,6 +147,32 @@ def test_runtime_and_tests_do_not_reintroduce_compensating_fallback_patches() ->
         assert marker not in sources
 
 
+def test_github_search_never_downgrades_to_anonymous_api() -> None:
+    provider = Path("github_deep_search/providers/github.py").read_text(encoding="utf-8")
+    runner = Path("scripts/run_live_scenario.py").read_text(encoding="utf-8")
+    agents = Path("AGENTS.md").read_text(encoding="utf-8")
+
+    assert 'headers["Authorization"] = f"Bearer {token}"' in provider
+    assert "if token:" not in provider
+    assert "anonymous fallback is disabled" in provider
+    assert "require_authenticated_github(settings)" in runner
+    assert "No Anonymous Provider Downgrade" in agents
+
+
+def test_superseded_report_cleanup_rescue_paths_stay_removed() -> None:
+    parser = Path("github_deep_search/spec_parser.py").read_text(encoding="utf-8")
+    engine = Path("github_deep_search/engine.py").read_text(encoding="utf-8")
+    serializers = Path("github_deep_search/serializers.py").read_text(encoding="utf-8")
+
+    assert "_normalize_sparse_audit_replacements" not in parser
+    assert "_report_markdown_with_project_metadata" not in serializers
+    assert "build_run_trace" not in serializers
+    selection = engine.split("def _select_report_projects", 1)[1].split(
+        "def _supported_evidence_count", 1
+    )[0]
+    assert "_build_adjacent_evidence" not in selection
+
+
 def test_search_pipeline_has_no_configured_query_expansion_path() -> None:
     parser_source = Path("github_deep_search/spec_parser.py").read_text(encoding="utf-8")
 
@@ -238,7 +264,7 @@ def test_readme_shows_real_run_preview_and_cost_boundary() -> None:
     assert "报告消耗" in readme
     assert "## API Key 与消耗" in readme
     assert "没有 key 可以打开界面，但不会得到可信的真实调研报告。" in readme
-    assert "`GITHUB_TOKEN` | 基本必需" in readme
+    assert "`GITHUB_TOKEN` | 必需" in readme
     assert "`LLM_API_KEY` | 必需" in readme
     assert "GitHub 请求上限" in readme
     assert "典型 LLM tokens" in readme

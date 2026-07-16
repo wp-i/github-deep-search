@@ -15,6 +15,68 @@ test-only rewrites, or downstream rescue logic as a development, debugging, or
 testing strategy. A change that only masks the observed failure without fixing
 the stage that produced it is invalid.
 
+## Mandatory Trace-Locate-Change Protocol
+
+The short sequence above is a release gate, not a slogan. Before the first code
+edit, create one explicit failure model for the whole request. It must record:
+
+1. Every observed symptom and the artifact that demonstrates it.
+2. Expected behavior, actual behavior, and the invariant that is violated.
+3. The complete data flow for each symptom and the earliest incorrect stage.
+4. Which symptoms share one root cause and which require independent fixes.
+5. A single acceptance matrix covering deterministic checks, report delivery,
+   and real-provider validation.
+
+Do not edit from the first visible symptom alone. The proposed design must cover
+the complete failure model, name the one stage that owns each correction, and
+identify any existing branches, helpers, or fixtures that it supersedes. If the
+design adds a downstream correction while leaving the producing stage wrong,
+reject it before editing.
+
+### Anti-Patch-Stack Gate
+
+Each behavior must have one owning implementation path. A new corrective branch,
+fallback, retry, serializer rewrite, or score adjustment may not be layered over
+an earlier attempted fix without first explaining why the earlier design failed
+and removing or consolidating the superseded logic.
+
+When a deterministic check or real run reveals a new in-scope failure after a
+code edit:
+
+1. Stop implementation edits.
+2. Add the new evidence to the failure model and retrace it to the earliest
+   incorrect stage.
+3. Re-evaluate the whole acceptance matrix and the current design, not only the
+   latest example.
+4. Resume editing only with a consolidated root-cause design.
+
+Before a third implementation iteration, perform and record a consolidation
+audit of every touched function: confirm a single owner for each behavior and
+delete superseded helpers, compensating branches, duplicate projections, and
+obsolete fixtures. Repeatedly increasing retries, thresholds, floors, caps, or
+output rewrites is not a closure strategy unless raw evidence proves that the
+owning stage is correct and the changed value is itself the root cause.
+
+### Required Change Record
+
+The working update immediately before editing must state the implementation
+category, complete failing invariant, earliest incorrect stage, consolidated
+design, removal plan, and acceptance matrix. The completion record must show
+that the final diff still matches that design, no superseded path remains, and
+all matrix rows passed. A sequence of numbered output directories or successful
+process exits is not evidence of design closure.
+
+### No Anonymous Provider Downgrade
+
+GitHub discovery, evidence collection, user runs, and real-provider tests require
+an authenticated `GITHUB_TOKEN`. Missing credentials, HTTP 401, permission
+rejection, and exhausted provider rate limits must produce an explicit failed run.
+Never clear, replace, or omit the configured token to continue through GitHub's
+anonymous public API, and never present an anonymous or rate-limited partial search
+as a valid report or regression artifact. Unit tests may mock the authenticated
+HTTP transport, but they must still construct the client with a non-empty test
+credential so the production authentication contract remains exercised.
+
 ## Regression Requirement for Confirmed Failures
 
 When a change addresses a confirmed failing test case, run that same case again
@@ -30,6 +92,34 @@ repository names or ordering: no fabricated capability evidence, no
 contradictory candidate tiering, and no empty result when meaningful verified
 adjacent projects survive. If outcomes differ, record the difference and trace
 any violation before declaring the fix complete.
+
+### Mandatory Report Qualification Review
+
+A completed process and a readable Markdown file are not evidence that a report
+is qualified. Review every retained real report with the repository's scenario
+review workflow. The review must validate project summaries, verified
+capabilities, relevance scores, stars, update dates, decision clarity, evidence
+boundaries, rendered links, and provider/trace completeness.
+
+Do not run the second independent regression merely because the first process
+completed. The first report must pass its single-run content review first. If it
+does not pass, retain it as one failed artifact, trace and fix the earliest
+incorrect stage, then produce one new report. Only after a report qualifies may
+the second independent run begin.
+
+The second run must be reviewed against the first qualified run. Treat empty
+project-set overlap, materially unstable result counts, disjoint relevance
+ranges for disjoint results, or material score drift for the same project as
+review failures requiring trace and closure. Do not label those conditions as
+normal LLM variance without evidence-backed adjudication.
+
+The second run must reuse the complete audited Requirement/SearchSpec from the
+first qualified run via the scenario runner's explicit fixed-plan input. It
+must independently rerun real discovery, evidence collection, analysis, and
+report delivery. Do not regenerate a second search plan and then attribute
+candidate-pool drift to downstream LLM analysis. The comparison review must
+confirm identical semantic, query, and evidence plan fields before assessing
+project overlap or score drift.
 
 ## Real-World Validation for Test Engineering Changes
 

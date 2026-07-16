@@ -53,19 +53,36 @@ def keyword_bag(text: str) -> set[str]:
 
 
 def simple_markdown_to_html(markdown: str) -> str:
+    def autolink_plain(value: str) -> str:
+        parts: list[str] = []
+        cursor = 0
+        for match in re.finditer(r"https?://[^\s)]+", value):
+            parts.append(escape(value[cursor : match.start()]))
+            url = escape(match.group(0))
+            parts.append(
+                f'<a href="{url}" target="_blank" rel="noreferrer">{url}</a>'
+            )
+            cursor = match.end()
+        parts.append(escape(value[cursor:]))
+        return "".join(parts)
+
     def linkify(value: str) -> str:
         address_match = re.fullmatch(r"(?:Address|地址)[:：]\s*(https?://github\.com/[^\s)]+)", value)
         if address_match:
             url = escape(address_match.group(1))
             return f'<a href="{url}" target="_blank" rel="noreferrer">打开 GitHub 仓库</a>'
-        return re.sub(
-            r"(https?://[^\s)]+)",
-            lambda match: (
-                f'<a href="{escape(match.group(1))}" target="_blank" rel="noreferrer">'
-                f"{escape(match.group(1))}</a>"
-            ),
-            escape(value),
-        )
+        parts: list[str] = []
+        cursor = 0
+        for match in re.finditer(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", value):
+            parts.append(autolink_plain(value[cursor : match.start()]))
+            label = escape(match.group(1))
+            url = escape(match.group(2))
+            parts.append(
+                f'<a href="{url}" target="_blank" rel="noreferrer">{label}</a>'
+            )
+            cursor = match.end()
+        parts.append(autolink_plain(value[cursor:]))
+        return "".join(parts)
 
     html_lines: list[str] = []
     in_list = False
@@ -80,22 +97,22 @@ def simple_markdown_to_html(markdown: str) -> str:
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h4>{escape(stripped[5:])}</h4>")
+            html_lines.append(f"<h4>{linkify(stripped[5:])}</h4>")
         elif stripped.startswith("### "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h3>{escape(stripped[4:])}</h3>")
+            html_lines.append(f"<h3>{linkify(stripped[4:])}</h3>")
         elif stripped.startswith("## "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h2>{escape(stripped[3:])}</h2>")
+            html_lines.append(f"<h2>{linkify(stripped[3:])}</h2>")
         elif stripped.startswith("# "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h1>{escape(stripped[2:])}</h1>")
+            html_lines.append(f"<h1>{linkify(stripped[2:])}</h1>")
         elif stripped.startswith("- "):
             if not in_list:
                 html_lines.append("<ul>")

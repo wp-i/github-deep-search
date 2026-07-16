@@ -1,21 +1,53 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from github_deep_search.decision_brief import build_decision_brief
 from github_deep_search.models import BudgetUsage, SearchFailureArtifact, SearchReport
-from github_deep_search.run_trace import build_run_trace, run_trace_to_dict
+from github_deep_search.public_report import build_public_project_view
+from github_deep_search.run_trace import run_trace_to_dict
 from github_deep_search.utils import simple_markdown_to_html
 
 
 def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str, Any]:
-    report_markdown = _report_markdown_with_project_metadata(report)
-    decision_brief = build_decision_brief(report.requirement, report.top_projects)
-    run_trace = report.run_trace or build_run_trace(report)
+    public_projects = [
+        build_public_project_view(item, report.requirement.report_language)
+        for item in report.top_projects
+    ]
     data: dict[str, Any] = {
         "summary": report.summary,
-        "decisionBrief": {
+        "reportMarkdown": report.report_markdown,
+        "topProjects": [
+            {
+                "repo": item.repo.full_name,
+                "url": item.repo.url,
+                "relevance": public.relevance,
+                "summary": public.summary,
+                "covered": public.verified_capabilities,
+                "stars": item.repo.stars,
+                "lastPushedAt": item.repo.last_pushed_at,
+            }
+            for item, public in zip(report.top_projects, public_projects)
+        ],
+        "usage": {
+            "llmInputTokens": report.usage.llm_input_tokens,
+            "llmOutputTokens": report.usage.llm_output_tokens,
+            "llmTokenEstimated": report.usage.llm_token_estimated,
+        },
+    }
+    if include_html:
+        data["reportHtml"] = simple_markdown_to_html(report.report_markdown)
+    return data
+
+
+def diagnostic_report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str, Any]:
+    decision_brief = build_decision_brief(report.requirement, report.top_projects)
+    if report.run_trace is None:
+        raise ValueError("Diagnostic serialization requires the engine-produced run trace")
+    run_trace = report.run_trace
+    data: dict[str, Any] = {
+        "summary": report.summary,
+        "decisionBrief": None if decision_brief is None else {
             "level": decision_brief.level,
             "headline": decision_brief.headline,
             "bestProject": decision_brief.best_project,
@@ -26,6 +58,7 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
         },
         "requirement": {
             "raw": report.requirement.raw,
+            "reportLanguage": report.requirement.report_language,
             "intent": report.requirement.intent,
             "mustHaveFeatures": report.requirement.must_have_features,
             "niceToHaveFeatures": report.requirement.nice_to_have_features,
@@ -40,11 +73,14 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
             "evidenceAliases": report.requirement.evidence_aliases,
             "evidenceComponents": report.requirement.evidence_components,
         },
-        "reportMarkdown": report_markdown,
+        "reportMarkdown": report.report_markdown,
         "topProjects": [
             {
                 "repo": item.repo.full_name,
                 "url": item.repo.url,
+                "publicSummary": build_public_project_view(
+                    item, report.requirement.report_language
+                ).summary,
                 "score": item.match_score,
                 "functionalScore": item.functional_score or item.match_score,
                 "suitabilityScore": item.suitability_score or item.match_score,
@@ -61,6 +97,31 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
                 "isReferenceCandidate": item.is_reference_candidate,
                 "confidenceLevel": item.confidence_level,
                 "referenceReason": item.reference_reason,
+                "verifiedCapabilities": item.verified_capabilities,
+                "capabilityEvidence": [
+                    {
+                        "kind": reference.kind,
+                        "locator": reference.locator,
+                        "excerpt": reference.excerpt,
+                    }
+                    for reference in item.capability_evidence
+                ],
+                "capabilityCitationsReviewed": item.capability_citations_reviewed,
+                "adjacentEvidence": (
+                    None
+                    if item.adjacent_evidence is None
+                    else {
+                        "relevanceScore": item.adjacent_evidence.relevance_score,
+                        "capability": item.adjacent_evidence.capability,
+                        "groupMatches": item.adjacent_evidence.group_matches,
+                        "reference": {
+                            "kind": item.adjacent_evidence.reference.kind,
+                            "locator": item.adjacent_evidence.reference.locator,
+                            "excerpt": item.adjacent_evidence.reference.excerpt,
+                            "matchedAliases": item.adjacent_evidence.reference.matched_aliases,
+                        },
+                    }
+                ),
                 "coveredFeatures": item.covered_features,
                 "differentFeatures": item.different_features,
                 "unknownFeatures": item.unknown_features,
@@ -105,7 +166,7 @@ def report_to_dict(report: SearchReport, include_html: bool = False) -> dict[str
         "runTrace": run_trace_to_dict(run_trace),
     }
     if include_html:
-        data["reportHtml"] = simple_markdown_to_html(report_markdown)
+        data["reportHtml"] = simple_markdown_to_html(report.report_markdown)
     return data
 
 
@@ -125,7 +186,6 @@ def failure_artifact_to_dict(artifact: SearchFailureArtifact) -> dict[str, Any]:
         "usage": _usage_to_dict(artifact.usage),
         "runTrace": run_trace_to_dict(artifact.run_trace),
     }
-
 
 def _usage_to_dict(usage: BudgetUsage) -> dict[str, Any]:
     return {
@@ -154,25 +214,3 @@ def _usage_to_dict(usage: BudgetUsage) -> dict[str, Any]:
             for event in usage.provider_events
         ],
     }
-
-
-def _report_markdown_with_project_metadata(report: SearchReport) -> str:
-    markdown = report.report_markdown
-    for index, item in enumerate(report.top_projects, start=1):
-        metadata = _project_title_metadata(item.repo.stars, item.repo.last_pushed_at)
-        heading_pattern = re.compile(
-            rf"^(###\s+{index}\.\s+{re.escape(item.repo.full_name)}(?:（[^）]+）)?)(?!.*(?:★|更新))$",
-            flags=re.MULTILINE,
-        )
-        markdown = heading_pattern.sub(rf"\1{metadata}", markdown)
-    return markdown
-
-
-def _project_title_metadata(stars: int, last_pushed_at: str | None) -> str:
-    updated = str(last_pushed_at or "").strip()
-    if "T" in updated:
-        updated = updated.split("T", 1)[0]
-    elif len(updated) > 10:
-        updated = updated[:10]
-    updated = updated or "未知"
-    return f" · ★ {stars} · 更新 {updated}"

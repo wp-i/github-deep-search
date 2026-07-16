@@ -31,6 +31,7 @@ from github_deep_search.utils import simple_markdown_to_html
 DEFAULT_ROLES = ("user", "semantic", "evidence")
 REVIEW_ARTIFACT_NAMES = (
     "decision-check.json",
+    "consistency-check.json",
     "adversarial-review.json",
     "link-review.json",
     "finding-triage.json",
@@ -53,6 +54,16 @@ def parse_args() -> argparse.Namespace:
         help=f"Comma-separated adversarial roles: {', '.join(REVIEW_ROLES)}",
     )
     parser.add_argument("--browser-timeout-ms", type=int, default=30000)
+    parser.add_argument(
+        "--compare-to",
+        type=Path,
+        help="Optional earlier reviewed run of the same request for consistency gating",
+    )
+    parser.add_argument(
+        "--finalize",
+        action="store_true",
+        help="Recompute review-summary.json after independent triage and blind review are completed",
+    )
     return parser.parse_args()
 
 
@@ -64,6 +75,17 @@ def load_report(run_dir: Path) -> dict[str, Any]:
         raise ValueError(f"Cannot read scenario report: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError("Scenario report must be a JSON object")
+    return data
+
+
+def load_json_artifact(run_dir: Path, name: str) -> dict[str, Any]:
+    path = run_dir / name
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Cannot read {name}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"{name} must be a JSON object")
     return data
 
 
@@ -93,6 +115,15 @@ def decision_check(report: dict[str, Any]) -> dict[str, Any]:
         "unconfirmed_core_is_visible": bool(not core_unconfirmed or gaps or unconfirmed),
         "next_action_present": bool(str(brief.get("nextStep") or "").strip()),
         "readable_report_present": bool(str(report.get("reportMarkdown") or "").strip()),
+        "project_content_complete": all(_project_content_complete(item) for item in projects),
+        "project_links_rendered": all(
+            str(item.get("url") or "") in str(report.get("reportMarkdown") or "")
+            for item in projects
+        ),
+        "score_diversity_or_single_result": (
+            len(projects) <= 1
+            or len({_project_score(item) for item in projects}) > 1
+        ),
     }
     return {
         "schemaVersion": "1",
@@ -101,7 +132,217 @@ def decision_check(report: dict[str, Any]) -> dict[str, Any]:
         "score": sum(checks.values()),
         "maxScore": len(checks),
         "checks": checks,
-        "note": "This structural check does not replace independent human scoring.",
+        "projects": [
+            {
+                "repo": item.get("repo"),
+                "contentComplete": _project_content_complete(item),
+                "summaryPresent": bool(str(item.get("publicSummary") or "").strip()),
+                "capabilitiesPresent": bool(item.get("verifiedCapabilities")),
+                "score": _project_score(item),
+            }
+            for item in projects
+        ],
+        "note": "This content contract is mandatory and does not replace semantic or evidence review.",
+    }
+
+
+def _project_score(project: dict[str, Any]) -> int | None:
+    value = project.get("score")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    rounded = round(value)
+    return rounded if 0 <= rounded <= 100 else None
+
+
+def _content_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(value or "").casefold())
+
+
+def _project_content_complete(project: dict[str, Any]) -> bool:
+    summary = str(project.get("publicSummary") or "").strip()
+    raw_capabilities = project.get("verifiedCapabilities")
+    capabilities = (
+        [str(item).strip() for item in raw_capabilities if str(item).strip()]
+        if isinstance(raw_capabilities, list)
+        else []
+    )
+    summary_key = _content_key(summary)
+    capability_keys = {_content_key(item) for item in capabilities}
+    capability_evidence = project.get("capabilityEvidence")
+    evidence_excerpts = [
+        str(item.get("excerpt") or "")
+        for item in capability_evidence
+        if isinstance(item, dict)
+    ] if isinstance(capability_evidence, list) else []
+    reviewed_capabilities_traceable = (
+        project.get("capabilityCitationsReviewed") is not True
+        or all(
+            any(capability.casefold() in excerpt.casefold() for excerpt in evidence_excerpts)
+            for capability in capabilities
+        )
+    )
+    return bool(
+        str(project.get("repo") or "").strip()
+        and str(project.get("url") or "").strip()
+        and summary
+        and capabilities
+        and _project_score(project) is not None
+        and isinstance(project.get("stars"), int)
+        and str(project.get("lastPushedAt") or "").strip()
+        and summary_key
+        and summary_key not in capability_keys
+        and reviewed_capabilities_traceable
+    )
+
+
+def consistency_check(current: dict[str, Any], previous: dict[str, Any] | None) -> dict[str, Any]:
+    if previous is None:
+        return {
+            "schemaVersion": "1",
+            "kind": "independent-run-consistency",
+            "status": "not_run",
+            "checks": {},
+            "metrics": {},
+            "note": "Run this gate only after the first report has passed its single-run review.",
+        }
+    current_raw = current.get("raw") if isinstance(current.get("raw"), dict) else {}
+    previous_raw = previous.get("raw") if isinstance(previous.get("raw"), dict) else {}
+    current_trace = current.get("runTrace") if isinstance(current.get("runTrace"), dict) else {}
+    previous_trace = previous.get("runTrace") if isinstance(previous.get("runTrace"), dict) else {}
+    current_requirement = current.get("requirement") if isinstance(current.get("requirement"), dict) else {}
+    previous_requirement = previous.get("requirement") if isinstance(previous.get("requirement"), dict) else {}
+    same_request = _content_key(current_requirement.get("raw")) == _content_key(previous_requirement.get("raw"))
+    same_search_plan = _search_plan_fingerprint(current_requirement) == _search_plan_fingerprint(
+        previous_requirement
+    )
+    complete_runs = (
+        current_trace.get("status") == "completed"
+        and previous_trace.get("status") == "completed"
+        and current_raw.get("search_completeness") == "complete"
+        and previous_raw.get("search_completeness") == "complete"
+    )
+    current_projects = {
+        str(item.get("repo") or "").casefold(): item
+        for item in current.get("topProjects", [])
+        if isinstance(item, dict) and str(item.get("repo") or "").strip()
+    }
+    previous_projects = {
+        str(item.get("repo") or "").casefold(): item
+        for item in previous.get("topProjects", [])
+        if isinstance(item, dict) and str(item.get("repo") or "").strip()
+    }
+    overlap = sorted(set(current_projects).intersection(previous_projects))
+    counts = (len(current_projects), len(previous_projects))
+    nonempty_overlap = not any(counts) or (all(counts) and bool(overlap))
+    count_stable = max(counts, default=0) == 0 or min(counts) * 2 >= max(counts)
+    score_drifts = {
+        repo: abs((_project_score(current_projects[repo]) or 0) - (_project_score(previous_projects[repo]) or 0))
+        for repo in overlap
+    }
+    common_scores_stable = not score_drifts or max(score_drifts.values()) <= 10
+    current_scores = [score for item in current_projects.values() if (score := _project_score(item)) is not None]
+    previous_scores = [score for item in previous_projects.values() if (score := _project_score(item)) is not None]
+    disjoint_sets_and_scores = bool(
+        current_scores
+        and previous_scores
+        and not overlap
+        and (max(current_scores) < min(previous_scores) or max(previous_scores) < min(current_scores))
+    )
+    checks = {
+        "same_request": same_request,
+        "same_search_plan": same_search_plan,
+        "both_runs_complete": complete_runs,
+        "nonempty_results_overlap": nonempty_overlap,
+        "result_count_stable": count_stable,
+        "common_project_scores_stable": common_scores_stable,
+        "score_ranges_not_disjoint_when_results_are_disjoint": not disjoint_sets_and_scores,
+    }
+    return {
+        "schemaVersion": "1",
+        "kind": "independent-run-consistency",
+        "status": "pass" if all(checks.values()) else "needs_review",
+        "checks": checks,
+        "metrics": {
+            "currentProjectCount": counts[0],
+            "previousProjectCount": counts[1],
+            "overlap": overlap,
+            "commonProjectScoreDrift": score_drifts,
+            "currentScoreRange": [min(current_scores), max(current_scores)] if current_scores else [],
+            "previousScoreRange": [min(previous_scores), max(previous_scores)] if previous_scores else [],
+        },
+        "note": "Severe drift is a report-review failure, not acceptable LLM variation.",
+    }
+
+
+def _search_plan_fingerprint(requirement: dict[str, Any]) -> str:
+    plan_fields = (
+        "intent",
+        "mustHaveFeatures",
+        "niceToHaveFeatures",
+        "targetPlatforms",
+        "repoSearchQueries",
+        "codeSearchQueries",
+        "topicSearchQueries",
+        "issueSearchQueries",
+        "webSearchQueries",
+        "featureConcepts",
+        "evidenceAliases",
+        "evidenceComponents",
+    )
+    payload = {field: requirement.get(field) for field in plan_fields}
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def blind_review_check(run_dir: Path) -> dict[str, Any]:
+    path = run_dir / "review.md"
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        return {
+            "schemaVersion": "1",
+            "status": "needs_review",
+            "reviewer": "",
+            "verdict": "missing",
+            "scoresComplete": False,
+            "reason": f"cannot_read_review:{type(exc).__name__}",
+        }
+    reviewer_match = re.search(r"^- Reviewer:\s*(.+?)\s*$", text, flags=re.MULTILINE)
+    verdict_match = re.search(r"^- Verdict:\s*(pass|fail|pending)\b", text, flags=re.MULTILINE | re.IGNORECASE)
+    reviewer = reviewer_match.group(1).strip() if reviewer_match else ""
+    verdict = verdict_match.group(1).lower() if verdict_match else "missing"
+    scores: dict[str, str] = {}
+    in_scores = False
+    for line in text.splitlines():
+        if line.strip() == "## Blind review scores":
+            in_scores = True
+            continue
+        if in_scores and line.startswith("## "):
+            break
+        if not in_scores or not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or cells[0] in {"Dimension", "---"}:
+            continue
+        scores[cells[0]] = cells[1]
+    scores_complete = bool(scores) and all(
+        value in {"0", "1", "2", "N/A for first run"}
+        for value in scores.values()
+    )
+    status = (
+        "pass"
+        if reviewer
+        and reviewer != "pending-independent-review"
+        and verdict == "pass"
+        and scores_complete
+        else "needs_review"
+    )
+    return {
+        "schemaVersion": "1",
+        "status": status,
+        "reviewer": reviewer,
+        "verdict": verdict,
+        "scoresComplete": scores_complete,
+        "scores": scores,
     }
 
 
@@ -346,9 +587,11 @@ def triage_template(adversarial: dict[str, Any]) -> dict[str, Any]:
 
 def aggregate_summary(
     decision: dict[str, Any],
+    consistency: dict[str, Any],
     adversarial: dict[str, Any],
     links: dict[str, Any],
     triage: dict[str, Any],
+    blind: dict[str, Any],
 ) -> dict[str, Any]:
     findings = [
         finding
@@ -366,7 +609,6 @@ def aggregate_summary(
         for finding in triage.get("findings", [])
         if isinstance(finding, dict) and finding.get("disposition") == "accepted"
     ]
-    accepted_high = any(finding.get("severity") in {"P0", "P1"} for finding in accepted)
     pending = any(
         isinstance(finding, dict) and finding.get("disposition") == "pending"
         for finding in triage.get("findings", [])
@@ -374,6 +616,10 @@ def aggregate_summary(
     return {
         "schemaVersion": "1",
         "decisionCheck": {"status": decision["status"], "score": decision["score"], "maxScore": decision["maxScore"]},
+        "consistencyCheck": {
+            "status": consistency.get("status"),
+            "checks": consistency.get("checks", {}),
+        },
         "adversarialReview": {
             "status": adversarial.get("status"),
             "verifiableFindingCount": len(findings),
@@ -390,14 +636,30 @@ def aggregate_summary(
             ),
             "acceptedCount": len(accepted),
         },
+        "blindReview": {
+            "status": blind.get("status"),
+            "reviewer": blind.get("reviewer"),
+            "verdict": blind.get("verdict"),
+            "scoresComplete": blind.get("scoresComplete"),
+        },
         "status": (
             "action_required"
-            if accepted_high or links.get("status") == "failed"
+            if (
+                accepted
+                or decision.get("status") != "pass"
+                or consistency.get("status") == "needs_review"
+                or links.get("status") == "failed"
+                or blind.get("verdict") == "fail"
+            )
             else "human_triage_required"
             if pending
-            else "review_pending"
+            else "review_required"
+            if adversarial.get("status") != "pass" and triage.get("status") != "completed"
+            else "blind_review_required"
+            if blind.get("status") != "pass"
+            else "pass"
         ),
-        "note": "Independent human scoring remains required before release acceptance.",
+        "note": "A report is qualified only when this status is pass and the retained blind review is complete.",
     }
 
 
@@ -426,18 +688,34 @@ def assert_review_artifact_secret_free(payload: object) -> None:
 
 async def main_async() -> None:
     args = parse_args()
+    if args.finalize:
+        decision = load_json_artifact(args.run_dir, "decision-check.json")
+        consistency = load_json_artifact(args.run_dir, "consistency-check.json")
+        adversarial = load_json_artifact(args.run_dir, "adversarial-review.json")
+        links = load_json_artifact(args.run_dir, "link-review.json")
+        triage = load_json_artifact(args.run_dir, "finding-triage.json")
+        blind = blind_review_check(args.run_dir)
+        summary = aggregate_summary(decision, consistency, adversarial, links, triage, blind)
+        assert_review_artifact_secret_free(summary)
+        write_json(args.run_dir / "review-summary.json", summary)
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return
     ensure_review_outputs_absent(args.run_dir)
     report = load_report(args.run_dir)
+    previous = load_report(args.compare_to) if args.compare_to else None
     roles = parse_roles(args.roles)
     decision = decision_check(report)
+    consistency = consistency_check(report, previous)
     adversarial = await adversarial_review(report, roles)
     links = await browser_link_review(report, args.browser_timeout_ms)
     triage_path = args.run_dir / "finding-triage.json"
     triage = triage_template(adversarial)
-    summary = aggregate_summary(decision, adversarial, links, triage)
-    for payload in (decision, adversarial, links, triage, summary):
+    blind = blind_review_check(args.run_dir)
+    summary = aggregate_summary(decision, consistency, adversarial, links, triage, blind)
+    for payload in (decision, consistency, adversarial, links, triage, summary):
         assert_review_artifact_secret_free(payload)
     write_json(args.run_dir / "decision-check.json", decision)
+    write_json(args.run_dir / "consistency-check.json", consistency)
     write_json(args.run_dir / "adversarial-review.json", adversarial)
     write_json(args.run_dir / "link-review.json", links)
     write_json(triage_path, triage)

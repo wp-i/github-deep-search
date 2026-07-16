@@ -69,7 +69,7 @@ python scripts/start_web.py
 
 这个项目不是离线 demo。Web 可以无 key 打开，但真实调研必须能访问 GitHub API 和一个 OpenAI-compatible LLM：
 
-- `GITHUB_TOKEN`：基本必需，用于真实 GitHub 搜索、README 和源码证据采集。
+- `GITHUB_TOKEN`：必需，用于真实 GitHub 搜索、README 和源码证据采集；缺失、失效或限额阻断时直接失败，不降级到匿名公共 API。
 - `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：必需，用于把自然语言需求解析成 `SearchSpec`，再做查询规划、比较和报告。
 - 中国大陆网络下通常不需要“项目内置 VPN”，但 GitHub API 和 LLM 服务的可达性取决于实际网络。OpenAI 官方接口在部分环境不可直连；超时、连接重置或长期无结果时，优先配置代理或使用可直连的兼容服务商。
 
@@ -119,7 +119,7 @@ TAVILY_API_KEY=
 
 | Key | 是否必需 | 用途 |
 | --- | --- | --- |
-| `GITHUB_TOKEN` | 基本必需 | 提高真实 GitHub 搜索额度，建议只授予公开仓库只读权限 |
+| `GITHUB_TOKEN` | 必需 | 执行认证的 GitHub 搜索与证据采集；不使用匿名公共 API 降级，建议只授予公开仓库只读权限 |
 | `LLM_API_KEY` | 必需 | 需求解析、查询规划、项目比较、最终报告 |
 | `TAVILY_API_KEY` | 可选 | Web 交叉验证和补充发现 |
 

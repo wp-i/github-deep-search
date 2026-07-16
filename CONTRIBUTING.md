@@ -25,7 +25,7 @@ LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-5-mini
 ```
 
-`GITHUB_TOKEN` should be a read-only token for public repositories. A fine-grained token with Public repositories only, Metadata Read-only, and Contents Read-only is enough for normal usage. Real runs also require network access to `https://api.github.com` and the configured `LLM_BASE_URL`; users in networks where OpenAI is not directly reachable should configure a proxy or use a reachable OpenAI-compatible provider.
+`GITHUB_TOKEN` is required and should be a read-only token for public repositories. A fine-grained token with Public repositories only, Metadata Read-only, and Contents Read-only is enough for normal usage. Missing, rejected, or rate-limited GitHub credentials fail the run; the product and real tests never downgrade to the anonymous public API. Real runs also require network access to `https://api.github.com` and the configured `LLM_BASE_URL`; users in networks where OpenAI is not directly reachable should configure a proxy or use a reachable OpenAI-compatible provider.
 
 ## Test Before Opening a PR
 

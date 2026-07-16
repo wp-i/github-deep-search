@@ -17,6 +17,7 @@ from github_deep_search.run_trace import (
     classify_failure,
 )
 from github_deep_search.models import (
+    AdjacentEvidence,
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
@@ -24,12 +25,14 @@ from github_deep_search.models import (
     ProjectAnalysis,
     ProviderEvent,
     Requirement,
+    RunFailure,
     SearchReport,
 )
-from github_deep_search.providers.github import GitHubClient
+from github_deep_search.public_report import build_public_project_view
+from github_deep_search.providers.github import GitHubClient, GitHubProviderError
 from github_deep_search.providers.llm import LLMClient
 from github_deep_search.providers.tavily import TavilyClient
-from github_deep_search.spec_parser import SearchSpecParser
+from github_deep_search.spec_parser import QUERY_CHANNEL_LIMITS, SearchSpecParser
 from github_deep_search.utils import compact_text, extract_github_repos, keyword_bag, normalize_repo_url
 
 
@@ -39,40 +42,77 @@ class DeepSearchEngine:
         self._readme_cache: dict[str, str] = {}
         self._tree_cache: dict[str, list[str]] = {}
         self._file_cache: dict[tuple[str, str], str] = {}
+        self._repository_metadata_cache: dict[str, CandidateRepository] = {}
 
     async def run(
         self,
         query: str,
+        *,
+        fixed_requirement: Requirement | None = None,
     ) -> SearchReport:
         started = time.perf_counter()
         usage = BudgetUsage()
         request_limit = self.settings.max_github_requests
         trace = RunTraceRecorder()
-        github = GitHubClient(self.settings.github_token, usage, request_limit=request_limit)
-        tavily = TavilyClient(self.settings.tavily_api_key, usage) if self.settings.tavily_api_key else None
-        llm = (
-            LLMClient(
-                self.settings.llm_api_key,
-                self.settings.llm_base_url,
-                self.settings.llm_model,
-                usage,
-                thinking=self.settings.llm_thinking,
-                reasoning_effort=self.settings.llm_reasoning_effort,
-            )
-            if self.settings.llm_api_key
-            else None
-        )
+        github: GitHubClient | None = None
+        tavily: TavilyClient | None = None
+        llm: LLMClient | None = None
+        provider_event_index = 0
         try:
+            if not self.settings.github_token:
+                failure = RunFailure(
+                    kind="provider",
+                    stage="discovery",
+                    exception_type="GitHubAuthenticationError",
+                    message=(
+                        "GitHub authentication is required. Configure GITHUB_TOKEN; "
+                        "anonymous fallback is disabled."
+                    ),
+                    retryable=False,
+                )
+                trace.fail(failure)
+                raise SearchRunFailed(
+                    build_failure_artifact(query, usage, trace.build(), failure)
+                )
+            github = GitHubClient(
+                self.settings.github_token,
+                usage,
+                request_limit=request_limit,
+            )
+            await github.validate_authentication()
+            tavily = (
+                TavilyClient(self.settings.tavily_api_key, usage)
+                if self.settings.tavily_api_key
+                else None
+            )
+            llm = (
+                LLMClient(
+                    self.settings.llm_api_key,
+                    self.settings.llm_base_url,
+                    self.settings.llm_model,
+                    usage,
+                    thinking=self.settings.llm_thinking,
+                    reasoning_effort=self.settings.llm_reasoning_effort,
+                )
+                if self.settings.llm_api_key
+                else None
+            )
             trace.begin("parse", {"query": 1})
             provider_event_index = len(usage.provider_events)
-            spec = await SearchSpecParser().parse(query, llm)
-            requirement = spec.to_requirement()
+            if fixed_requirement is not None:
+                if fixed_requirement.raw.strip() != query.strip():
+                    raise ValueError("Fixed search plan does not match the current request")
+                requirement = fixed_requirement
+            else:
+                spec = await SearchSpecParser().parse(query, llm)
+                requirement = spec.to_requirement()
             self._finish_trace_stage(
                 trace,
                 {
                     "must_have": len(requirement.must_have_features),
                     "nice_to_have": len(requirement.nice_to_have_features),
                     "planned_queries": len(requirement.search_queries),
+                    "fixed_plan": int(fixed_requirement is not None),
                 },
                 self._stage_provider_events(usage, provider_event_index, "parse"),
             )
@@ -89,8 +129,10 @@ class DeepSearchEngine:
             )
             trace.begin("evidence", {"deep_pool": len(readme_pool)})
             provider_event_index = len(usage.provider_events)
+            await self._hydrate_repository_metadata(readme_pool, github)
+            metadata_requests = usage.github_requests - discovery_requests
             await self._hydrate_readmes(readme_pool, github, usage)
-            readme_requests = usage.github_requests - discovery_requests
+            readme_requests = usage.github_requests - discovery_requests - metadata_requests
             reranked = self._rank_candidates(requirement, ranked)
             deep_pool_limit = self._deep_pool_limit()
             readme_pool_names = {repo.full_name.lower() for repo in readme_pool}
@@ -99,7 +141,12 @@ class DeepSearchEngine:
             ]
             deep_repos = self._evidence_hydration_pool(verified_reranked, deep_pool_limit)
             await self._hydrate_source_evidence(deep_repos, github, usage, requirement)
-            source_requests = usage.github_requests - discovery_requests - readme_requests
+            source_requests = (
+                usage.github_requests
+                - discovery_requests
+                - metadata_requests
+                - readme_requests
+            )
             deep_repos = self._rerank_by_evidence(deep_repos, requirement)
             self._finish_trace_stage(
                 trace,
@@ -110,47 +157,13 @@ class DeepSearchEngine:
             provider_event_index = len(usage.provider_events)
             analyses = await self._analyze_top_projects(requirement, deep_repos, llm)
             analyses, evidence_gate_stats = self._apply_evidence_gate(requirement, analyses, usage)
-            low_confidence_analyses = [item for item in analyses if item.match_score < 50]
-            reliable_analyses = [item for item in analyses if item.match_score >= 50]
-            low_confidence = [item.repo.full_name for item in low_confidence_analyses]
-            analyses = self._with_reference_candidates(reliable_analyses, low_confidence_analyses, usage, requirement)
-            if len(analyses) < self.settings.max_deep_analyze_repos and not analyses:
-                incompatible_analysis_names = {
-                    item.repo.full_name.lower()
-                    for item in low_confidence_analyses
-                    if item.different_features
-                }
-                analyses.extend(
-                    self._adjacent_low_confidence_leads(
-                        requirement,
-                        reranked,
-                        usage,
-                        slots=self.settings.max_deep_analyze_repos - len(analyses),
-                        excluded_projects={item.repo.full_name.lower() for item in analyses}
-                        | incompatible_analysis_names,
-                        excluded_families={self._project_family_key(item) for item in analyses},
-                    )
-                )
-            analyses = sorted(
-                analyses,
-                key=lambda item: item.match_score,
-                reverse=True,
-            )[
-                : self.settings.max_deep_analyze_repos
-            ]
-            returned_reference_names = {item.repo.full_name for item in analyses if item.is_reference_candidate}
-            low_confidence_not_returned = [
-                item.repo.full_name for item in low_confidence_analyses if item.repo.full_name not in returned_reference_names
-            ]
-            if low_confidence_not_returned:
-                usage.warnings.append(
-                    "Low-confidence candidates below 50/100 not returned: " + ", ".join(low_confidence_not_returned[:5])
-                )
+            analyzed_count = len(analyses)
+            analyses = self._select_report_projects(requirement, analyses, usage)
             if len(analyses) < self.settings.max_deep_analyze_repos and len(candidates) > len(analyses):
                 usage.warnings.append(
-                    f"Returned {len(analyses)} project(s) because remaining candidates did not pass confidence filtering."
+                    f"Returned {len(analyses)} project(s) because remaining candidates did not pass evidence tiering."
                 )
-            opportunity = await self._analyze_opportunity(requirement, analyses, llm)
+            opportunity = ""
             self._finish_trace_stage(
                 trace,
                 {"analyses": len(analyses)},
@@ -172,7 +185,7 @@ class DeepSearchEngine:
                 usage,
                 search_completeness,
             )
-            summary = self._write_summary(analyses, opportunity)
+            summary = self._write_summary(requirement, analyses)
             self._finish_trace_stage(
                 trace,
                 {"markdown": int(bool(report_markdown.strip()))},
@@ -208,6 +221,7 @@ class DeepSearchEngine:
                     },
                     "request_stages": {
                         "discovery": discovery_requests,
+                        "metadata": metadata_requests,
                         "readme": readme_requests,
                         "source": source_requests,
                     },
@@ -229,19 +243,27 @@ class DeepSearchEngine:
                     ],
                     "score_semantics": {
                         "discovery_score": "Unbounded pre-analysis retrieval score used only to prioritize evidence collection.",
-                        "topProjects.score": "Evidence-gated public match score on a 0-100 scale.",
+                        "topProjects.score": (
+                            "Evidence-derived 0-100 relevance: verified requirement/component coverage weighted by "
+                            "source strength, plus current-SearchSpec concept coverage; model self-scores and fixed "
+                            "fallback floors are excluded."
+                        ),
                     },
                     "core_requirement": self._core_requirement_feature(requirement),
                     "evidence_gate": evidence_gate_stats,
-                    "low_confidence_filtered_count": len(low_confidence_not_returned),
-                    "low_confidence_candidate_count": len(low_confidence),
+                    "low_confidence_filtered_count": max(0, analyzed_count - len(analyses)),
+                    "low_confidence_candidate_count": analyzed_count,
                 },
                 run_trace=trace.build(),
             )
         except SearchRunFailed:
             raise
         except Exception as exc:
-            stage = trace.active_name or trace.next_name
+            stage = (
+                "discovery"
+                if isinstance(exc, GitHubProviderError) and not trace.active_name
+                else trace.active_name or trace.next_name
+            )
             self._stage_provider_events(usage, provider_event_index, stage)
             usage.elapsed_ms = int((time.perf_counter() - started) * 1000)
             failure = classify_failure(stage, exc)
@@ -250,7 +272,8 @@ class DeepSearchEngine:
                 build_failure_artifact(query, usage, trace.build(), failure)
             ) from exc
         finally:
-            await github.close()
+            if github:
+                await github.close()
             if tavily:
                 await tavily.close()
             if llm:
@@ -315,13 +338,14 @@ class DeepSearchEngine:
         ranked: list[CandidateRepository],
         limit: int | None = None,
     ) -> list[CandidateRepository]:
-        """Keep one candidate from each executed discovery angle for verification.
+        """Reserve strongest candidates, then cover executed discovery angles.
 
         Ranking before README retrieval is necessarily based on sparse metadata.  A
         single broad query must therefore not consume the entire evidence budget and
-        prevent the other SearchSpec-planned discovery angles from being checked.
-        This only chooses verification work; it is not capability evidence or a
-        score boost.
+        prevent the other SearchSpec-planned discovery angles from being checked. At
+        the same time, source diversity must not displace every globally strong
+        candidate. This only chooses verification work; it is not capability evidence
+        or a score boost.
         """
         target = limit if limit is not None else self._deep_pool_limit() + 2
         if target <= 0:
@@ -329,6 +353,23 @@ class DeepSearchEngine:
         selected: list[CandidateRepository] = []
         selected_names: set[str] = set()
         source_counts: dict[str, int] = {}
+
+        def select(repo: CandidateRepository) -> None:
+            selected.append(repo)
+            selected_names.add(repo.full_name.lower())
+            for source in {str(value).strip() for value in repo.found_by if str(value).strip()}:
+                source_counts[source] = source_counts.get(source, 0) + 1
+
+        strongest_count = min(len(ranked), max(1, target // 2))
+        globally_strongest = sorted(
+            ranked,
+            key=lambda repo: (repo.raw_score, repo.core_signal_score),
+            reverse=True,
+        )
+        for repo in globally_strongest[:strongest_count]:
+            select(repo)
+        if len(selected) >= target:
+            return selected
 
         # Two rounds protect against a broad first result from a useful angle
         # masking its next-best candidate, while still leaving capacity for the
@@ -342,18 +383,14 @@ class DeepSearchEngine:
                     or not any(source_counts.get(source, 0) < per_source_limit for source in sources)
                 ):
                     continue
-                selected.append(repo)
-                selected_names.add(repo.full_name.lower())
-                for source in sources:
-                    source_counts[source] = source_counts.get(source, 0) + 1
+                select(repo)
                 if len(selected) >= target:
                     return selected
 
         for repo in ranked:
             if repo.full_name.lower() in selected_names:
                 continue
-            selected.append(repo)
-            selected_names.add(repo.full_name.lower())
+            select(repo)
             if len(selected) >= target:
                 break
         return selected
@@ -363,7 +400,8 @@ class DeepSearchEngine:
         result_count = self.settings.max_deep_analyze_repos
         readme_count = self._deep_pool_limit() + 2
         files_per_repo = 2
-        return readme_count + result_count * (1 + files_per_repo)
+        metadata_count = readme_count
+        return metadata_count + readme_count + result_count * (1 + files_per_repo)
 
     def _merge_queries(self, queries: list[str], limit: int = 6) -> list[str]:
         return list(OrderedDict.fromkeys(q.strip() for q in queries if q.strip()))[:limit]
@@ -380,10 +418,8 @@ class DeepSearchEngine:
         repo_queries = self._planned_repo_search_queries(requirement)
         code_queries = self._planned_code_search_queries(requirement)
         topic_queries = self._planned_topic_search_queries(requirement)
-        issue_queries = self._interleave_multilingual_queries(
-            self._planned_issue_search_queries(requirement)
-        )
-        queries_per_wave = 6
+        issue_queries = self._planned_issue_search_queries(requirement)
+        queries_per_wave = 2
         request_limit = self._budgeted_github_limit()
         evidence_reserve = self._evidence_request_reserve()
         search_request_limit = max(8, request_limit - evidence_reserve)
@@ -392,7 +428,11 @@ class DeepSearchEngine:
         topic_per_page = 20
         issue_per_page = 20
 
-        for wave_index in range(2):
+        max_github_queries = max(
+            len(repo_queries), len(code_queries), len(topic_queries), len(issue_queries)
+        )
+        wave_count = math.ceil(max_github_queries / queries_per_wave)
+        for wave_index in range(wave_count):
             await self._collect_github_wave(
                 repos,
                 github,
@@ -408,41 +448,11 @@ class DeepSearchEngine:
                 topic_per_page=topic_per_page,
                 issue_per_page=issue_per_page,
                 request_limit=search_request_limit,
-                candidate_limit=candidate_limit,
-            )
-            if len(repos) >= candidate_limit:
-                break
-
-        if len(repos) < self.settings.max_deep_analyze_repos and self._has_github_wave_queries(
-            repo_queries,
-            code_queries,
-            topic_queries,
-            issue_queries,
-            wave_index=2,
-            queries_per_wave=queries_per_wave,
-        ):
-            usage.warnings.append("Fewer than Top 3 candidate repositories after two GitHub waves; running a third wave.")
-            await self._collect_github_wave(
-                repos,
-                github,
-                usage,
-                repo_queries,
-                code_queries,
-                topic_queries,
-                issue_queries,
-                wave_index=2,
-                queries_per_wave=queries_per_wave,
-                repo_per_page=repo_per_page,
-                code_per_page=code_per_page,
-                topic_per_page=topic_per_page,
-                issue_per_page=issue_per_page,
-                request_limit=search_request_limit,
-                candidate_limit=candidate_limit,
             )
 
         if tavily:
             planned_web_queries = requirement.web_search_queries or requirement.search_queries
-            web_limit = 4
+            web_limit = QUERY_CHANNEL_LIMITS["web_search_queries"]
             web_queries = planned_web_queries[:web_limit]
             for search_query in web_queries:
                 if usage.tavily_credits >= self.settings.max_tavily_credits:
@@ -462,12 +472,14 @@ class DeepSearchEngine:
                         continue
                     if usage.github_requests >= search_request_limit:
                         break
-                    repo = await github.get_repository(owner, name, found_by=f"tavily:{search_query}")
-                    if repo:
-                        self._merge_repo(repos, repo)
-                        if len(repos) >= candidate_limit:
-                            break
-        return list(repos.values())
+                    repo = CandidateRepository(
+                        owner=owner,
+                        name=name,
+                        url=f"https://github.com/{owner}/{name}",
+                        found_by=[f"tavily:{search_query}"],
+                    )
+                    self._merge_repo(repos, repo)
+        return self._rank_candidates(requirement, list(repos.values()))[:candidate_limit]
 
     async def _collect_github_wave(
         self,
@@ -485,7 +497,6 @@ class DeepSearchEngine:
         topic_per_page: int,
         issue_per_page: int,
         request_limit: int,
-        candidate_limit: int,
     ) -> None:
         start = wave_index * queries_per_wave
         end = start + queries_per_wave
@@ -526,23 +537,6 @@ class DeepSearchEngine:
                 if index >= len(batch):
                     continue
                 self._merge_repo(repos, batch[index])
-                if len(repos) >= candidate_limit:
-                    return
-
-    def _has_github_wave_queries(
-        self,
-        repo_queries: list[str],
-        code_queries: list[str],
-        topic_queries: list[str],
-        issue_queries: list[str],
-        wave_index: int,
-        queries_per_wave: int,
-    ) -> bool:
-        start = wave_index * queries_per_wave
-        return any(
-            len(queries) > start
-            for queries in [repo_queries, code_queries, topic_queries, issue_queries]
-        )
 
     async def _search_repo_candidates(
         self,
@@ -558,7 +552,10 @@ class DeepSearchEngine:
                 usage.warnings.append("GitHub request budget reached during repository search.")
                 break
             gh_query = self._to_github_repo_query(search_query)
-            candidates.extend(await github.search_repositories(gh_query, per_page=per_page))
+            results = await github.search_repositories(gh_query, per_page=per_page)
+            candidates.extend(results)
+            for repo in results:
+                self._cache_repository_metadata(repo)
         return candidates
 
     async def _search_code_candidates(
@@ -585,9 +582,14 @@ class DeepSearchEngine:
                 found_by = f"github_code:{search_query}"
                 if path:
                     found_by += f":{path}"
-                repo = await github.get_repository(owner, name, found_by=found_by)
-                if repo:
-                    candidates.append(repo)
+                repo = CandidateRepository(
+                    owner=owner,
+                    name=name,
+                    url=f"https://github.com/{owner}/{name}",
+                    found_by=[found_by],
+                    file_paths=[path] if path else [],
+                )
+                candidates.append(repo)
         return candidates
 
     async def _search_topic_candidates(
@@ -605,7 +607,10 @@ class DeepSearchEngine:
                 break
             topic_query = self._to_github_topic_query(topic)
             if topic_query:
-                candidates.extend(await github.search_topic_repositories(topic_query, per_page=per_page))
+                results = await github.search_topic_repositories(topic_query, per_page=per_page)
+                candidates.extend(results)
+                for repo in results:
+                    self._cache_repository_metadata(repo)
         return candidates
 
     async def _search_issue_candidates(
@@ -629,23 +634,19 @@ class DeepSearchEngine:
                 seen.add(key)
                 if usage.github_requests >= request_limit:
                     break
-                repo = await github.get_repository(owner, name, found_by=f"github_issue:{search_query}")
-                if repo:
-                    candidates.append(repo)
+                repo = CandidateRepository(
+                    owner=owner,
+                    name=name,
+                    url=f"https://github.com/{owner}/{name}",
+                    found_by=[f"github_issue:{search_query}"],
+                )
+                candidates.append(repo)
         return candidates
 
     def _planned_code_search_queries(self, requirement: Requirement) -> list[str]:
-        limit = 5
+        limit = QUERY_CHANNEL_LIMITS["code_search_queries"]
         queries: list[str] = []
-        feature_groups = [
-            sorted(self._feature_aliases(feature, requirement), key=self._query_specificity_key)
-            for feature in requirement.must_have_features
-        ]
-        planned = [
-            *self._round_robin_query_groups(feature_groups, limit=limit),
-            *requirement.code_search_queries,
-        ]
-        for phrase in self._merge_queries(planned, limit=limit):
+        for phrase in self._merge_queries(requirement.code_search_queries, limit=limit):
             token = self._github_search_token(phrase)
             if token:
                 queries.append(f"{token} in:file,path")
@@ -655,200 +656,22 @@ class DeepSearchEngine:
         self,
         requirement: Requirement,
     ) -> list[str]:
-        """Give every must-have a search opportunity before filling spare slots."""
-        limit = 10
-        concepts = requirement.feature_concepts or {}
-        domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
-        targets = [
-            str(item).strip()
-            for item in [*concepts.get("objects", []), *concepts.get("actions", [])]
-            if str(item).strip()
-        ]
-        concept_queries: list[str] = []
-        for domain in domains[:4]:
-            for target in targets[:6]:
-                if self._same_query_language(domain, target):
-                    concept_queries.append(f"{domain} {target}")
-        channel_queries = self._merge_queries(
-            [*requirement.repo_search_queries, *requirement.search_queries],
-            limit=20,
-        )
-        feature_groups: list[list[str]] = []
-        for feature in requirement.must_have_features:
-            aliases = self._feature_aliases(feature, requirement)
-            matched_channel_queries = [
-                query
-                for query in channel_queries
-                if self._matching_terms(query, aliases)
-            ]
-            proof_queries = self._combined_core_alias_queries(aliases)
-            proof_queries.extend(
-                [
-                alias
-                for alias in sorted(aliases, key=self._query_specificity_key)
-                if self._searchable_repo_phrase(alias, feature)
-                ]
-            )
-            feature_groups.append(
-                self._merge_queries([*matched_channel_queries, *proof_queries], limit=6)
-            )
-        planned = self._round_robin_query_groups(feature_groups, limit=limit)
-        remaining = [
-            query
-            for query in [*channel_queries, *concept_queries, *domains[:4]]
-            if self._searchable_repo_phrase(
-                query,
-                "",
-                allow_single_signal=query in channel_queries,
-            )
-        ]
-        return self._merge_queries([*planned, *remaining], limit=limit)
-
-    def _round_robin_query_groups(self, groups: list[list[str]], *, limit: int) -> list[str]:
-        planned: list[str] = []
-        for index in range(max((len(group) for group in groups), default=0)):
-            for group in groups:
-                if index < len(group):
-                    planned.append(group[index])
-                    if len(list(OrderedDict.fromkeys(planned))) >= limit:
-                        return self._merge_queries(planned, limit=limit)
-        return self._merge_queries(planned, limit=limit)
-
-    def _query_specificity_key(self, query: str) -> tuple[int, int, int, str]:
-        signals = self._semantic_signals(query)
-        words = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", str(query))
-        return (-len(signals), -len(words), -len(str(query)), str(query).lower())
-
-    def _repo_query_priority_key(
-        self,
-        query: str,
-        requirement: Requirement,
-        core_feature: str | None,
-    ) -> tuple[int, int, int, int, int, str]:
-        core_aliases = self._feature_aliases(core_feature, requirement) if core_feature else set()
-        core_match = bool(core_feature and self._matching_terms(query, core_aliases))
-        secondary_aliases = set()
-        for feature in requirement.must_have_features:
-            if core_feature and self._same_feature_key(feature, core_feature):
-                continue
-            secondary_aliases.update(self._feature_aliases(feature, requirement))
-        secondary_match = bool(secondary_aliases and self._matching_terms(query, secondary_aliases))
-        specificity = self._query_specificity_key(query)
-        return (
-            0 if core_match else 1,
-            1 if secondary_match and not core_match else 0,
-            specificity[0],
-            specificity[1],
-            specificity[2],
-            specificity[3],
-        )
-
-    def _searchable_repo_phrase(self, phrase: str, core_feature: str, allow_single_signal: bool = False) -> bool:
-        signals = self._semantic_signals(phrase)
-        meaningful = signals - self._generic_search_signals()
-        if self._same_feature_key(phrase, core_feature):
-            return len(meaningful) >= 2
-        return len(meaningful) >= (1 if allow_single_signal else 2)
-
-    def _combined_core_alias_queries(self, aliases: set[str]) -> list[str]:
-        single_signal_aliases: list[str] = []
-        multi_signal_aliases: list[str] = []
-        for alias in aliases:
-            signals = self._semantic_signals(alias) - self._generic_search_signals()
-            if len(signals) == 1 and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{1,}", alias.strip()):
-                single_signal_aliases.append(alias.strip())
-            elif len(signals) >= 1:
-                multi_signal_aliases.append(alias.strip())
-        combined: list[str] = []
-        for left_index, left in enumerate(sorted(single_signal_aliases, key=str.lower)):
-            for right in sorted(single_signal_aliases, key=str.lower)[left_index + 1 :]:
-                combined.append(f"{left} {right}")
-        for single in sorted(single_signal_aliases, key=str.lower):
-            for phrase in sorted(multi_signal_aliases, key=self._query_specificity_key):
-                if single.lower() in phrase.lower():
-                    continue
-                combined.append(f"{single} {phrase}")
-        return self._merge_queries(combined, limit=8)
-
-    @staticmethod
-    def _generic_search_signals() -> set[str]:
-        return set()
-
-    def _topic_query_variants(self, phrases: list[str]) -> list[str]:
-        variants: list[str] = []
-        generic = self._generic_search_signals()
-        for phrase in phrases:
-            tokens = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", str(phrase).lower())
-            tokens = [token for token in tokens if token not in generic]
-            if not tokens:
-                continue
-            variants.append("-".join(tokens[:4]))
-            for size in (3, 2):
-                for index in range(0, max(0, len(tokens) - size + 1)):
-                    variants.append("-".join(tokens[index : index + size]))
-            variants.extend(token for token in tokens if len(token) >= 3 or re.search(r"[\u4e00-\u9fff]", token))
-        return self._merge_queries(variants, limit=20)
+        limit = QUERY_CHANNEL_LIMITS["repo_search_queries"]
+        return self._merge_queries(requirement.repo_search_queries, limit=limit)
 
     def _planned_topic_search_queries(
         self,
         requirement: Requirement,
     ) -> list[str]:
-        limit = 8
-        concepts = requirement.feature_concepts or {}
-        domains = [str(item).strip() for item in concepts.get("domains", []) if str(item).strip()]
-        alias_phrases = [
-            str(value).strip()
-            for values in (requirement.evidence_aliases or {}).values()
-            for value in values
-            if str(value).strip()
-        ]
-        concept_phrases = [
-            str(value).strip()
-            for group in ("literal_keywords", "domains", "objects", "outputs", "interfaces")
-            for value in concepts.get(group, [])
-            if str(value).strip()
-        ]
-        variant_groups = [
-            [query]
-            for query in requirement.topic_search_queries
-            if str(query).strip()
-        ]
-        variant_groups.extend(
-            self._topic_query_variants([phrase])
-            for phrase in [*alias_phrases, *concept_phrases]
-            if phrase
-        )
-        planned: list[str] = []
-        for index in range(max((len(group) for group in variant_groups), default=0)):
-            for group in variant_groups:
-                if index < len(group):
-                    planned.append(group[index])
-        planned.extend(domains)
-        return self._merge_queries(planned, limit=limit)
-
-    @staticmethod
-    def _same_query_language(left: str, right: str) -> bool:
-        return bool(re.search(r"[^\x00-\x7f]", left)) == bool(re.search(r"[^\x00-\x7f]", right))
-
-    def _interleave_multilingual_queries(self, queries: list[str]) -> list[str]:
-        original_language = [item for item in queries if re.search(r"[^\x00-\x7f]", item)]
-        ascii_queries = [item for item in queries if not re.search(r"[^\x00-\x7f]", item)]
-        if not original_language or not ascii_queries:
-            return list(queries)
-        interleaved: list[str] = []
-        for index in range(max(len(original_language), len(ascii_queries))):
-            if index < len(original_language):
-                interleaved.append(original_language[index])
-            if index < len(ascii_queries):
-                interleaved.append(ascii_queries[index])
-        return interleaved
+        limit = QUERY_CHANNEL_LIMITS["topic_search_queries"]
+        return self._merge_queries(requirement.topic_search_queries, limit=limit)
 
     def _planned_issue_search_queries(
         self,
         requirement: Requirement,
     ) -> list[str]:
-        limit = 5
-        return self._merge_queries(requirement.issue_search_queries or requirement.repo_search_queries, limit=limit)
+        limit = QUERY_CHANNEL_LIMITS["issue_search_queries"]
+        return self._merge_queries(requirement.issue_search_queries, limit=limit)
 
     def _github_search_token(self, phrase: str) -> str:
         clean = re.sub(r"\s+", " ", str(phrase).strip())
@@ -859,12 +682,9 @@ class DeepSearchEngine:
         return clean[:80]
 
     def _to_github_repo_query(self, query: str) -> str:
-        words = re.findall(r"[A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}", query)
-        if not words:
-            return query
-        # GitHub joins plain words as AND conditions. Long product sentences
-        # become so restrictive that the canonical project disappears.
-        clean = " ".join(words[:3])
+        clean = re.sub(r"\s+", " ", str(query or "")).strip()[:180]
+        if not clean:
+            return ""
         return f"{clean} in:name,description,readme"
 
     def _to_github_topic_query(self, topic: str) -> str:
@@ -877,11 +697,77 @@ class DeepSearchEngine:
             return
         key = repo.full_name.lower()
         if key in repos:
-            for source in repo.found_by:
-                if source not in repos[key].found_by:
-                    repos[key].found_by.append(source)
+            self._merge_repository_metadata(repos[key], repo)
             return
         repos[key] = repo
+        if key in self._repository_metadata_cache:
+            self._merge_repository_metadata(repo, self._repository_metadata_cache[key])
+
+    def _cache_repository_metadata(self, repo: CandidateRepository) -> CandidateRepository:
+        key = repo.full_name.lower()
+        existing = self._repository_metadata_cache.get(key)
+        if existing is None:
+            self._repository_metadata_cache[key] = repo
+            return repo
+        for source in repo.found_by:
+            if source not in existing.found_by:
+                existing.found_by.append(source)
+        return existing
+
+    async def _get_repository_cached(
+        self,
+        github: GitHubClient,
+        owner: str,
+        name: str,
+        *,
+        found_by: str,
+    ) -> CandidateRepository | None:
+        key = f"{owner.lower()}/{name.lower()}"
+        cached = self._repository_metadata_cache.get(key)
+        if cached is not None:
+            if found_by not in cached.found_by:
+                cached.found_by.append(found_by)
+            return cached
+        repo = await github.get_repository(owner, name, found_by=found_by)
+        return self._cache_repository_metadata(repo) if repo else None
+
+    async def _hydrate_repository_metadata(
+        self,
+        repos: Sequence[CandidateRepository],
+        github: GitHubClient,
+    ) -> None:
+        for repo in repos:
+            full = await self._get_repository_cached(
+                github,
+                repo.owner,
+                repo.name,
+                found_by=repo.found_by[0] if repo.found_by else "github:evidence_pool",
+            )
+            if full is None:
+                continue
+            self._merge_repository_metadata(repo, full)
+            self._repository_metadata_cache[repo.full_name.lower()] = repo
+
+    @staticmethod
+    def _merge_repository_metadata(
+        target: CandidateRepository,
+        source: CandidateRepository,
+    ) -> None:
+        for found_by in source.found_by:
+            if found_by not in target.found_by:
+                target.found_by.append(found_by)
+        for path in source.file_paths:
+            if path not in target.file_paths:
+                target.file_paths.append(path)
+        target.url = source.url or target.url
+        target.description = source.description or target.description
+        target.stars = max(target.stars, source.stars)
+        target.forks = max(target.forks, source.forks)
+        target.language = source.language or target.language
+        target.topics = list(OrderedDict.fromkeys([*target.topics, *source.topics]))
+        target.last_pushed_at = source.last_pushed_at or target.last_pushed_at
+        target.license = source.license or target.license
+        target.default_branch = source.default_branch or target.default_branch
 
     def _source_mix(self, candidates: list[CandidateRepository]) -> dict[str, int]:
         mix = {"github_repo": 0, "github_code": 0, "github_topic": 0, "github_issue": 0, "tavily": 0, "other": 0}
@@ -921,8 +807,9 @@ class DeepSearchEngine:
         query_words.update(self._requirement_aliases(requirement))
         alias_terms = self._requirement_aliases(requirement)
         concept_groups = self._requirement_concept_groups(requirement)
-        domain_aliases = {item.lower() for item in (requirement.feature_concepts or {}).get("domains", [])}
+        domain_aliases = self._requirement_domain_aliases(requirement)
         desired_languages = self._requirement_language_constraints(requirement, candidates)
+        component_counts: dict[str, int] = {}
         for repo in candidates:
             strong_haystack = " ".join([repo.name, repo.description, repo.language or "", " ".join(repo.topics)])
             weak_haystack = repo.readme[:12000]
@@ -977,7 +864,15 @@ class DeepSearchEngine:
             )
             if self._is_catalog_repository(repo):
                 repo.raw_score = min(repo.raw_score, 15)
-        return sorted(candidates, key=lambda item: item.raw_score, reverse=True)
+            component_counts[repo.full_name.lower()] = sum(
+                len(item.component_evidence)
+                for item in self._build_evidence_coverage(repo, requirement)
+            )
+        return sorted(
+            candidates,
+            key=lambda item: (component_counts.get(item.full_name.lower(), 0), item.raw_score),
+            reverse=True,
+        )
 
     def _requirement_language_constraints(
         self,
@@ -1005,9 +900,7 @@ class DeepSearchEngine:
         if not core_feature:
             return 0.0
         core_aliases = self._feature_aliases(core_feature, requirement)
-        domain_aliases = self._clean_feature_aliases(
-            {str(item) for item in (requirement.feature_concepts or {}).get("domains", [])}
-        )
+        domain_aliases = self._requirement_domain_aliases(requirement)
         strong = " ".join([repo.name, repo.description, " ".join(repo.topics)])
         weak = self._readme_capability_text(repo.readme)
         core_strong = bool(self._matching_terms(strong, core_aliases))
@@ -1274,6 +1167,7 @@ class DeepSearchEngine:
                 coverage.append(
                     self._build_component_evidence_coverage(
                         repo,
+                        requirement,
                         feature,
                         component_groups,
                         is_catalog=is_catalog,
@@ -1425,6 +1319,7 @@ class DeepSearchEngine:
     def _build_component_evidence_coverage(
         self,
         repo: CandidateRepository,
+        requirement: Requirement,
         feature: str,
         component_groups: dict[str, list[str]],
         *,
@@ -1440,7 +1335,7 @@ class DeepSearchEngine:
         full_references: list[EvidenceReference] = []
         if not is_catalog:
             materials: list[tuple[str, str, str]] = [
-                ("readme", "仓库简介", repo.description),
+                ("repository_metadata", "仓库简介", repo.description),
                 ("readme", "README", capability_readme),
             ]
             materials.extend(("path", path, path) for path in repo.file_paths if self._path_can_prove_capability(path))
@@ -1460,7 +1355,13 @@ class DeepSearchEngine:
                     matched_labels = [
                         label
                         for label, aliases in component_groups.items()
-                        if any(self._literal_alias_present(alias.lower(), window.lower()) for alias in aliases)
+                        if any(
+                            self._literal_alias_present(
+                                str(alias).strip().lower(),
+                                window.lower(),
+                            )
+                            for alias in aliases
+                        )
                     ]
                     if not matched_labels:
                         continue
@@ -1478,7 +1379,7 @@ class DeepSearchEngine:
                     elif rendered not in full_readme_evidence:
                         full_readme_evidence.append(rendered)
                     reference = self._evidence_reference_from_text(
-                        "repository_metadata" if source_name == "仓库简介" else source_type,
+                        source_type,
                         source_name,
                         text,
                         [
@@ -1565,21 +1466,31 @@ class DeepSearchEngine:
         ]
         windows: list[str] = []
         for index, statement in enumerate(statements):
-            windows.append(statement)
-            if index + 1 < len(statements):
-                windows.append(f"{statement} {statements[index + 1]}")
             if len(statement) > 420:
                 windows.extend(
                     statement[start : start + 360]
                     for start in range(0, len(statement), 260)
                 )
+                continue
+            windows.append(statement)
+            if index + 1 < len(statements) and len(statements[index + 1]) <= 420:
+                windows.append(f"{statement} {statements[index + 1]}")
         return list(OrderedDict.fromkeys(windows))
 
-    def _core_evidence_is_compositional(self, requirement: Requirement, repo: CandidateRepository) -> bool:
+    def _core_evidence_is_compositional(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+        *,
+        require_all_groups: bool = False,
+    ) -> bool:
         concepts = requirement.feature_concepts or {}
+        group_names = ["domains", "actions", "objects"]
+        if require_all_groups and concepts.get("interfaces"):
+            group_names.append("interfaces")
         groups = {
             group: self._clean_feature_aliases({str(item) for item in concepts.get(group, [])})
-            for group in ("domains", "actions", "objects")
+            for group in group_names
         }
         required_groups = [group for group, aliases in groups.items() if aliases]
         if len(required_groups) < 2:
@@ -1608,7 +1519,11 @@ class DeepSearchEngine:
             overlap_threshold = min(3, len(core_signals))
             hits = sum(bool(self._matching_terms(chunk, groups[group])) for group in required_groups)
             if hits == len(required_groups):
+                if require_all_groups:
+                    return True
                 return len(overlap) >= overlap_threshold
+            if require_all_groups:
+                continue
             domain_hit = bool(domain_aliases and self._matching_terms(chunk, domain_aliases))
             action_hit = bool(groups.get("actions") and self._matching_terms(chunk, groups["actions"]))
             if domain_hit:
@@ -1713,9 +1628,410 @@ class DeepSearchEngine:
             if item.readme_evidence:
                 return 0.90
             return 0.70
-        if item.status == "different":
-            return 0.45
+        if item.required_component_count > 0 and item.component_evidence:
+            component_ratio = min(
+                1.0,
+                len(item.component_evidence) / item.required_component_count,
+            )
+            reference_quality = max(
+                (
+                    1.0
+                    if reference.kind == "source"
+                    else 0.95
+                    if reference.kind == "path"
+                    else 0.90
+                    if reference.kind in {"readme", "repository_metadata"}
+                    else 0.70
+                    for reference in item.evidence_references
+                ),
+                default=0.70,
+            )
+            return component_ratio * reference_quality
         return 0.0
+
+    def _verified_match_score(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+        coverage: Sequence[EvidenceCoverage],
+        adjacent_evidence: AdjacentEvidence | None,
+    ) -> int:
+        core_feature = self._core_requirement_feature(requirement)
+        weights = [
+            2.0 if core_feature and self._same_feature_key(item.feature, core_feature) else 1.0
+            for item in coverage
+        ]
+        total_weight = sum(weights)
+        evidence_fit = (
+            sum(
+                weight * self._requirement_evidence_strength(requirement, item)
+                for item, weight in zip(coverage, weights)
+            )
+            / total_weight
+            if total_weight
+            else 0.0
+        )
+        concept_groups = self._requirement_concept_groups(requirement)
+        concept_fit, _ = self._semantic_coverage(
+            concept_groups,
+            " ".join([repo.name, repo.description, " ".join(repo.topics)]),
+            " ".join(
+                [
+                    self._readme_capability_text(repo.readme),
+                    " ".join(repo.file_paths[:80]),
+                    " ".join(repo.key_files.values()),
+                ]
+            ),
+        )
+        score = (
+            evidence_fit * 80 + concept_fit * 20
+            if evidence_fit > 0 and concept_groups
+            else adjacent_evidence.relevance_score
+            if adjacent_evidence is not None
+            else evidence_fit * 100
+        )
+        return max(0, min(100, round(score)))
+
+    def _build_adjacent_evidence(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+    ) -> AdjacentEvidence | None:
+        candidates = self._adjacent_evidence_candidates(requirement, repo, limit=1)
+        return candidates[0] if candidates else None
+
+    def _adjacent_evidence_candidates(
+        self,
+        requirement: Requirement,
+        repo: CandidateRepository,
+        *,
+        limit: int = 3,
+    ) -> list[AdjacentEvidence]:
+        if self._is_catalog_repository(repo):
+            return []
+        groups = self._adjacent_concept_groups(requirement)
+        if not groups or "actions" not in groups:
+            return []
+        materials: list[
+            tuple[Literal["repository_metadata", "readme", "source"], str, str]
+        ] = [
+            (
+                "repository_metadata",
+                "description",
+                repo.description.strip(),
+            ),
+            ("readme", "README", self._readme_capability_text(repo.readme)),
+        ]
+        materials.extend(
+            (
+                "source",
+                path,
+                self._readme_capability_text(text)
+                if path.lower().endswith((".md", ".mdx"))
+                else text,
+            )
+            for path, text in repo.key_files.items()
+        )
+        candidates: list[AdjacentEvidence] = []
+        for kind, locator, material in materials:
+            if not material:
+                continue
+            for window in self._local_evidence_windows(material):
+                if self._window_is_external_reference_list(window):
+                    continue
+                group_matches = {
+                    name: self._literal_matching_terms(window, aliases)
+                    for name, aliases in groups.items()
+                }
+                if not group_matches.get("actions"):
+                    continue
+                if "domains" in groups and not group_matches.get("domains"):
+                    continue
+                if "objects" in groups and not group_matches.get("objects"):
+                    continue
+                matches = [
+                    term
+                    for terms in group_matches.values()
+                    for term in terms
+                ]
+                candidates.append(
+                    AdjacentEvidence(
+                        reference=EvidenceReference(
+                            kind=kind,
+                            locator=locator,
+                            excerpt=compact_text(window, 320),
+                            matched_aliases=list(OrderedDict.fromkeys(matches)),
+                        ),
+                        group_matches=group_matches,
+                        relevance_score=self._adjacent_relevance_score(group_matches, kind),
+                        capability=self._adjacent_capability(requirement, group_matches),
+                    )
+                )
+        ordered = sorted(
+            candidates,
+            key=lambda item: (
+                item.relevance_score,
+                sum(len(matches) for matches in item.group_matches.values()),
+                -len(item.reference.excerpt),
+            ),
+            reverse=True,
+        )
+        selected: list[AdjacentEvidence] = []
+        seen: set[tuple[str, str]] = set()
+        selected_content: list[tuple[str, str]] = []
+        for item in ordered:
+            key = (item.reference.locator, item.reference.excerpt.casefold())
+            if key in seen:
+                continue
+            content_key = re.sub(
+                r"[^a-z0-9\u4e00-\u9fff]+",
+                "",
+                item.reference.excerpt.casefold(),
+            )
+            if content_key and any(
+                item.reference.locator == locator
+                and (
+                    content_key in existing
+                    or existing in content_key
+                    or SequenceMatcher(None, content_key, existing).ratio() >= 0.65
+                )
+                for locator, existing in selected_content
+            ):
+                continue
+            selected.append(item)
+            seen.add(key)
+            if content_key:
+                selected_content.append((item.reference.locator, content_key))
+            if len(selected) >= limit:
+                break
+        return selected
+
+    def _literal_matching_terms(self, text: str, aliases: set[str]) -> list[str]:
+        lowered = str(text or "").lower()
+        return sorted(
+            (alias for alias in aliases if self._literal_alias_present(alias, lowered)),
+            key=lambda item: (len(item), item),
+            reverse=True,
+        )
+
+    @staticmethod
+    def _window_is_external_reference_list(window: str) -> bool:
+        text = str(window or "")
+        links = {
+            target
+            for target in re.findall(r"\[[^\]]+\]\((https?://[^)]+)\)", text)
+        }
+        return len(links) >= 2 or bool(
+            links and re.match(r"^\s*[-*+]\s*\[", text)
+        )
+
+    @staticmethod
+    def _adjacent_relevance_score(
+        group_matches: dict[str, list[str]],
+        source_kind: str,
+    ) -> int:
+        group_weights = {"domains": 1.2, "actions": 1.4, "objects": 1.4}
+        weighted_strength = 0.0
+        total_weight = 0.0
+        for name, weight in group_weights.items():
+            matches = group_matches.get(name, [])
+            if not matches:
+                continue
+            # Passing the local domain/action/object gate establishes adjacency.
+            # Additional current-request matches increase confidence smoothly
+            # without requiring a product-specific keyword or a fixed score floor.
+            depth = len(matches) / (len(matches) + 1)
+            weighted_strength += weight * (0.6 + 0.4 * depth)
+            total_weight += weight
+        if not total_weight:
+            return 0
+        source_strength = {
+            "source": 1.0,
+            "readme": 0.92,
+            "repository_metadata": 0.82,
+        }.get(source_kind, 0.70)
+        return max(
+            0,
+            min(40, round(40 * source_strength * weighted_strength / total_weight)),
+        )
+
+    def _adjacent_capability(
+        self,
+        requirement: Requirement,
+        group_matches: dict[str, list[str]],
+    ) -> str:
+        concepts = requirement.feature_concepts or {}
+        selected = {
+            name: self._preferred_report_term(
+                matches,
+                requirement.report_language,
+                [str(value) for value in concepts.get(name, [])],
+            )
+            for name, matches in group_matches.items()
+        }
+        domain = selected.get("domains", "")
+        action = selected.get("actions", "")
+        object_ = selected.get("objects", "")
+        if not action or not object_:
+            return ""
+        if requirement.report_language == "en":
+            return f"{action} {object_}" + (f" for {domain}" if domain else "")
+        action_object = (
+            f"{action}{object_}"
+            if re.search(r"[\u4e00-\u9fff]", action + object_)
+            else f"{action} {object_}"
+        )
+        return f"{domain}：{action_object}" if domain else action_object
+
+    def _preferred_report_term(
+        self,
+        terms: Sequence[str],
+        language: str,
+        original_terms: Sequence[str],
+    ) -> str:
+        original_by_key = {
+            str(term).strip().casefold(): str(term).strip()
+            for term in original_terms
+            if str(term).strip()
+        }
+        values = list(
+            OrderedDict.fromkeys(
+                original_by_key.get(str(term).strip().casefold(), str(term).strip())
+                for term in terms
+                if str(term).strip()
+            )
+        )
+        if not values:
+            return ""
+        language_matches = [
+            term
+            for term in values
+            if bool(re.search(r"[\u4e00-\u9fff]", term)) == (language == "zh")
+        ]
+        pool = language_matches or values
+        return max(pool, key=lambda term: (len(self._semantic_signals(term)), len(term), term))
+
+    def _adjacent_concept_groups(self, requirement: Requirement) -> dict[str, set[str]]:
+        concepts = requirement.feature_concepts or {}
+        core_feature = self._core_requirement_feature(requirement) or ""
+        core_parts = [core_feature]
+        for feature, aliases in (requirement.evidence_aliases or {}).items():
+            if self._same_feature_key(feature, core_feature):
+                core_parts.extend(str(alias) for alias in aliases)
+        for feature, components in (requirement.evidence_components or {}).items():
+            if not self._same_feature_key(feature, core_feature):
+                continue
+            for label, aliases in components.items():
+                core_parts.append(str(label))
+                core_parts.extend(str(alias) for alias in aliases)
+        core_context = " ".join(core_parts)
+        action_values = self._clean_feature_aliases(
+            {str(item) for item in concepts.get("actions", [])}
+        )
+        object_values = self._clean_feature_aliases(
+            {str(item) for item in concepts.get("objects", [])}
+        )
+        core_actions = {
+            action
+            for action in action_values
+            if self._matching_terms(core_context, {action})
+        }
+        core_objects = {
+            object_
+            for object_ in object_values
+            if self._matching_terms(core_context, {object_})
+        }
+        non_object_aliases = {
+            *self._requirement_domain_aliases(requirement),
+            *action_values,
+            *self._clean_feature_aliases(
+                {str(item) for item in concepts.get("interfaces", [])}
+            ),
+        }
+        object_literals = {
+            str(item).strip()
+            for item in concepts.get("literal_keywords", [])
+            if str(item).strip()
+            and self._matching_terms(core_context, {str(item).strip().lower()})
+            and not any(
+                str(item).strip().casefold() in alias.casefold()
+                or alias.casefold() in str(item).strip().casefold()
+                for alias in non_object_aliases
+            )
+        }
+        object_signal_counts: dict[str, int] = {}
+        for object_value in core_objects:
+            for signal in self._semantic_signals(object_value):
+                object_signal_counts[signal] = object_signal_counts.get(signal, 0) + 1
+        shared_object_signals = {
+            signal
+            for signal, count in object_signal_counts.items()
+            if count >= 2
+            and not any(
+                signal.casefold() in alias.casefold()
+                or alias.casefold() in signal.casefold()
+                for alias in non_object_aliases
+            )
+        }
+        groups = {
+            "domains": self._requirement_domain_aliases(requirement),
+            "actions": core_actions,
+            "objects": self._clean_feature_aliases(
+                {*core_objects, *object_literals, *shared_object_signals}
+            ),
+        }
+        return {name: aliases for name, aliases in groups.items() if aliases}
+
+    def _requirement_evidence_strength(
+        self,
+        requirement: Requirement,
+        item: EvidenceCoverage,
+    ) -> float:
+        if item.status == "supported" or item.covered or not item.component_evidence:
+            return self._evidence_strength(item)
+        component_groups = self._feature_evidence_components(item.feature, requirement)
+        if not component_groups:
+            return self._evidence_strength(item)
+        concept_weights = {
+            "domains": 1.6,
+            "actions": 1.25,
+            "objects": 1.35,
+            "outputs": 1.1,
+            "interfaces": 0.7,
+        }
+        concepts = requirement.feature_concepts or {}
+        weights: dict[str, float] = {}
+        for label, aliases in component_groups.items():
+            component_text = " ".join([label, *aliases])
+            weight = sum(
+                concept_weights[group]
+                for group in concept_weights
+                if concepts.get(group)
+                and self._matching_terms(
+                    component_text,
+                    self._clean_feature_aliases({str(value) for value in concepts[group]}),
+                )
+            )
+            weights[label] = weight or 1.0
+        total = sum(weights.values())
+        matched = sum(weights.get(label, 0.0) for label in item.component_evidence)
+        if total <= 0 or matched <= 0:
+            return 0.0
+        references = item.evidence_references
+        source_quality = max(
+            (
+                1.0
+                if reference.kind == "source"
+                else 0.95
+                if reference.kind == "path"
+                else 0.90
+                if reference.kind in {"readme", "repository_metadata"}
+                else 0.70
+                for reference in references
+            ),
+            default=0.70,
+        )
+        return min(1.0, matched / total) * source_quality
 
     def _evidence_score(
         self,
@@ -1810,7 +2126,7 @@ class DeepSearchEngine:
 
     def _evidence_gate_features(self, requirement: Requirement) -> list[str]:
         features: list[str] = []
-        for feature in requirement.must_have_features:
+        for feature in [*requirement.must_have_features, *requirement.nice_to_have_features]:
             normalized = re.sub(r"\s+", " ", feature.strip().lower())
             if not normalized:
                 continue
@@ -1833,9 +2149,13 @@ class DeepSearchEngine:
         return aliases
 
     def _same_feature_key(self, left: str, right: str) -> bool:
-        left_norm = re.sub(r"\s+", " ", str(left).strip().lower())
-        right_norm = re.sub(r"\s+", " ", str(right).strip().lower())
+        left_norm = self._normalized_feature_key(left)
+        right_norm = self._normalized_feature_key(right)
         return bool(left_norm and right_norm and left_norm == right_norm)
+
+    @staticmethod
+    def _normalized_feature_key(value: str) -> str:
+        return re.sub(r"\s+", " ", str(value).strip().casefold())
 
     def _clean_feature_aliases(self, aliases: set[str]) -> set[str]:
         cleaned: set[str] = set()
@@ -1859,123 +2179,31 @@ class DeepSearchEngine:
         return sorted(exact | semantic, key=lambda item: (len(item), item), reverse=True)
 
     def _matching_feature_terms(self, feature: str, text: str, aliases: set[str]) -> list[str]:
-        hits = self._matching_terms(text, aliases)
-        if not hits:
-            return []
-        feature_signals = self._semantic_signals(feature)
-        compact_feature = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(feature or "").lower())
-        simple_feature = len(compact_feature) <= 8
         lowered_text = (text or "").lower()
-        trusted_exact_hits = [
+        exact = [
             alias
-            for alias in hits
+            for alias in self._matching_terms(text, aliases)
             if self._literal_alias_present(alias, lowered_text)
-            and self._semantic_signals(alias)
-            and not self._semantic_signals(alias).issubset(self._generic_search_signals())
         ]
-        if trusted_exact_hits and self._different_script(feature, trusted_exact_hits[0]):
-            named_entities = self._named_entity_tokens(feature)
-            combined_exact_signals = {
-                signal
-                for alias in trusted_exact_hits
-                for signal in self._semantic_signals(alias)
-            }
-            has_broad_combined_signal = len(combined_exact_signals) >= 3
-            if (named_entities and len(combined_exact_signals) >= 2 and named_entities.issubset(combined_exact_signals)) or (
-                len(trusted_exact_hits) >= 2 and has_broad_combined_signal
-            ) or (
-                simple_feature and has_broad_combined_signal
-            ):
-                return trusted_exact_hits
-        evidence_signals = self._semantic_signals(text)
-        named_entities = self._named_entity_tokens(feature)
-        if len(feature_signals) <= 2:
-            if any(self._same_feature_key(feature, alias) for alias in hits):
-                return hits
-            exact_alias_signals = {
-                signal
-                for alias in hits
-                if self._literal_alias_present(alias, lowered_text)
-                for signal in self._semantic_signals(alias)
-            }
-            if (
-                named_entities
-                and len(exact_alias_signals | evidence_signals) >= 2
-                and named_entities.issubset(exact_alias_signals | evidence_signals)
-            ):
-                return hits
-            if any(
-                self._literal_alias_present(alias, lowered_text)
-                and self._semantic_signals(alias)
-                and not self._semantic_signals(alias).issubset(feature_signals)
-                for alias in hits
-            ):
-                return hits
-            combined_hit_signals = {
-                signal
-                for alias in hits
-                for signal in self._semantic_signals(alias)
-            }
-            if (
-                hits
-                and any(self._different_script(feature, alias) for alias in hits)
-                and simple_feature
-                and len(combined_hit_signals) >= 2
-            ):
-                return hits
-            if feature_signals and feature_signals.issubset(evidence_signals):
-                return hits
+        if not exact:
             return []
-        overlap = feature_signals.intersection(evidence_signals)
-        required_overlap = min(3, max(2, len(feature_signals) // 3))
-        combined_alias_signals = {
-            signal
-            for alias in hits
-            for signal in self._semantic_signals(alias)
+        combined = {
+            signal for alias in exact for signal in self._semantic_signals(alias)
         }
-        if (
-            len(named_entities) >= 2
-            and len(combined_alias_signals | evidence_signals) >= 2
-            and named_entities.issubset(combined_alias_signals | evidence_signals)
-        ):
-            return hits
-        if len(hits) >= 2 and len(combined_alias_signals) >= 2 and len(overlap) >= 2:
-            return hits
-        if hits and any(self._different_script(feature, alias) for alias in hits):
-            named_entities = self._named_entity_tokens(feature)
-            if (
-                named_entities
-                and len(combined_alias_signals) >= 2
-                and named_entities.issubset(combined_alias_signals)
-            ) or (
-                len(hits) >= 2 and len(combined_alias_signals) >= 3
-            ) or (
-                simple_feature and len(combined_alias_signals) >= 2
-            ):
-                return hits
-        supported: list[str] = []
-        for alias in hits:
-            alias_signals = self._semantic_signals(alias)
-            exact_hit = self._literal_alias_present(alias, lowered_text)
-            if self._different_script(feature, alias):
-                named_entities = self._named_entity_tokens(feature)
-                if not (
-                    named_entities
-                    and len(alias_signals) >= 2
-                    and named_entities.issubset(alias_signals)
-                ):
-                    continue
-            if exact_hit and (self._same_feature_key(feature, alias) or len(alias_signals) >= 2):
-                supported.append(alias)
-            elif exact_hit and alias_signals and not alias_signals.issubset(feature_signals):
-                supported.append(alias)
-            elif len(overlap) >= required_overlap:
-                supported.append(alias)
-        return supported
-
-    @staticmethod
-    def _different_script(left: str, right: str) -> bool:
-        return bool(re.search(r"[^\x00-\x7f]", left or "")) != bool(re.search(r"[^\x00-\x7f]", right or ""))
+        named_entities = self._named_entity_tokens(feature)
+        if named_entities and named_entities.issubset(combined):
+            return exact
+        if any(self._same_feature_key(feature, alias) for alias in exact):
+            return exact
+        if len(exact) >= 2 and len(combined) >= 2:
+            return exact
+        feature_signals = self._semantic_signals(feature)
+        return [
+            alias
+            for alias in exact
+            if len(self._semantic_signals(alias)) >= 2
+            and len(feature_signals) <= max(3, len(self._semantic_signals(alias)) * 2)
+        ]
 
     @staticmethod
     def _literal_alias_present(alias: str, lowered_text: str) -> bool:
@@ -2018,15 +2246,6 @@ class DeepSearchEngine:
                 ) or (len(overlap) >= 1 and len(alias_signals) <= 2 and coverage >= 0.5):
                     return True
         return False
-
-    @staticmethod
-    def _evidence_score_cap(coverage: list[EvidenceCoverage]) -> int:
-        """Keep wholly unconfirmed projects cautious without treating unknown as absent."""
-        if not coverage:
-            return 100
-        supported = sum(1 for item in coverage if item.status == "supported" or item.covered)
-        explicit = sum(1 for item in coverage if item.status in {"different", "missing"})
-        return 74 if supported == 0 and explicit == 0 else 100
 
     @staticmethod
     def _score_reason(analysis: ProjectAnalysis) -> str:
@@ -2088,17 +2307,34 @@ class DeepSearchEngine:
                     aliases.add(text)
         return aliases
 
+    def _requirement_domain_aliases(self, requirement: Requirement) -> set[str]:
+        return self._clean_feature_aliases(
+            {str(item) for item in (requirement.feature_concepts or {}).get("domains", [])}
+        )
+
     async def _analyze_top_projects(
         self,
         requirement: Requirement,
         repos: list[CandidateRepository],
         llm: LLMClient | None,
     ) -> list[ProjectAnalysis]:
+        batch_size = 5
+        if llm and len(repos) > batch_size:
+            batches = [repos[index : index + batch_size] for index in range(0, len(repos), batch_size)]
+            analyzed_batches = await asyncio.gather(
+                *(self._analyze_top_projects(requirement, batch, llm) for batch in batches)
+            )
+            return sorted(
+                [analysis for batch in analyzed_batches for analysis in batch],
+                key=lambda item: item.match_score,
+                reverse=True,
+            )
         if llm and repos:
             payload = {
                 "requirement": {
                     "raw": requirement.raw,
                     "must_have_features": requirement.must_have_features,
+                    "nice_to_have_features": requirement.nice_to_have_features,
                     "target_platforms": requirement.target_platforms,
                     "feature_concepts": requirement.feature_concepts,
                     "evidence_components": requirement.evidence_components,
@@ -2144,7 +2380,8 @@ class DeepSearchEngine:
                     '{"projects":[{"repo":"owner/name","match_score":0-100,"recommendation":"...",'
                     '"directly_usable":true/false,"covered_features":[],"different_features":[],'
                     '"missing_features":[],"unknown_features":[],'
-                    '"required_changes":[],"risks":[],"evidence":[]}]}.\n'
+                    '"required_changes":[],"risks":[],"evidence":[],"component_citations":[],'
+                    '"difference_citations":[]}]}.\n'
                     "Use only the supplied repository material and evidence coverage. "
                     "If the supplied material does not prove a requested capability, keep it unknown.\n"
                     "Do not use popularity metadata, stars, license, or language as the main recommendation. Focus on "
@@ -2161,7 +2398,13 @@ class DeepSearchEngine:
                     "that were not checked or not mentioned in unknown_features, never in missing_features. Put a "
                     "different scope, workflow, or license constraint in different_features. Every difference must "
                     "contrast a requested capability with the project's actual alternative; do not list unrelated "
-                    "extra capabilities as differences.\n"
+                    "extra capabilities as differences. component_citations contains feature, component, locator, "
+                    "and excerpt copied exactly from supplied README or key-file content. One local excerpt must "
+                    "support every component of a compound feature before it is covered. Still emit a citation for "
+                    "each individually supported component when the other components remain unknown. Every "
+                    "different_features finding must have a difference_citations entry containing the exact feature, "
+                    "affected component when applicable, finding, locator, and a local excerpt copied exactly from "
+                    "supplied README or key-file content.\n"
                     f"{json.dumps(payload, ensure_ascii=False)}"
                 ),
             )
@@ -2176,6 +2419,17 @@ class DeepSearchEngine:
                     for source_item in repo.source_evidence:
                         if source_item not in evidence:
                             evidence.append(source_item)
+                    coverage = self._apply_verified_component_citations(
+                        repo, requirement, repo.evidence_coverage, item.get("component_citations")
+                    )
+                    reported_differences = [str(x) for x in item.get("different_features", [])][:8]
+                    coverage, verified_differences = self._apply_verified_difference_citations(
+                        repo,
+                        requirement,
+                        coverage,
+                        reported_differences,
+                        item.get("difference_citations"),
+                    )
                     analyses.append(
                         ProjectAnalysis(
                             repo=repo,
@@ -2183,16 +2437,27 @@ class DeepSearchEngine:
                             recommendation=str(item.get("recommendation") or "需要人工复核"),
                             directly_usable=bool(item.get("directly_usable")),
                             covered_features=[str(x) for x in item.get("covered_features", [])][:8],
-                            different_features=[str(x) for x in item.get("different_features", [])][:8],
+                            different_features=verified_differences,
                             unknown_features=[str(x) for x in item.get("unknown_features", [])][:8],
                             missing_features=[str(x) for x in item.get("missing_features", [])][:8],
                             required_changes=[str(x) for x in item.get("required_changes", [])][:8],
                             risks=[str(x) for x in item.get("risks", [])][:8],
                             evidence=evidence[:6],
-                            evidence_coverage=repo.evidence_coverage,
+                            evidence_coverage=coverage,
                         )
                     )
                 if analyses:
+                    focused_capabilities = await self._review_adjacent_capabilities(
+                        requirement,
+                        [analysis.repo for analysis in analyses],
+                        llm,
+                    )
+                    for analysis in analyses:
+                        reviewed = focused_capabilities.get(analysis.repo.full_name.lower())
+                        if reviewed is None:
+                            continue
+                        analysis.verified_capabilities, analysis.capability_evidence = reviewed
+                        analysis.capability_citations_reviewed = True
                     analyzed_names = {item.repo.full_name.lower() for item in analyses}
                     analyses.extend(
                         self._heuristic_analysis(requirement, repo)
@@ -2201,6 +2466,258 @@ class DeepSearchEngine:
                     )
                     return sorted(analyses, key=lambda item: item.match_score, reverse=True)
         return [self._heuristic_analysis(requirement, repo) for repo in repos]
+
+    async def _review_adjacent_capabilities(
+        self,
+        requirement: Requirement,
+        repos: Sequence[CandidateRepository],
+        llm: LLMClient,
+    ) -> dict[str, tuple[list[str], list[EvidenceReference]]]:
+        """Produce adjacent public capabilities from bounded repository-local excerpts."""
+        candidates: list[dict[str, object]] = []
+        by_id: dict[str, tuple[str, AdjacentEvidence]] = {}
+        repo_keys: set[str] = set()
+        for repo in repos:
+            adjacent_items = self._adjacent_evidence_candidates(requirement, repo)
+            if not adjacent_items:
+                continue
+            key = repo.full_name.lower()
+            repo_keys.add(key)
+            for index, adjacent in enumerate(adjacent_items):
+                candidate_id = f"{repo.full_name}#{index}"
+                by_id[candidate_id.casefold()] = (key, adjacent)
+                candidates.append(
+                    {
+                        "id": candidate_id,
+                        "repo": repo.full_name,
+                        "locator": adjacent.reference.locator,
+                        "excerpt": adjacent.reference.excerpt,
+                    }
+                )
+        if not candidates:
+            return {}
+        reviewed_items: list[dict[str, object]] = []
+        pending = candidates
+        batch_size = 10
+        for _attempt in range(2):
+            missing: list[dict[str, object]] = []
+            for offset in range(0, len(pending), batch_size):
+                batch = pending[offset : offset + batch_size]
+                batch_ids = {str(item["id"]).casefold() for item in batch}
+                data = await llm.json_chat(
+                    "You are a repository-evidence verifier. Return JSON only.",
+                    (
+                        "For every supplied evidence item, decide whether its excerpt describes a runtime capability of that "
+                        "repository itself. Return "
+                        '{"evidence":[{"id":"exact input id","supported":true/false,'
+                        '"capabilities":["exact phrase from excerpt"]}]}. '
+                        "A supported capability must describe behavior users can execute or configure in this repository. "
+                        "Reject release notes about search phrases, tags, keywords, metadata, examples, planned work, and "
+                        "external project lists. When supported is true, return up to three relevant capabilities and include "
+                        "all relevant runtime behaviors stated in the excerpt. Each capability must be a concise exact contiguous "
+                        "phrase copied from excerpt (maximum 120 characters). Prefer the most specific phrase that preserves a "
+                        "concrete object, condition, example, scope, or threshold relevant to the request; do not reduce it to a "
+                        "broad action when the same excerpt supplies that useful detail. If the excerpt states a limitation or unavailable context for a capability, "
+                        "the exact phrase must retain that limitation instead of shortening it to an unconditional capability. "
+                        "Include exactly one result for every input evidence id.\n"
+                        + json.dumps(
+                            {"requirement": requirement.raw, "evidence": batch},
+                            ensure_ascii=False,
+                        )
+                    ),
+                )
+                returned_ids: set[str] = set()
+                if data and isinstance(data.get("evidence"), list):
+                    for item in data["evidence"]:
+                        if not isinstance(item, dict):
+                            continue
+                        candidate_id = str(item.get("id") or "").strip().casefold()
+                        if candidate_id in batch_ids and candidate_id not in returned_ids:
+                            reviewed_items.append(item)
+                            returned_ids.add(candidate_id)
+                missing.extend(
+                    item
+                    for item in batch
+                    if str(item["id"]).casefold() not in returned_ids
+                )
+            pending = missing
+            if not pending:
+                break
+        accumulated: dict[str, tuple[list[str], list[EvidenceReference]]] = {
+            key: ([], []) for key in repo_keys
+        }
+        for item in reviewed_items:
+            candidate_id = str(item.get("id") or "").strip().casefold()
+            matched = by_id.get(candidate_id)
+            if matched is None or not bool(item.get("supported")):
+                continue
+            key, adjacent = matched
+            excerpt = adjacent.reference.excerpt
+            raw_capabilities = item.get("capabilities")
+            if not isinstance(raw_capabilities, list):
+                continue
+            capabilities = list(
+                OrderedDict.fromkeys(
+                    capability
+                    for value in raw_capabilities
+                    if (capability := str(value or "").strip())
+                    and len(capability) <= 120
+                    and capability.casefold() in excerpt.casefold()
+                )
+            )[:3]
+            if not capabilities:
+                continue
+            public_capabilities = capabilities
+            capability_items, evidence_items = accumulated[key]
+            existing_keys = {
+                re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", capability.casefold())
+                for capability in capability_items
+            }
+            new_capabilities = [
+                capability
+                for capability in public_capabilities
+                if (
+                    normalized := re.sub(
+                        r"[^a-z0-9\u4e00-\u9fff]+",
+                        "",
+                        capability.casefold(),
+                    )
+                )
+                and normalized not in existing_keys
+            ]
+            if not new_capabilities:
+                continue
+            capability_items.extend(new_capabilities)
+            reference = EvidenceReference(
+                kind=adjacent.reference.kind,
+                locator=adjacent.reference.locator,
+                excerpt=excerpt,
+            )
+            if reference not in evidence_items:
+                evidence_items.append(reference)
+        return {
+            key: (capabilities[:5], evidence[:5])
+            for key, (capabilities, evidence) in accumulated.items()
+        }
+
+    def _apply_verified_component_citations(
+        self,
+        repo: CandidateRepository,
+        requirement: Requirement,
+        coverage: list[EvidenceCoverage],
+        citations: object,
+    ) -> list[EvidenceCoverage]:
+        if not isinstance(citations, list):
+            return coverage
+        materials = {"README": repo.readme, **repo.key_files}
+        verified: dict[str, dict[str, dict[str, EvidenceReference]]] = {}
+        for citation in citations:
+            if not isinstance(citation, dict):
+                continue
+            feature = str(citation.get("feature") or "").strip()
+            component = str(citation.get("component") or "").strip()
+            locator = str(citation.get("locator") or "").strip()
+            excerpt = str(citation.get("excerpt") or "").strip()
+            groups = requirement.evidence_components.get(feature, {})
+            component_aliases = {
+                str(alias).strip().lower()
+                for alias in groups.get(component, [])
+                if str(alias).strip()
+            }
+            if (
+                component not in groups
+                or not excerpt
+                or excerpt not in materials.get(locator, "")
+                or not any(
+                    self._literal_alias_present(alias, excerpt.lower())
+                    for alias in component_aliases
+                )
+            ):
+                continue
+            kind = "readme" if locator == "README" else "source"
+            key = f"{locator}\0{excerpt}"
+            verified.setdefault(feature, {}).setdefault(component, {})[key] = EvidenceReference(
+                kind=kind, locator=locator, excerpt=excerpt
+            )
+        for item in coverage:
+            groups = requirement.evidence_components.get(item.feature, {})
+            cited = verified.get(item.feature, {})
+            if not groups or not cited:
+                continue
+            for component, entries in cited.items():
+                for reference in entries.values():
+                    rendered = f"{reference.locator}: {compact_text(reference.excerpt, 320)}"
+                    component_items = item.component_evidence.setdefault(component, [])
+                    if rendered not in component_items:
+                        component_items.append(rendered)
+                    if reference not in item.evidence_references:
+                        item.evidence_references.append(reference)
+            if set(cited) != set(groups):
+                continue
+            shared = set.intersection(*(set(entries) for entries in cited.values()))
+            if not shared:
+                continue
+            reference = cited[next(iter(cited))][next(iter(shared))]
+            rendered = f"{reference.locator}: {compact_text(reference.excerpt, 320)}"
+            if reference.kind == "readme":
+                item.readme_evidence.append(rendered)
+            else:
+                item.source_evidence.append(rendered)
+            item.covered = True
+            item.status = "supported"
+            item.unknown_reason = ""
+        return coverage
+
+    def _apply_verified_difference_citations(
+        self,
+        repo: CandidateRepository,
+        requirement: Requirement,
+        coverage: list[EvidenceCoverage],
+        reported_differences: list[str],
+        citations: object,
+    ) -> tuple[list[EvidenceCoverage], list[str]]:
+        """Keep semantic differences only when the cited repository text is exact and local."""
+        if not isinstance(citations, list) or not reported_differences:
+            return coverage, []
+        materials = {"README": repo.readme, **repo.key_files}
+        coverage_by_feature = {
+            self._normalized_feature_key(item.feature): item for item in coverage
+        }
+        verified: list[str] = []
+        for citation in citations:
+            if not isinstance(citation, dict):
+                continue
+            feature = str(citation.get("feature") or "").strip()
+            component = str(citation.get("component") or "").strip()
+            finding = str(citation.get("finding") or "").strip()
+            locator = str(citation.get("locator") or "").strip()
+            excerpt = str(citation.get("excerpt") or "").strip()
+            item = coverage_by_feature.get(self._normalized_feature_key(feature))
+            groups = requirement.evidence_components.get(item.feature, {}) if item else {}
+            if (
+                item is None
+                or finding not in reported_differences
+                or not excerpt
+                or excerpt not in materials.get(locator, "")
+                or (component and component not in groups)
+                or not self._feature_has_confirmed_difference(feature, [finding])
+            ):
+                continue
+            if component:
+                item.component_evidence.pop(component, None)
+            item.covered = False
+            item.status = "different"
+            item.difference_reason = finding
+            reference = EvidenceReference(
+                kind="readme" if locator == "README" else "source",
+                locator=locator,
+                excerpt=excerpt,
+            )
+            if reference not in item.evidence_references:
+                item.evidence_references.append(reference)
+            if finding not in verified:
+                verified.append(finding)
+        return coverage, verified[:8]
 
     def _heuristic_analysis(self, requirement: Requirement, repo: CandidateRepository) -> ProjectAnalysis:
         features = requirement.must_have_features or list(keyword_bag(requirement.raw))[:6]
@@ -2254,7 +2771,15 @@ class DeepSearchEngine:
             "core_requirement_unconfirmed_count": 0,
             "repeated_analysis_text_count": 0,
             "unverified_model_difference_count": 0,
-            "ungated_generic_must_have_count": len(requirement.must_have_features) - len(gated_features),
+            "ungated_generic_must_have_count": max(
+                0,
+                len(requirement.must_have_features)
+                - sum(
+                    1
+                    for feature in requirement.must_have_features
+                    if any(self._same_feature_key(feature, gated) for gated in gated_features)
+                ),
+            ),
         }
         if not gated_features:
             return analyses, stats
@@ -2266,20 +2791,31 @@ class DeepSearchEngine:
                 coverage = self._build_evidence_coverage(analysis.repo, requirement)
             analysis.evidence_coverage = coverage
             reported_differences = list(analysis.different_features)
-            stats["unverified_model_difference_count"] += len(reported_differences)
             for item in coverage:
                 if item.covered and item.status == "unknown":
                     item.status = "supported"
             evidence_covered = [item.feature for item in coverage if item.status == "supported"]
             explicit_missing = [item.feature for item in coverage if item.status == "missing"]
             unknown = [item.feature for item in coverage if item.status == "unknown"]
-            evidence_differences = [item.feature for item in coverage if item.status == "different"]
-            constraint_differences, constraint_unknown = self._constraint_findings(requirement, analysis.repo)
-            analysis.covered_features = evidence_covered[:8]
-            analysis.different_features = list(
-                dict.fromkeys([*evidence_differences, *constraint_differences])
+            evidence_differences = [
+                item.difference_reason or item.feature
+                for item in coverage
+                if item.status == "different"
+            ]
+            stats["unverified_model_difference_count"] += len(
+                [finding for finding in reported_differences if finding not in evidence_differences]
+            )
+            verified_components = [
+                label
+                for item in coverage
+                if item.status not in {"supported", "different", "missing"}
+                for label in item.component_evidence
+            ]
+            analysis.covered_features = list(
+                OrderedDict.fromkeys([*evidence_covered, *verified_components])
             )[:8]
-            analysis.unknown_features = list(dict.fromkeys([*unknown, *constraint_unknown]))[:8]
+            analysis.different_features = list(dict.fromkeys(evidence_differences))[:8]
+            analysis.unknown_features = list(dict.fromkeys(unknown))[:8]
             # A model guess is never enough to call a feature absent. Only an
             # explicit statement in the project's own material enters this list.
             analysis.missing_features = explicit_missing[:8]
@@ -2287,36 +2823,37 @@ class DeepSearchEngine:
             stats["explicit_missing_count"] += len(explicit_missing)
 
             core_feature = self._core_requirement_feature(requirement)
-            # Every must-have is a hard requirement. A single selected feature
-            # must not outweigh the rest of a compound workflow.
-            weights = [1.0 for _ in coverage]
-            total_weight = max(1.0, sum(weights))
-            evidence_fit = round(
-                100
-                * sum(
-                    weight * self._evidence_strength(item)
-                    for item, weight in zip(coverage, weights)
-                )
-                / total_weight
+            adjacent_evidence = self._build_adjacent_evidence(requirement, analysis.repo)
+            analysis.adjacent_evidence = adjacent_evidence
+            functional_score = self._verified_match_score(
+                requirement,
+                analysis.repo,
+                coverage,
+                adjacent_evidence,
             )
-            original_score = max(0, min(100, int(analysis.match_score)))
-            functional_score = round(original_score * 0.25 + evidence_fit * 0.75)
-            score_cap = self._evidence_score_cap(coverage)
-            if functional_score > score_cap:
-                functional_score = score_cap
-                stats["score_capped_count"] += 1
-            core_supported = bool(coverage) and all(
-                item.status == "supported" or item.covered
+            required_keys = {
+                self._normalized_feature_key(feature)
+                for feature in requirement.must_have_features
+            }
+            required_coverage = [
+                item
                 for item in coverage
+                if self._normalized_feature_key(item.feature) in required_keys
+            ]
+            core_supported = bool(required_keys) and len(required_coverage) == len(required_keys) and all(
+                item.status == "supported" or item.covered
+                for item in required_coverage
             )
-            confirmed_weight = sum(
-                weight * self._evidence_strength(item)
-                for item, weight in zip(coverage, weights)
-            )
-            confirmed_cap = round(20 + 80 * confirmed_weight / total_weight)
-            if functional_score > confirmed_cap:
-                functional_score = confirmed_cap
-                stats["score_capped_count"] += 1
+            if (
+                core_supported
+                and not requirement.evidence_components
+                and self._requires_compositional_core(requirement)
+            ):
+                core_supported = self._core_evidence_is_compositional(
+                    requirement,
+                    analysis.repo,
+                    require_all_groups=True,
+                )
             is_catalog = self._is_catalog_repository(analysis.repo)
             analysis.core_feature = core_feature or ""
             analysis.core_confirmed = core_supported
@@ -2324,20 +2861,7 @@ class DeepSearchEngine:
             if is_catalog:
                 functional_score = 0
             elif core_feature and not core_supported:
-                # Keep relative ordering for adjacent projects, but make sure
-                # peripheral features can never promote them to reliable results.
-                # Projects that still carry a domain signal are penalized less
-                # harshly than completely generic projects.
-                has_domain_signal = analysis.repo.core_signal_score >= 2.0
-                penalty_factor = 0.75 if has_domain_signal else 0.60
-                functional_score = min(49, max(1, round(functional_score * penalty_factor)))
-                supported_non_core = sum(
-                    1
-                    for item in coverage
-                    if item.feature != core_feature and (item.status == "supported" or item.covered)
-                )
-                if supported_non_core <= 1 and analysis.repo.core_signal_score <= 0:
-                    functional_score = min(functional_score, 19)
+                functional_score = min(49, functional_score)
                 stats["core_requirement_unconfirmed_count"] += 1
             analysis.functional_score = functional_score
             analysis.match_score = functional_score
@@ -2345,21 +2869,14 @@ class DeepSearchEngine:
             suitability_penalty = (
                 len(explicit_missing) * 10
                 + len(analysis.different_features) * 5
-                + len(constraint_differences) * 10
             )
             analysis.suitability_score = max(0, functional_score - suitability_penalty)
             analysis.score_reason = self._score_reason(analysis)
             analysis.evidence = self._coverage_evidence_summary(analysis)
-            analysis.required_changes = [
-                change
-                for change in analysis.required_changes
-                if not any(
-                    re.sub(r"\s+", "", feature.casefold())
-                    in re.sub(r"\s+", "", str(change).casefold())
-                    for feature in evidence_covered
-                    if feature
-                )
-            ]
+            # Broad model prose is not evidence. Rebuild negative guidance only
+            # from verified missing/different states below and during tiering.
+            analysis.risks = []
+            analysis.required_changes = []
             if unknown or analysis.different_features:
                 analysis.directly_usable = False
 
@@ -2377,7 +2894,6 @@ class DeepSearchEngine:
             if not unknown and not explicit_missing and not evidence_differences:
                 stats["fully_covered_count"] += 1
             gated.append(analysis)
-        stats["repeated_analysis_text_count"] = self._degrade_repeated_analysis_text(gated, usage)
         if penalized:
             usage.warnings.append("Candidates with explicitly absent requirements: " + ", ".join(penalized[:5]))
         if stats["unverified_model_difference_count"]:
@@ -2409,58 +2925,6 @@ class DeepSearchEngine:
                 break
         return summary
 
-    def _degrade_repeated_analysis_text(
-        self,
-        analyses: list[ProjectAnalysis],
-        usage: BudgetUsage,
-    ) -> int:
-        grouped: dict[tuple[str, str], list[ProjectAnalysis]] = {}
-        for analysis in analyses:
-            if analysis.core_confirmed and analysis.match_score >= 50:
-                continue
-            reason_key = re.sub(r"\s+", "", analysis.score_reason.casefold())
-            covered_key = "|".join(re.sub(r"\s+", "", item.casefold()) for item in analysis.covered_features)
-            if not reason_key and not covered_key:
-                continue
-            grouped.setdefault((reason_key, covered_key), []).append(analysis)
-
-        repeated = 0
-        affected: list[str] = []
-        for items in grouped.values():
-            if len(items) < 2:
-                continue
-            for analysis in items:
-                signal = self._public_candidate_signal(analysis.repo)
-                if signal:
-                    analysis.score_reason = (
-                        f"{analysis.score_reason.rstrip('。') if analysis.score_reason else '公开证据较弱'}；"
-                        f"该项目可核对线索：{signal}。"
-                    )
-                else:
-                    analysis.score_reason = "公开证据不足以形成独立匹配理由，仅能作为低可信线索。"
-                    analysis.match_score = min(analysis.match_score, 19)
-                    analysis.functional_score = min(analysis.functional_score or analysis.match_score, analysis.match_score)
-                    analysis.suitability_score = min(analysis.suitability_score or analysis.match_score, analysis.match_score)
-                analysis.directly_usable = False
-                repeated += 1
-                affected.append(analysis.repo.full_name)
-        if affected:
-            usage.warnings.append(
-                "Repeated low-confidence analysis text was made project-specific or downgraded: "
-                + ", ".join(affected[:5])
-            )
-        return repeated
-
-    @staticmethod
-    def _public_candidate_signal(repo: CandidateRepository) -> str:
-        if repo.description:
-            return compact_text(repo.description, 120)
-        if repo.topics:
-            return "topics: " + ", ".join(repo.topics[:5])
-        if repo.found_by:
-            return ", ".join(repo.found_by[:2])
-        return repo.full_name
-
     def _feature_has_confirmed_difference(self, feature: str, differences: list[str]) -> bool:
         """Prevent one capability from appearing as both confirmed and different."""
         feature_text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", feature.lower())
@@ -2482,515 +2946,164 @@ class DeepSearchEngine:
                     return True
         return False
 
-    def _reported_difference_overlaps_primary(
+    def _select_report_projects(
         self,
         requirement: Requirement,
-        differences: list[str],
-    ) -> bool:
-        if not differences:
-            return False
-        concepts = requirement.feature_concepts or {}
-        primary_text = " ".join(
-            [
-                requirement.intent,
-                *requirement.must_have_features,
-                *[
-                    str(item)
-                    for group in ("domains", "actions", "objects", "interfaces")
-                    for item in concepts.get(group, [])
-                ],
-            ]
-        )
-        primary_signals = self._semantic_signals(primary_text)
-        if not primary_signals:
-            return False
-        difference_signals = self._semantic_signals(" ".join(differences))
-        return len(primary_signals.intersection(difference_signals)) >= 2
-
-    @classmethod
-    def _feature_has_confirmed_absence(cls, feature: str, differences: list[str]) -> bool:
-        return False
-
-    def _constraint_findings(
-        self, requirement: Requirement, repo: CandidateRepository
-    ) -> tuple[list[str], list[str]]:
-        return [], []
-
-    def _with_reference_candidates(
-        self,
-        reliable: list[ProjectAnalysis],
-        low_confidence: list[ProjectAnalysis],
+        analyses: list[ProjectAnalysis],
         usage: BudgetUsage,
-        requirement: Requirement | None = None,
     ) -> list[ProjectAnalysis]:
-        max_results = self.settings.max_deep_analyze_repos
-        selected: list[ProjectAnalysis] = []
-        used_families: set[str] = set()
-        for item in sorted(reliable, key=lambda candidate: candidate.match_score, reverse=True):
-            family = self._project_family_key(item)
-            if family in used_families or self._is_catalog_candidate(item):
+        ranked: list[tuple[tuple[int, int, int, int], ProjectAnalysis]] = []
+        for analysis in analyses:
+            if self._is_catalog_candidate(analysis):
                 continue
-            selected.append(item)
-            used_families.add(family)
-            if len(selected) >= max_results:
-                break
-        slots = max(0, max_results - len(selected))
-        remaining = [item for item in low_confidence if not self._is_catalog_candidate(item)]
-
-        # If a selected reliable candidate fails core confirmation, allow a
-        # core-confirmed reference candidate from the low-confidence pool to
-        # displace the weakest unconfirmed reliable result, as long as the
-        # replacement scores higher and does not duplicate a family already used.
-        if selected and remaining:
-            unconfirmed_selected = [
-                item for item in selected if item.core_feature and not item.core_confirmed
-            ]
-            core_confirmed_alternatives = [
-                item
-                for item in remaining
-                if item.core_confirmed
-                and item.match_score >= 35
-                and self._is_usable_reference_candidate(item, requirement)
-            ]
-            if unconfirmed_selected and core_confirmed_alternatives:
-                core_confirmed_alternatives = sorted(
-                    core_confirmed_alternatives, key=lambda candidate: candidate.match_score, reverse=True
+            adjacent_evidence = analysis.adjacent_evidence
+            if analysis.capability_citations_reviewed:
+                (
+                    analysis.verified_capabilities,
+                    analysis.capability_evidence,
+                ) = self._relevant_capability_citations(requirement, analysis)
+            else:
+                analysis.verified_capabilities = self._relevant_verified_capabilities(
+                    requirement,
+                    analysis.verified_capabilities,
+                    adjacent_evidence.reference.excerpt if adjacent_evidence is not None else "",
                 )
-                selected_by_family = {self._project_family_key(item): item for item in selected}
-                for target in sorted(unconfirmed_selected, key=lambda candidate: candidate.match_score):
-                    if not core_confirmed_alternatives:
-                        break
-                    replacement = core_confirmed_alternatives[0]
-                    replacement_family = self._project_family_key(replacement)
-                    if replacement_family in selected_by_family and selected_by_family[replacement_family] is not target:
-                        continue
-                    if replacement.match_score > target.match_score:
-                        selected_by_family.pop(self._project_family_key(target), None)
-                        selected_by_family[replacement_family] = replacement
-                        self._mark_reference_candidate(replacement)
-                        selected.remove(target)
-                        selected.append(replacement)
-                        core_confirmed_alternatives.pop(0)
-                        remaining.remove(replacement)
-
-        if slots <= 0 or not remaining:
-            return selected
-        minimum_reference_score = 35 if selected else 20
-        eligible_references = [
-            item
-            for item in remaining
-            if self._is_evidence_backed_reference_candidate(
-                item,
-                minimum_score=minimum_reference_score,
-                require_core_confirmed=bool(selected),
+            component_count = sum(
+                len(item.component_evidence)
+                for item in analysis.evidence_coverage
+                if item.status not in {"different", "missing"}
             )
-            and self._is_usable_reference_candidate(item, requirement)
-        ]
-        references: list[ProjectAnalysis] = []
-        for item in sorted(eligible_references, key=lambda candidate: candidate.match_score, reverse=True):
-            family = self._project_family_key(item)
-            if family in used_families:
+            supported_count = self._supported_evidence_count(analysis.evidence_coverage)
+            if (
+                adjacent_evidence is not None
+                and not analysis.core_confirmed
+                and analysis.capability_citations_reviewed
+                and not analysis.verified_capabilities
+            ):
                 continue
-            references.append(item)
-            used_families.add(family)
-            if len(references) >= slots:
-                break
-        for item in references:
-            self._mark_reference_candidate(item)
-        selected.extend(references)
-        slots = max(0, max_results - len(selected))
-
-        reference_names = {item.repo.full_name for item in references}
-        adjacent_pool = [
-            item
-            for item in remaining
-            if not selected
-            and item.repo.full_name not in reference_names
-            and (
-                item.match_score >= 15
-                or self._has_multi_feature_core_evidence(item, requirement)
-                or self._has_meaningful_requirement_component_coverage(item.evidence_coverage)
-            )
-            and self._has_meaningful_adjacent_value(item, requirement)
-            and (self._is_usable_reference_candidate(item, requirement) or item.repo.core_signal_score >= 2.0)
-        ]
-        adjacent: list[ProjectAnalysis] = []
-        for item in sorted(
-            adjacent_pool,
-            key=lambda candidate: (candidate.repo.core_signal_score, candidate.match_score),
-            reverse=True,
-        ):
-            family = self._project_family_key(item)
-            if family in used_families:
+            if analysis.core_confirmed:
+                tier = 3
+                analysis.confidence_level = "reliable"
+                analysis.is_reference_candidate = False
+            elif component_count and adjacent_evidence is not None:
+                tier = 2
+                self._mark_reference_candidate(analysis)
+            elif adjacent_evidence is not None:
+                tier = 1
+                self._mark_low_similarity_lead(analysis)
+            else:
                 continue
-            adjacent.append(item)
-            used_families.add(family)
-            if len(adjacent) >= slots:
-                break
-        for item in adjacent:
-            self._ensure_positive_lead_score(item, requirement)
-            self._mark_low_similarity_lead(item)
-        selected.extend(adjacent)
+            if adjacent_evidence is not None and not analysis.core_confirmed:
+                self._apply_adjacent_public_evidence(analysis, adjacent_evidence)
+            ranked.append(
+                (
+                    (analysis.match_score, tier, component_count, supported_count),
+                    analysis,
+                )
+            )
 
-        rejected_count = len(low_confidence) - len(references) - len(adjacent)
-        if rejected_count:
+        selected: list[ProjectAnalysis] = []
+        families: set[str] = set()
+        for _, analysis in sorted(ranked, key=lambda item: item[0], reverse=True):
+            family = self._project_family_key(analysis)
+            if family in families:
+                continue
+            selected.append(analysis)
+            families.add(family)
+            if len(selected) >= self.settings.max_deep_analyze_repos:
+                break
+        if selected:
             usage.warnings.append(
-                f"Excluded {rejected_count} low-confidence candidate(s) with no meaningful project evidence."
-            )
-        if references:
-            usage.warnings.append(
-                "Added evidence-backed reference candidates because reliable Top projects were insufficient: "
-                + ", ".join(item.repo.full_name for item in references)
-            )
-        if adjacent:
-            usage.warnings.append(
-                "Added relatively closest adjacent projects because stronger matches were insufficient: "
-                + ", ".join(item.repo.full_name for item in adjacent)
+                "Selected report projects by verified tier: "
+                + ", ".join(item.repo.full_name for item in selected)
             )
         return selected
-
-    @staticmethod
-    def _is_evidence_backed_reference_candidate(
-        analysis: ProjectAnalysis,
-        minimum_score: int,
-        require_core_confirmed: bool,
-    ) -> bool:
-        if require_core_confirmed:
-            return analysis.core_confirmed and analysis.match_score >= 20
-        return analysis.match_score >= minimum_score and (analysis.core_confirmed or not analysis.core_feature)
 
     @staticmethod
     def _supported_evidence_count(coverage: Sequence[EvidenceCoverage]) -> int:
         return sum(1 for item in coverage if item.status == "supported" or item.covered)
 
-    def _has_multi_feature_core_evidence(
-        self,
-        analysis: ProjectAnalysis,
-        requirement: Requirement | None,
-    ) -> bool:
-        core_feature = self._core_requirement_feature(requirement) if requirement else analysis.core_feature
-        if not core_feature:
-            return False
-        has_core = any(
-            item.feature == core_feature and (item.status == "supported" or item.covered)
-            for item in analysis.evidence_coverage
-        )
-        return has_core and self._supported_evidence_count(analysis.evidence_coverage) >= 2
-
-    def _adjacent_low_confidence_leads(
+    def _relevant_verified_capabilities(
         self,
         requirement: Requirement,
-        repos: list[CandidateRepository],
-        usage: BudgetUsage,
-        slots: int | None = None,
-        excluded_projects: set[str] | None = None,
-        excluded_families: set[str] | None = None,
-    ) -> list[ProjectAnalysis]:
-        leads: list[ProjectAnalysis] = []
-        target = slots if slots is not None else self.settings.max_deep_analyze_repos
-        excluded_projects = set(excluded_projects or set())
-        used_families = set(excluded_families or set())
-        for repo in repos:
-            if len(leads) >= target:
-                break
-            if repo.core_signal_score <= 0:
-                repo.core_signal_score = self._core_direction_score(requirement, repo)
-            family = re.sub(r"[^a-z0-9]+", "", repo.name.lower()) or repo.full_name.lower()
-            if (
-                repo.full_name.lower() in excluded_projects
-                or family in used_families
-                or self._is_catalog_repository(repo)
-            ):
-                continue
-            adjacent_signal = self._repo_has_adjacent_signal(requirement, repo)
-            core_feature = self._core_requirement_feature(requirement) or (
-                requirement.must_have_features[0] if requirement.must_have_features else "核心需求"
-            )
-            coverage = repo.evidence_coverage or self._build_evidence_coverage(repo, requirement)
-            covered_features = self._supported_adjacent_features(requirement, coverage)
-            component_adjacent_evidence = self._has_meaningful_requirement_component_coverage(
-                coverage
-            )
-            core_supported = any(
-                item.feature == core_feature and (item.status == "supported" or item.covered)
-                for item in coverage
-            )
-            core_related_features = self._core_related_adjacent_features(requirement, covered_features)
-            strict_component_mode = bool(requirement.evidence_components)
-            core_aligned = (
-                False
-                if strict_component_mode
-                else self._core_evidence_is_compositional(requirement, repo)
-            )
-            discovery_evidence = self._has_planned_discovery_evidence(repo)
-            has_adjacent_evidence = bool(
-                core_related_features
-                or core_supported
-                or component_adjacent_evidence
-                or discovery_evidence
-            )
-            if not has_adjacent_evidence:
-                continue
-            if repo.raw_score < 15 and not adjacent_signal and not has_adjacent_evidence:
-                continue
-            if repo.core_signal_score <= 0 and not adjacent_signal and not has_adjacent_evidence:
-                continue
-            if covered_features and not core_related_features and not core_aligned:
-                continue
-            if (
-                not covered_features
-                and not core_supported
-                and not core_aligned
-                and not component_adjacent_evidence
-                and not discovery_evidence
-            ):
-                continue
-            if (
-                repo.core_signal_score <= 0
-                and not covered_features
-                and not core_supported
-                and not component_adjacent_evidence
-                and not discovery_evidence
-            ):
-                continue
-            unknown_features = [
-                feature
-                for feature in list(dict.fromkeys(requirement.must_have_features))
-                if feature not in covered_features
-            ][:8]
-            score = self._low_similarity_lead_score(
-                repo,
-                coverage,
-                covered_features,
-                core_supported=core_supported,
-                core_aligned=core_aligned,
-                adjacent_signal=adjacent_signal or component_adjacent_evidence,
-            )
-            if discovery_evidence:
-                score = max(score, 20)
-            if (
-                not covered_features
-                and not core_supported
-                and not component_adjacent_evidence
-                and repo.core_signal_score < 2.0
-                and not discovery_evidence
-            ):
-                continue
-            if (
-                not covered_features
-                and not core_supported
-                and score < 20
-                and not component_adjacent_evidence
-                and not discovery_evidence
-            ):
-                continue
-            analysis = ProjectAnalysis(
-                repo=repo,
-                match_score=score,
-                recommendation="相邻方向，重点能力尚未核对",
-                directly_usable=False,
-                covered_features=covered_features[:8],
-                missing_features=[],
-                required_changes=[],
-                risks=[],
-                evidence=[],
-                unknown_features=unknown_features,
-                functional_score=score,
-                suitability_score=score,
-                core_feature=core_feature,
-                core_confirmed=False,
-                evidence_coverage=coverage
-                or [EvidenceCoverage(feature=feature, covered=False, status="unknown") for feature in unknown_features],
-            )
-            self._mark_low_similarity_lead(analysis)
-            signal = self._public_candidate_signal(repo)
-            analysis.score_reason = (
-                f"公开线索「{signal}」与「{core_feature}」方向相近，"
-                "公开证据只支持较弱相邻关系，因此只作为相邻参考。"
-            )
-            leads.append(analysis)
-            used_families.add(family)
-        if leads:
-            usage.warnings.append(
-                "Added adjacent low-confidence leads from ranked candidates: "
-                + ", ".join(item.repo.full_name for item in leads)
-            )
-        return leads
-
-    def _low_similarity_lead_score(
-        self,
-        repo: CandidateRepository,
-        coverage: list[EvidenceCoverage],
-        covered_features: list[str],
-        *,
-        core_supported: bool,
-        core_aligned: bool,
-        adjacent_signal: bool,
-    ) -> int:
-        supported = sum(1 for item in coverage if item.status == "supported" or item.covered)
-        explicit = sum(1 for item in coverage if item.status in {"different", "missing"})
-        evidence_bonus = min(14, supported * 4 + explicit * 2)
-        core_bonus = 0
-        if core_supported:
-            core_bonus = 10
-        elif core_aligned:
-            core_bonus = 6
-        elif repo.core_signal_score > 0:
-            core_bonus = min(6, round(repo.core_signal_score * 2))
-        source_bonus = min(4, max(0, len(repo.found_by) - 1) * 2)
-        raw_bonus = min(5, max(0, int(repo.raw_score or 0)) // 20)
-        score = 8 + evidence_bonus + core_bonus + source_bonus + raw_bonus
-        if adjacent_signal or covered_features:
-            score = max(score, 15)
-        return max(1, min(39, score))
-
-    @staticmethod
-    def _has_meaningful_component_coverage(item: EvidenceCoverage) -> bool:
-        required = item.required_component_count
-        matched = len(item.component_evidence)
-        if required <= 0 or matched < 2:
-            return False
-        return matched / required >= 0.5
-
-    @classmethod
-    def _has_meaningful_requirement_component_coverage(
-        cls,
-        coverage: Sequence[EvidenceCoverage],
-    ) -> bool:
-        component_items = [
-            item for item in coverage if item.required_component_count > 0
-        ]
-        if not component_items:
-            return False
-        if len(component_items) == 1:
-            return cls._has_meaningful_component_coverage(component_items[0])
-        matched_counts = [len(item.component_evidence) for item in component_items]
-        features_with_evidence = sum(1 for count in matched_counts if count > 0)
-        total_matched = sum(matched_counts)
-        distinct_components = {
-            str(label).strip().casefold()
-            for item in component_items
-            for label in item.component_evidence
-            if str(label).strip()
-        }
-        return (
-            features_with_evidence >= 2
-            and total_matched >= 3
-            and len(distinct_components) >= 2
-            and (
-                max(matched_counts[1:], default=0) >= 2
-                or sum(1 for count in matched_counts[1:] if count > 0) >= 3
-            )
-        )
-
-    def _has_planned_discovery_evidence(self, repo: CandidateRepository) -> bool:
-        if self._is_catalog_repository(repo):
-            return False
-        if not (repo.description or repo.readme or repo.topics):
-            return False
-        sources = [str(source) for source in repo.found_by or []]
-        for source in sources:
-            signal_count = self._discovery_source_signal_count(source)
-            if source.startswith(("github_topic:", "github_code:")) and signal_count >= 2:
-                return True
-        return False
-
-    def _discovery_source_signal_count(self, source: str) -> int:
-        payload = str(source or "")
-        for prefix in ("github_topic:", "github_code:", "github_issue:", "github:", "tavily:"):
-            if payload.startswith(prefix):
-                payload = payload[len(prefix) :]
-                break
-        payload = payload.split(" in:", 1)[0]
-        payload = re.sub(r"[-_/]+", " ", payload)
-        return len(self._semantic_signals(payload))
-
-    def _analysis_has_adjacent_signal(
-        self,
-        analysis: ProjectAnalysis,
-        requirement: Requirement | None,
-    ) -> bool:
-        if not requirement:
-            return False
-        return bool(
-            analysis.repo.core_signal_score > 0
-            or self._repo_has_adjacent_signal(requirement, analysis.repo)
-        )
-
-    def _repo_has_adjacent_signal(self, requirement: Requirement, repo: CandidateRepository) -> bool:
-        if self._is_catalog_repository(repo):
-            return False
-        coverage = repo.evidence_coverage or self._build_evidence_coverage(repo, requirement)
-        groups = requirement.feature_concepts or {}
-        public_text = " ".join(
-            [
-                repo.name,
-                repo.description,
-                " ".join(repo.topics),
-                self._readme_capability_text(repo.readme),
-                " ".join(repo.file_paths[:80]),
-            ]
-        )
-        domain_aliases = self._clean_feature_aliases({str(item) for item in groups.get("domains", [])})
-        domain_hit = bool(domain_aliases and self._matching_terms(public_text, domain_aliases))
-        if domain_aliases and not domain_hit:
-            return False
-        if domain_aliases and self._supported_adjacent_features(requirement, coverage):
-            return True
-        group_hits: dict[str, bool] = {}
-        for group in ("actions", "objects", "outputs", "interfaces"):
-            aliases = self._clean_feature_aliases({str(item) for item in groups.get(group, [])})
-            group_hits[group] = bool(aliases and self._matching_terms(public_text, aliases))
-        if domain_aliases:
-            return any(group_hits.values())
-        substantive_hits = sum(1 for group in ("actions", "objects") if group_hits.get(group))
-        total_hits = sum(1 for hit in group_hits.values() if hit)
-        return substantive_hits >= 1 and total_hits >= 2
-
-    def _supported_adjacent_features(
-        self,
-        requirement: Requirement,
-        coverage: list[EvidenceCoverage],
-    ) -> list[str]:
-        core_feature = self._core_requirement_feature(requirement)
-        return [
-            item.feature
-            for item in coverage
-            if item.feature != core_feature and (item.status == "supported" or item.covered)
-        ]
-
-    def _core_related_adjacent_features(
-        self,
-        requirement: Requirement,
-        features: list[str],
+        capabilities: Sequence[str],
+        evidence_context: str = "",
     ) -> list[str]:
         concepts = requirement.feature_concepts or {}
-        primary_aliases = self._clean_feature_aliases(
+        actions = self._clean_feature_aliases(
+            {str(item) for item in concepts.get("actions", [])}
+        )
+        context = self._clean_feature_aliases(
             {
                 str(item)
-                for group in ("domains", "actions", "objects")
+                for group in ("domains", "objects")
                 for item in concepts.get(group, [])
             }
         )
-        secondary_aliases = self._clean_feature_aliases(
-            {
-                str(item)
-                for group in ("outputs", "interfaces")
-                for item in concepts.get(group, [])
-            }
-        )
-        if not primary_aliases:
-            return [
-                feature
-                for feature in features
-                if not self._matching_terms(feature, secondary_aliases)
-            ]
+        if not actions:
+            return []
         return [
-            feature
-            for feature in features
-            if not self._matching_terms(feature, secondary_aliases)
-            and self._matching_terms(feature, primary_aliases)
-        ]
+            capability
+            for capability in capabilities
+            if self._matching_terms(capability, actions)
+            and (
+                not context
+                or self._matching_terms(
+                    " ".join([capability, evidence_context]),
+                    context,
+                )
+            )
+        ][:5]
+
+    def _relevant_capability_citations(
+        self,
+        requirement: Requirement,
+        analysis: ProjectAnalysis,
+    ) -> tuple[list[str], list[EvidenceReference]]:
+        capabilities: list[str] = []
+        evidence: list[EvidenceReference] = []
+        for capability in analysis.verified_capabilities:
+            matching_references = [
+                reference
+                for reference in analysis.capability_evidence
+                if capability.casefold() in reference.excerpt.casefold()
+            ]
+            relevant_references = [
+                reference
+                for reference in matching_references
+                if self._relevant_verified_capabilities(
+                    requirement,
+                    [capability],
+                    reference.excerpt,
+                )
+            ]
+            if not relevant_references:
+                continue
+            if capability.casefold() not in {item.casefold() for item in capabilities}:
+                capabilities.append(capability)
+            for reference in relevant_references:
+                if reference not in evidence:
+                    evidence.append(reference)
+        return capabilities[:5], evidence[:5]
+
+    @staticmethod
+    def _apply_adjacent_public_evidence(
+        analysis: ProjectAnalysis,
+        adjacent_evidence: AdjacentEvidence,
+    ) -> None:
+        capability = adjacent_evidence.capability
+        if (
+            not analysis.capability_citations_reviewed
+            and capability
+            and capability not in analysis.verified_capabilities
+        ):
+            analysis.verified_capabilities.append(capability)
+        evidence = (
+            f"{adjacent_evidence.reference.locator}: "
+            f"{adjacent_evidence.reference.excerpt}"
+        )
+        if adjacent_evidence.reference.excerpt and evidence not in analysis.evidence:
+            analysis.evidence.append(evidence)
 
     @staticmethod
     def _requires_compositional_core(requirement: Requirement) -> bool:
@@ -2999,95 +3112,6 @@ class DeepSearchEngine:
             sum(bool(concepts.get(group)) for group in ("domains", "actions", "objects"))
             >= 2
         )
-
-    def _ensure_positive_lead_score(
-        self,
-        analysis: ProjectAnalysis,
-        requirement: Requirement | None,
-    ) -> None:
-        adjacent_features = (
-            self._supported_adjacent_features(requirement, analysis.evidence_coverage)
-            if requirement
-            else []
-        )
-        has_component_evidence = self._has_meaningful_requirement_component_coverage(
-            analysis.evidence_coverage
-        )
-        minimum = 15 if adjacent_features or has_component_evidence else 1
-        if analysis.match_score >= minimum:
-            return
-        analysis.match_score = minimum
-        analysis.functional_score = analysis.match_score
-        analysis.suitability_score = max(analysis.suitability_score, analysis.match_score)
-
-    def _is_usable_reference_candidate(
-        self,
-        analysis: ProjectAnalysis,
-        requirement: Requirement | None = None,
-    ) -> bool:
-        if self._is_catalog_candidate(analysis):
-            return False
-        if requirement and requirement.evidence_components:
-            return self._has_meaningful_requirement_component_coverage(
-                analysis.evidence_coverage
-            )
-        core_feature = self._core_requirement_feature(requirement) if requirement else analysis.core_feature
-        if (
-            core_feature
-            and not analysis.core_confirmed
-            and self._feature_has_confirmed_difference(core_feature, analysis.different_features)
-        ):
-            return False
-        return any(
-            item.covered
-            and (
-                item.feature == core_feature
-                or (
-                    requirement is not None
-                    and bool(self._core_related_adjacent_features(requirement, [item.feature]))
-                )
-                or (
-                    requirement is None
-                )
-            )
-            for item in analysis.evidence_coverage
-        )
-
-    def _has_meaningful_adjacent_value(
-        self,
-        analysis: ProjectAnalysis,
-        requirement: Requirement | None,
-    ) -> bool:
-        if analysis.core_confirmed:
-            return True
-        if not requirement:
-            return self._is_usable_reference_candidate(analysis)
-        core_feature = self._core_requirement_feature(requirement) or analysis.core_feature
-        if core_feature and self._feature_has_confirmed_difference(core_feature, analysis.different_features):
-            return False
-        if requirement.evidence_components:
-            return self._has_meaningful_requirement_component_coverage(
-                analysis.evidence_coverage
-            )
-        if analysis.repo.core_signal_score <= 0:
-            analysis.repo.core_signal_score = self._core_direction_score(requirement, analysis.repo)
-        supported = self._supported_adjacent_features(requirement, analysis.evidence_coverage)
-        if self._has_planned_discovery_evidence(analysis.repo):
-            return analysis.match_score >= 15
-        if supported:
-            if self._core_related_adjacent_features(requirement, supported):
-                return True
-            if self._requires_compositional_core(requirement):
-                return (
-                    analysis.repo.core_signal_score >= 2.0
-                    and self._core_evidence_is_compositional(requirement, analysis.repo)
-                )
-            return analysis.repo.core_signal_score >= 2.0
-        if analysis.repo.core_signal_score < 2.0 or analysis.match_score < 20:
-            return False
-        if self._requires_compositional_core(requirement):
-            return self._core_evidence_is_compositional(requirement, analysis.repo)
-        return True
 
     def _is_catalog_candidate(self, analysis: ProjectAnalysis) -> bool:
         return analysis.is_catalog or self._is_catalog_repository(analysis.repo)
@@ -3157,94 +3181,31 @@ class DeepSearchEngine:
             return ["先本地运行并验证主要流程，再决定是否集成"]
         return [f"补齐功能：{item}" for item in missing[:5]]
 
-    async def _analyze_opportunity(
-        self,
-        requirement: Requirement,
-        analyses: list[ProjectAnalysis],
-        llm: LLMClient | None,
-    ) -> str:
-        if not analyses:
-            core = self._core_requirement_feature(requirement) or (
-                requirement.must_have_features[0] if requirement.must_have_features else "核心需求"
-            )
-            return (
-                f"本次没有找到可直接采用且能完整确认「{self._plain_user_text(core)}」的项目。"
-                "如果候选发现阶段仍有可复核仓库，报告会优先补充核心功能相近或相关方向；"
-                "本轮为空通常表示公开检索阶段没有拿到足够可核对的仓库证据。"
-            )
-        if all(item.is_reference_candidate for item in analyses):
-            best = analyses[0]
-            unresolved = list(dict.fromkeys([*best.missing_features, *best.unknown_features]))
-            focus = self._plain_user_text("、".join(unresolved[:4])) if unresolved else "完整使用流程"
-            reusable = (
-                self._plain_user_text("、".join(best.covered_features[:3]))
-                if best.covered_features
-                else "现有项目的基础框架"
-            )
-            return (
-                "本次已经核对候选项目的公开说明和重点内容，"
-                f"仍未确认有项目同时具备「{focus}」。"
-                f"可借鉴 {best.repo.full_name} 的「{reusable}」；未覆盖的核心部分需要另找方案或单独实现。"
-            )
-        best_analysis = analyses[0]
-        covered = self._plain_user_text("、".join(best_analysis.covered_features[:4]))
-        unknown = self._plain_user_text("、".join(best_analysis.unknown_features[:5]))
-        missing = self._plain_user_text("、".join(best_analysis.missing_features[:4]))
-        differences = self._plain_user_text("、".join(best_analysis.different_features[:3]))
-        parts = [
-            f"本次已确认 {best_analysis.repo.full_name} 具备「{covered}」。"
-            if covered
-            else f"本次尚未确认 {best_analysis.repo.full_name} 覆盖核心能力。"
-        ]
-        if unknown:
-            parts.append(f"项目公开内容尚未确认「{unknown}」。")
-        if missing:
-            parts.append(f"项目明确不提供「{missing}」，这些部分需要补充实现。")
-        if differences:
-            parts.append(f"同时还存在「{differences}」等使用差异。")
-        if unknown:
-            parts.append("下一步应先继续核对这些未确认能力；确认确实没有后，再决定补充开发。")
-        elif not missing:
-            parts.append("下一步可直接试用主要流程，再决定是否采用。")
-        return "".join(parts)
-
     @staticmethod
     def _plain_user_text(text: str) -> str:
         return str(text or "")
 
-    def _sentence(self, text: str) -> str:
-        stripped = str(text or "").strip()
-        if not stripped:
-            return ""
-        return stripped if stripped.endswith(("。", "！", "？", ".", "!", "?")) else f"{stripped}。"
-
-    def _write_summary(self, analyses: list[ProjectAnalysis], opportunity: str) -> str:
+    def _write_summary(self, requirement: Requirement, analyses: list[ProjectAnalysis]) -> str:
+        language = requirement.report_language
         if not analyses:
-            return "本次未找到有公开证据可核对的项目。"
+            return (
+                "本次未找到有公开证据支持的可用或相邻项目。"
+                if language == "zh"
+                else "No usable or adjacent project with public supporting evidence was found."
+            )
         best = analyses[0]
-        if all(item.confidence_level == "lead" for item in analyses):
+        score = build_public_project_view(best, language).relevance
+        if best.directly_usable and best.core_confirmed:
             return (
-                f"已整理 {len(analyses)} 个相邻方向，最接近的是 {best.repo.full_name}（{best.match_score}/100），"
-                "目前更适合用来找灵感，不适合直接采用。"
+                f"找到了可优先评估的项目：{best.repo.full_name}（相关度 {score}%）。"
+                if language == "zh"
+                else f"A directly usable candidate is available: {best.repo.full_name} ({score}% relevant)."
             )
-        if all(item.is_reference_candidate for item in analyses):
-            confirmed = (
-                self._plain_user_text("、".join(best.covered_features[:2]))
-                if best.covered_features
-                else "部分相邻线索"
-            )
-            return (
-                f"没有找到可直接使用的项目。最接近的 {best.repo.full_name} 为 {best.match_score}/100，"
-                f"可作为「{confirmed}」方向的参考线索。"
-            )
-        if best.is_reference_candidate:
-            return (
-                f"可靠候选不足，已补充参考项目；最接近的是 {best.repo.full_name}"
-                f"（关联度 {best.match_score}/100）。"
-            )
-        summary = f"最相关项目是 {best.repo.full_name}（关联度 {best.match_score}/100）。"
-        summary += "下面只列出有公开证据支撑的符合、明确差异和明确缺失。"
-        return summary
+        return (
+            f"没有确认可直接使用的项目；保留了 {len(analyses)} 个低置信度相邻线索供参考。"
+            if language == "zh"
+            else f"No directly usable project was confirmed; {len(analyses)} low-confidence adjacent lead(s) remain for reference."
+        )
 
     def _write_report(
         self,
@@ -3256,29 +3217,37 @@ class DeepSearchEngine:
         search_completeness: dict[str, object] | None = None,
     ) -> str:
         lines: list[str] = []
-        lines.append("# 调研结论")
+        language = requirement.report_language
+        lines.append("# 调研结论" if language == "zh" else "# Research conclusion")
         lines.append("")
-        lines.append("## 一句话判断")
-        lines.append(self._write_summary(analyses, opportunity))
+        lines.append("## 一句话判断" if language == "zh" else "## Summary")
+        lines.append(self._write_summary(requirement, analyses))
         lines.append("")
-        lines.append("## 已整理的线索")
+        lines.append("## 候选项目" if language == "zh" else "## Candidate projects")
         if not analyses:
             self._append_empty_result_context(lines, requirement)
         for project_index, analysis in enumerate(analyses, start=1):
             lines.append("")
-            self._append_project_report(lines, project_index, analysis)
+            self._append_project_report(lines, project_index, analysis, language)
         lines.append("")
-        lines.append("## 本次消耗")
-        lines.append(self._format_token_usage(usage))
+        lines.append("## 本次消耗" if language == "zh" else "## Usage")
+        lines.append(self._format_token_usage(usage, language))
         return "\n".join(lines)
 
     @staticmethod
-    def _format_token_usage(usage: BudgetUsage) -> str:
+    def _format_token_usage(usage: BudgetUsage, language: str = "zh") -> str:
         total = usage.llm_input_tokens + usage.llm_output_tokens
+        if language == "en":
+            label = "LLM tokens (estimated)" if usage.llm_token_estimated and total else "LLM tokens"
+            return f"- {label}: {usage.llm_input_tokens} input, {usage.llm_output_tokens} output, {total} total."
         label = "LLM Token（估算）" if usage.llm_token_estimated and total else "LLM Token"
         return f"- {label}：输入 {usage.llm_input_tokens}，输出 {usage.llm_output_tokens}，合计 {total}。"
 
     def _append_empty_result_context(self, lines: list[str], requirement: Requirement) -> None:
+        if requirement.report_language == "en":
+            lines.append("- The configured repository, code, topic, issue, and web discovery channels were searched.")
+            lines.append("- No candidate retained enough local evidence to be useful.")
+            return
         channels: list[str] = []
         if requirement.repo_search_queries or requirement.search_queries:
             channels.append("项目名称、简介和说明")
@@ -3300,44 +3269,34 @@ class DeepSearchEngine:
         lines.append(
             f"- 未列出项目：没有候选能用公开证据确认「{core}」。"
         )
-        if core:
-            lines.append(f"- 关键缺口：未确认核心能力「{core}」。")
 
     def _append_project_report(
         self,
         lines: list[str],
         index: int,
         analysis: ProjectAnalysis,
+        language: str,
     ) -> None:
         repo = analysis.repo
-        label = ""
-        if analysis.confidence_level == "lead":
-            label = "（相邻参考）"
-        elif analysis.is_reference_candidate:
-            label = "（参考项目）"
         metadata = self._format_repo_title_metadata(repo)
-        lines.append(f"### {index}. {repo.full_name}{label}{metadata}")
-        lines.append(f"- 关联度：{analysis.match_score}/100")
-        lines.append(
-            f"- 得分原因：{self._plain_user_text(analysis.score_reason or self._score_reason(analysis))}"
-        )
-        if analysis.covered_features and analysis.confidence_level != "lead":
-            lines.append(f"- 符合部分：{self._plain_user_text('、'.join(analysis.covered_features[:5]))}")
-        differences: list[str] = []
-        for item in analysis.different_features:
-            differences.extend(
-                self._plain_user_text(part).strip(" 。；;")
-                for part in re.split(r"[；;。]", item)
-                if part.strip(" 。；;")
-            )
-            if len(differences) >= 3:
-                break
-        differences = differences[:3]
-        if differences:
-            lines.append(f"- 差异部分：{'；'.join(differences)}")
-        if analysis.missing_features:
-            lines.append(f"- 缺失部分：{self._plain_user_text('、'.join(analysis.missing_features[:4]))}")
-        lines.append(f"- 地址：{repo.url}")
+        lines.append(f"### {index}. [{repo.full_name}]({repo.url}){metadata}")
+        public = build_public_project_view(analysis, language)
+        if language == "en":
+            lines.append(f"- Relevance: {public.relevance}%")
+            if public.summary:
+                lines.append(f"- Overview: {self._plain_user_text(public.summary)}")
+            if public.verified_capabilities:
+                lines.append(f"- Verified capabilities: {'; '.join(public.verified_capabilities)}")
+            if not analysis.core_confirmed:
+                lines.append("- Scope: these are adjacent verified capabilities, not confirmation of the complete core requirement.")
+            return
+        lines.append(f"- 相关度：{public.relevance}%")
+        if public.summary:
+            lines.append(f"- 简介：{self._plain_user_text(public.summary)}")
+        if public.verified_capabilities:
+            lines.append(f"- 已确认能力：{'；'.join(public.verified_capabilities)}")
+        if not analysis.core_confirmed:
+            lines.append("- 适用范围：以上只确认相邻能力，不表示完整满足核心需求。")
 
     @staticmethod
     def _format_repo_title_metadata(repo: CandidateRepository) -> str:
@@ -3347,7 +3306,7 @@ class DeepSearchEngine:
         elif len(updated) > 10:
             updated = updated[:10]
         updated = updated or "未知"
-        return f" · ★ {repo.stars} · 更新 {updated}"
+        return f" · ★ {repo.stars} · {updated}"
 
     def _search_completeness(self, usage: BudgetUsage, request_limit: int) -> dict[str, object]:
         reasons: list[str] = []
@@ -3383,5 +3342,7 @@ class DeepSearchEngine:
 
 async def deep_search(
     query: str,
+    *,
+    fixed_requirement: Requirement | None = None,
 ) -> SearchReport:
-    return await DeepSearchEngine().run(query)
+    return await DeepSearchEngine().run(query, fixed_requirement=fixed_requirement)

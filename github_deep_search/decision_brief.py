@@ -19,18 +19,9 @@ class DecisionBrief:
 def build_decision_brief(
     requirement: Requirement,
     analyses: list[ProjectAnalysis],
-) -> DecisionBrief:
+) -> DecisionBrief | None:
     if not analyses:
-        core = _first(requirement.must_have_features) or requirement.intent
-        return DecisionBrief(
-            level="no_match",
-            headline="没有找到可直接确认的项目。",
-            best_project=None,
-            confirmed_features=[],
-            gaps=[],
-            unconfirmed_features=[core] if core else [],
-            next_step="补充可验证的核心约束后重新检索，并优先核查相邻实现方向。",
-        )
+        return None
 
     best = analyses[0]
     confirmed = _supported_features(best)
@@ -46,18 +37,27 @@ def build_decision_brief(
         ]
     )
     level, headline = _level_and_headline(best)
+    has_confirmed_core = best.core_confirmed
+    if not has_confirmed_core:
+        headline = f"当前保留 {len(analyses)} 个相邻或参考项目，尚无证据支持指定首选。"
     return DecisionBrief(
         level=level,
         headline=headline,
-        best_project=best.repo.full_name,
+        best_project=best.repo.full_name if has_confirmed_core else None,
         confirmed_features=confirmed,
         gaps=gaps,
         unconfirmed_features=unconfirmed,
-        next_step=_next_step(best, gaps, unconfirmed),
+        next_step=(
+            _next_step(best, gaps, unconfirmed)
+            if has_confirmed_core
+            else "并列核对候选项目的已确认能力与适用范围，优先补查核心需求证据。"
+        ),
     )
 
 
-def format_decision_brief(brief: DecisionBrief) -> list[str]:
+def format_decision_brief(brief: DecisionBrief | None) -> list[str]:
+    if brief is None:
+        return []
     lines = [f"- 建议：{brief.headline}"]
     if brief.confirmed_features:
         lines.append(f"- 已确认：{'、'.join(brief.confirmed_features[:3])}")
@@ -88,6 +88,12 @@ def _next_step(
     if gaps:
         return f"打开 {analysis.repo.full_name} 的证据与源码，先核查「{gaps[0]}」。"
     if unconfirmed:
+        if analysis.adjacent_evidence is not None:
+            locator = analysis.adjacent_evidence.reference.locator
+            return (
+                f"打开 {analysis.repo.full_name} 的 {locator} 及相关源码，"
+                f"逐项核对是否明确支持「{unconfirmed[0]}」。"
+            )
         return f"打开 {analysis.repo.full_name} 的证据与源码，确认「{unconfirmed[0]}」。"
     return f"打开 {analysis.repo.full_name} 的证据与源码，评估集成成本和维护状态。"
 

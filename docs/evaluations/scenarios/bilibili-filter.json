@@ -1,0 +1,15 @@
+{
+  "case_id": "bilibili-filter",
+  "raw_request": "我想做一个浏览器插件，用来过滤网页端B站中的广告/卖课/营销视频，最好还能过滤掉观看人数低于1w的视频。过滤规则最好能同时参考视频和评论。",
+  "language": "zh-CN",
+  "scenario_family": "multi-constraint-browser-extension",
+  "core_outcome_direction": "在 B 站网页端按视频与评论信号过滤不需要的视频，并保留播放量阈值约束。",
+  "optional_constraints": [
+    "优先同时利用视频和评论作为过滤信号"
+  ],
+  "risk_level": "medium",
+  "evaluation_date": "2026-07-13",
+  "reviewer": "pending-independent-review",
+  "source": "Current user report regression",
+  "redaction": "No sensitive data or expected repositories included."
+}

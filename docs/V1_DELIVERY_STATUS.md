@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 架构与回归规则 | 根因优先、真实 Provider 回归、测试工程真实验证、闭环退出、禁止提前交接已写入仓库规则 | `AGENTS.md`；相关架构规则测试通过 |
 | 变更证明流程 | PR 模板要求变更类别、最早阶段、契约、反补丁理由与验证证据 | `.github/PULL_REQUEST_TEMPLATE.md` |
-| 用户决策投影 | JSON 提供 `decisionBrief`；Web 将其安全渲染为可选决策卡，Markdown 保持原有精简证据边界 | 输出、Web 与浏览器回归测试 |
+| 用户输出投影 | Web、CLI JSON 与 API 只提供精简报告；内部 `decisionBrief`、证据和 trace 仅保留在诊断评测工件中 | 输出、Web 与浏览器回归测试 |
 | 实际阶段 trace 与失败语义 | 引擎在 parse、discovery、evidence、analysis、report_delivery 现场记录阶段；Provider 限制记为 `partial`，异常中断交付含 `failed/not_started` 的可序列化失败工件；CLI、Web、MCP 使用同一投影 | 失败契约测试；两次真实运行分别验证 `partial` 与 `completed`；工件见 `tmp/test-engineering-validation/20260710-failure-trace/` |
 | 对抗审查工具 | 提供使用当前 OpenAI-compatible 配置的 user、semantic、evidence、reliability、architecture 角色审查脚本 | `scripts/run_adversarial_review.py --help`、真实审查工件 |
 | 解析回归修复 | 完整、跨脚本的 LLM 结构化计划不再仅因字面重叠不足被丢弃；同脚本无关计划仍需通过 grounding | 解析测试及同一真实案例两次完整运行 |

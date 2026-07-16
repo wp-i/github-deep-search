@@ -38,7 +38,7 @@ async def api_status() -> JSONResponse:
             "hasGithubToken": bool(settings.github_token),
             "hasLlmKey": settings.has_llm,
             "hasTavilyKey": settings.has_tavily,
-            "recommendedKeys": ["GITHUB_TOKEN", "LLM_API_KEY"],
+            "requiredKeys": ["GITHUB_TOKEN", "LLM_API_KEY"],
         }
     )
 

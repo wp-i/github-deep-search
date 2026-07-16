@@ -206,8 +206,11 @@ def verify_evidence_collection(
 
     if coverage_stats["candidates_with_coverage"] == 0:
         report.add_issue("evidence", "no candidates have evidence coverage")
-    if coverage_stats["source_evidence_count"] == 0 and coverage_stats["path_evidence_count"] == 0:
-        report.add_issue("evidence", "no source or path evidence found, only README-level matches")
+    if not any(
+        coverage_stats[key]
+        for key in ("source_evidence_count", "path_evidence_count", "readme_evidence_count")
+    ):
+        report.add_issue("evidence", "no repository evidence found")
 
 
 def verify_llm_and_gate(
@@ -538,6 +541,11 @@ def test_pipeline_trace_full_flow() -> None:
     candidates = asyncio.run(
         engine._collect_candidates(requirement, github, None, BudgetUsage())
     )
+
+    assert len(github.repo_queries) == len(requirement.repo_search_queries)
+    assert len(github.code_queries) == len(requirement.code_search_queries)
+    assert len(github.topic_queries) == len(requirement.topic_search_queries)
+    assert len(github.issue_queries) == len(requirement.issue_search_queries)
 
     verify_candidate_collection(candidates, report)
     assert not report.issues, f"Collection issues: {report.issues}"

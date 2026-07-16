@@ -72,6 +72,7 @@ class Requirement:
     nice_to_have_features: list[str]
     target_platforms: list[str]
     search_queries: list[str]
+    report_language: Literal["zh", "en"] = "zh"
     repo_search_queries: list[str] = field(default_factory=list)
     code_search_queries: list[str] = field(default_factory=list)
     topic_search_queries: list[str] = field(default_factory=list)
@@ -96,6 +97,7 @@ class SearchSpec:
     nice_to_have: list[str]
     negative_filters: list[str]
     search_queries: list[str]
+    report_language: Literal["zh", "en"] = "zh"
     repo_search_queries: list[str] = field(default_factory=list)
     code_search_queries: list[str] = field(default_factory=list)
     topic_search_queries: list[str] = field(default_factory=list)
@@ -123,6 +125,7 @@ class SearchSpec:
             nice_to_have_features=self.nice_to_have,
             target_platforms=self.interfaces,
             search_queries=self.search_queries,
+            report_language=self.report_language,
             repo_search_queries=self.repo_search_queries or self.search_queries,
             code_search_queries=self.code_search_queries,
             topic_search_queries=self.topic_search_queries,
@@ -175,6 +178,16 @@ class EvidenceReference:
 
 
 @dataclass
+class AdjacentEvidence:
+    """Repository-local evidence for a useful but unconfirmed adjacent capability."""
+
+    reference: EvidenceReference
+    group_matches: dict[str, list[str]] = field(default_factory=dict)
+    relevance_score: int = 0
+    capability: str = ""
+
+
+@dataclass
 class EvidenceCoverage:
     feature: str
     covered: bool
@@ -213,6 +226,10 @@ class ProjectAnalysis:
     is_reference_candidate: bool = False
     confidence_level: str = "reliable"
     reference_reason: str = ""
+    verified_capabilities: list[str] = field(default_factory=list)
+    capability_evidence: list[EvidenceReference] = field(default_factory=list)
+    capability_citations_reviewed: bool = False
+    adjacent_evidence: AdjacentEvidence | None = None
 
 
 @dataclass

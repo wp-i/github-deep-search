@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import base64
+import time
 from typing import Any
 
 import httpx
@@ -8,14 +10,33 @@ import httpx
 from github_deep_search.models import BudgetUsage, CandidateRepository, ProviderEvent
 
 
+class GitHubProviderError(RuntimeError):
+    def __init__(self, message: str, *, retryable: bool) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+class GitHubAuthenticationError(GitHubProviderError):
+    pass
+
+
+class GitHubRateLimitError(GitHubProviderError):
+    pass
+
+
 class GitHubClient:
     def __init__(
         self,
-        token: str | None,
+        token: str,
         usage: BudgetUsage,
         timeout: float = 20.0,
         request_limit: int | None = None,
     ) -> None:
+        if not token.strip():
+            raise GitHubAuthenticationError(
+                "GitHub authentication is required. Configure GITHUB_TOKEN; anonymous fallback is disabled.",
+                retryable=False,
+            )
         self.usage = usage
         self.request_limit = request_limit
         headers = {
@@ -23,8 +44,7 @@ class GitHubClient:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "github-deep-search-prototype",
         }
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        headers["Authorization"] = f"Bearer {token}"
         self.paused = False
         self.client = httpx.AsyncClient(
             base_url="https://api.github.com",
@@ -36,50 +56,113 @@ class GitHubClient:
     async def close(self) -> None:
         await self.client.aclose()
 
+    async def validate_authentication(self) -> None:
+        data = await self._get("/rate_limit")
+        if data is None:
+            raise GitHubProviderError(
+                "GitHub authentication could not be validated. "
+                "Authenticated search will not start, and anonymous fallback is disabled.",
+                retryable=True,
+            )
+
     async def _get(self, path: str, **params: Any) -> dict[str, Any] | None:
         if self.paused:
             return None
-        if self.request_limit is not None and self.usage.github_requests >= self.request_limit:
-            self.paused = True
-            self.usage.warnings.append("GitHub request limit reached; further GitHub calls were stopped.")
-            self.usage.provider_events.append(
-                ProviderEvent("github", path, "limited", "request_limit")
-            )
-            return None
-        self.usage.github_requests += 1
-        try:
-            response = await self.client.get(path, params=params)
-            if response.status_code in {403, 429}:
-                retry_after = response.headers.get("retry-after")
-                message = (
-                    "GitHub Search API secondary rate limit reached "
-                    f"(HTTP {response.status_code}). Searches have been paused. "
-                    "Please wait about one hour before running another query, "
-                    "or reduce MAX_GITHUB_REQUESTS to stay within the 30 requests/minute limit."
-                )
-                if retry_after:
-                    message += f" Retry-after header suggests {retry_after}s."
-                self.usage.warnings.append(message)
+        for attempt in range(2):
+            if self.request_limit is not None and self.usage.github_requests >= self.request_limit:
+                self.paused = True
+                self.usage.warnings.append("GitHub request limit reached; further GitHub calls were stopped.")
                 self.usage.provider_events.append(
-                    ProviderEvent("github", path, "limited", "rate_limit")
+                    ProviderEvent("github", path, "limited", "request_limit")
                 )
                 return None
-            response.raise_for_status()
-            remaining = response.headers.get("x-ratelimit-remaining")
-            if remaining is not None and remaining.isdigit() and int(remaining) < 10:
-                self.usage.warnings.append(f"GitHub remaining quota is low: {remaining}")
-                if int(remaining) <= 2:
-                    self.paused = True
-                    self.usage.warnings.append("GitHub requests paused to avoid exhausting the API quota.")
+            self.usage.github_requests += 1
+            try:
+                response = await self.client.get(path, params=params)
+                if 500 <= response.status_code < 600 and attempt == 0:
+                    await asyncio.sleep(0.2)
+                    continue
+                if response.status_code == 401:
                     self.usage.provider_events.append(
-                        ProviderEvent("github", path, "limited", "quota_guard")
+                        ProviderEvent("github", path, "failed", "authentication")
                     )
-            return response.json()
-        except httpx.HTTPError as exc:
-            self.usage.warnings.append(f"GitHub request failed: {exc}")
-            self.usage.provider_events.append(
-                ProviderEvent("github", path, "failed", type(exc).__name__)
-            )
+                    raise GitHubAuthenticationError(
+                        "GitHub rejected the configured GITHUB_TOKEN (HTTP 401). "
+                        "Replace or re-authorize the token; anonymous fallback is disabled.",
+                        retryable=False,
+                    )
+                if response.status_code in {403, 429}:
+                    retry_after = response.headers.get("retry-after")
+                    remaining = response.headers.get("x-ratelimit-remaining")
+                    is_rate_limit = (
+                        response.status_code == 429
+                        or remaining == "0"
+                        or retry_after is not None
+                    )
+                    if not is_rate_limit:
+                        self.usage.provider_events.append(
+                            ProviderEvent("github", path, "failed", "authorization")
+                        )
+                        raise GitHubProviderError(
+                            "GitHub rejected the authenticated request (HTTP 403). "
+                            "Verify token repository access and read permissions; anonymous fallback is disabled.",
+                            retryable=False,
+                        )
+                    reset_delay = self._rate_limit_delay(response.headers)
+                    if attempt == 0 and reset_delay is not None and reset_delay <= 60:
+                        self.usage.warnings.append(
+                            f"GitHub rate limit reached for {path}; retrying after {reset_delay:.1f}s."
+                        )
+                        await asyncio.sleep(reset_delay)
+                        continue
+                    message = (
+                        "GitHub API rate limits prevented a complete authenticated search "
+                        f"(HTTP {response.status_code}). Retry after the limit resets; "
+                        "anonymous fallback is disabled."
+                    )
+                    if retry_after:
+                        message += f" Retry-after: {retry_after}s."
+                    self.usage.provider_events.append(
+                        ProviderEvent("github", path, "limited", "rate_limit")
+                    )
+                    raise GitHubRateLimitError(message, retryable=True)
+                if response.status_code == 404:
+                    # Search results can outlive a repository, branch, README, or file.
+                    # That candidate has no usable material at this endpoint, but the
+                    # provider and the surrounding search stage are still healthy.
+                    return None
+                response.raise_for_status()
+                remaining = response.headers.get("x-ratelimit-remaining")
+                if remaining is not None and remaining.isdigit() and int(remaining) < 10:
+                    self.usage.warnings.append(f"GitHub remaining quota is low: {remaining}")
+                return response.json()
+            except GitHubProviderError:
+                raise
+            except httpx.HTTPError as exc:
+                if attempt == 0 and not isinstance(exc, httpx.HTTPStatusError):
+                    await asyncio.sleep(0.2)
+                    continue
+                self.usage.warnings.append(f"GitHub request failed: {exc}")
+                self.usage.provider_events.append(
+                    ProviderEvent("github", path, "failed", type(exc).__name__)
+                )
+                return None
+        return None
+
+    @staticmethod
+    def _rate_limit_delay(headers: httpx.Headers) -> float | None:
+        retry_after = headers.get("retry-after")
+        if retry_after:
+            try:
+                return max(0.0, float(retry_after))
+            except ValueError:
+                return None
+        reset_at = headers.get("x-ratelimit-reset")
+        if not reset_at:
+            return None
+        try:
+            return max(0.0, float(reset_at) - time.time() + 1.0)
+        except ValueError:
             return None
 
     async def search_repositories(self, query: str, per_page: int = 10) -> list[CandidateRepository]:

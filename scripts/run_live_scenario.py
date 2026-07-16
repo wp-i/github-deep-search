@@ -18,8 +18,9 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from github_deep_search.config import Settings, get_settings
 from github_deep_search.engine import deep_search
+from github_deep_search.models import Requirement
 from github_deep_search.run_trace import SearchRunFailed
-from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
+from github_deep_search.serializers import diagnostic_report_to_dict, failure_artifact_to_dict
 
 
 SCENARIO_FIELDS = {
@@ -57,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         help="Root directory for generated evaluation artifacts",
     )
     parser.add_argument("--run-id", help="Optional URL-safe run identifier; defaults to UTC timestamp plus nonce")
+    parser.add_argument(
+        "--fixed-plan-from",
+        type=Path,
+        help="Qualified first-run directory whose audited search plan must be reused",
+    )
     return parser.parse_args()
 
 
@@ -104,6 +110,104 @@ def configuration_record(settings: Settings) -> dict[str, Any]:
     return {"fingerprint": hashlib.sha256(encoded).hexdigest(), "public": public}
 
 
+def require_authenticated_github(settings: Settings) -> None:
+    if not settings.github_token:
+        raise ValueError(
+            "GITHUB_TOKEN is required for live scenarios; anonymous GitHub API fallback is disabled"
+        )
+
+
+def load_fixed_requirement(
+    run_dir: Path,
+    scenario: dict[str, Any],
+    configuration: dict[str, Any],
+) -> Requirement:
+    try:
+        report = json.loads((run_dir / "report.json").read_text(encoding="utf-8-sig"))
+        request = json.loads((run_dir / "request.json").read_text(encoding="utf-8-sig"))
+        review = json.loads((run_dir / "review-summary.json").read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Cannot read fixed-plan artifacts: {exc}") from exc
+    if not all(isinstance(item, dict) for item in (report, request, review)):
+        raise ValueError("Fixed-plan artifacts must be JSON objects")
+    requirement_data = report.get("requirement")
+    trace = report.get("runTrace")
+    raw = report.get("raw")
+    if not isinstance(requirement_data, dict):
+        raise ValueError("Fixed-plan report does not contain a diagnostic requirement")
+    if not isinstance(trace, dict) or trace.get("status") != "completed":
+        raise ValueError("Fixed-plan run must have a completed trace")
+    if not isinstance(raw, dict) or raw.get("search_completeness") != "complete":
+        raise ValueError("Fixed-plan run must have complete search coverage")
+    if review.get("status") != "pass":
+        raise ValueError("Fixed-plan source must be a qualified first run")
+    if str(requirement_data.get("raw") or "").strip() != str(scenario["raw_request"]).strip():
+        raise ValueError("Fixed-plan request does not match the current scenario")
+    source_configuration = request.get("configuration")
+    if (
+        not isinstance(source_configuration, dict)
+        or source_configuration.get("fingerprint") != configuration.get("fingerprint")
+    ):
+        raise ValueError("Fixed-plan configuration fingerprint does not match the current run")
+    return requirement_from_diagnostic(requirement_data)
+
+
+def requirement_from_diagnostic(data: dict[str, Any]) -> Requirement:
+    requirement = Requirement(
+        raw=_required_text(data, "raw"),
+        intent=_required_text(data, "intent"),
+        must_have_features=_text_list(data.get("mustHaveFeatures")),
+        nice_to_have_features=_text_list(data.get("niceToHaveFeatures")),
+        target_platforms=_text_list(data.get("targetPlatforms")),
+        search_queries=_text_list(data.get("searchQueries")),
+        report_language="en" if data.get("reportLanguage") == "en" else "zh",
+        repo_search_queries=_text_list(data.get("repoSearchQueries")),
+        code_search_queries=_text_list(data.get("codeSearchQueries")),
+        topic_search_queries=_text_list(data.get("topicSearchQueries")),
+        issue_search_queries=_text_list(data.get("issueSearchQueries")),
+        web_search_queries=_text_list(data.get("webSearchQueries")),
+        feature_concepts=_text_map(data.get("featureConcepts")),
+        evidence_aliases=_text_map(data.get("evidenceAliases")),
+        evidence_components=_nested_text_map(data.get("evidenceComponents")),
+    )
+    if not requirement.must_have_features or not requirement.repo_search_queries:
+        raise ValueError("Fixed-plan requirement is missing required features or repository queries")
+    return requirement
+
+
+def _required_text(data: dict[str, Any], key: str) -> str:
+    value = str(data.get(key) or "").strip()
+    if not value:
+        raise ValueError(f"Fixed-plan requirement field {key} is empty")
+    return value
+
+
+def _text_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _text_map(value: object) -> dict[str, list[str]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): _text_list(items)
+        for key, items in value.items()
+        if str(key).strip() and _text_list(items)
+    }
+
+
+def _nested_text_map(value: object) -> dict[str, dict[str, list[str]]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): _text_map(items)
+        for key, items in value.items()
+        if str(key).strip() and _text_map(items)
+    }
+
+
 def default_run_id() -> str:
     now = datetime.now(timezone.utc)
     stamp = f"{now:%Y%m%d}t{now:%H%M%S}z"
@@ -146,9 +250,16 @@ def review_markdown(case_id: str, run_id: str, payload: dict[str, Any]) -> str:
             "| --- | --- | --- |",
             "| Requirement understanding |  |  |",
             "| Candidate relevance |  |  |",
+            "| Project summary and verified capabilities |  |  |",
             "| Evidence credibility |  |  |",
             "| Tier consistency |  |  |",
+            "| Independent-run consistency | N/A for first run |  |",
             "| Failure actionability |  |  |",
+            "",
+            "## Qualification verdict",
+            "",
+            "- Verdict: pending (pass / fail)",
+            "- A blank score, pending verdict, or unresolved finding means this report is not qualified.",
             "",
             "## Findings",
             "",
@@ -201,13 +312,23 @@ async def main_async() -> None:
     release_id = validate_identifier(args.release_id, "release_id")
     run_id = validate_identifier(args.run_id or default_run_id(), "run_id")
     settings = get_settings()
+    require_authenticated_github(settings)
+    configuration = configuration_record(settings)
+    fixed_requirement = (
+        load_fixed_requirement(args.fixed_plan_from, scenario, configuration)
+        if args.fixed_plan_from
+        else None
+    )
     try:
-        report = await deep_search(scenario["raw_request"])
-        payload = report_to_dict(report)
+        report = await deep_search(
+            scenario["raw_request"],
+            fixed_requirement=fixed_requirement,
+        )
+        payload = diagnostic_report_to_dict(report)
     except SearchRunFailed as exc:
         payload = failure_artifact_to_dict(exc.artifact)
     output_dir = args.output_root / release_id / scenario["case_id"] / run_id
-    write_artifacts(output_dir, scenario, configuration_record(settings), payload, settings)
+    write_artifacts(output_dir, scenario, configuration, payload, settings)
     print(output_dir)
 
 

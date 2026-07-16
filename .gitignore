@@ -9,6 +9,7 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+tmp/
 tmp_*.log
 web-server.*.log
 *.exe

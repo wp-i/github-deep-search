@@ -36,8 +36,9 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert 'id="downloadJson"' in html
     assert 'class="run-rail"' in html
     assert 'class="right-column"' in html
-    assert "/static/styles.css?v=20260710-02" in html
-    assert "/static/app.js?v=20260710-02" in html
+    assert 'content="width=1180"' in html
+    assert "/static/styles.css?v=20260716-01" in html
+    assert "/static/app.js?v=20260716-01" in html
 
     assert "radial-gradient" not in styles.text
     assert "border-radius: 8px" in styles.text
@@ -50,12 +51,13 @@ def test_web_index_exposes_real_search_trust_contract() -> None:
     assert "Research in progress" in script.text
     assert "report-loading" in script.text
     assert "error.message" in script.text
-    assert "renderDecisionBrief" in script.text
-    assert "renderEvidenceReferences" in script.text
-    assert "已检查，尚未确认" in script.text
+    assert "renderDecisionBrief" not in script.text
+    assert "renderEvidenceReferences" not in script.text
     assert "escapeHtml" in script.text
-    assert ".decision-brief" in styles.text
-    assert ".evidence-references" in styles.text
+    assert ".decision-brief" not in styles.text
+    assert ".evidence-references" not in styles.text
+    assert "--report-accent: #1d4ed8" in styles.text
+    assert ".report h3 + ul" in styles.text
 
 
 def test_status_reports_key_presence(monkeypatch) -> None:
@@ -73,7 +75,7 @@ def test_status_reports_key_presence(monkeypatch) -> None:
         "hasGithubToken": True,
         "hasLlmKey": True,
         "hasTavilyKey": False,
-        "recommendedKeys": ["GITHUB_TOKEN", "LLM_API_KEY"],
+        "requiredKeys": ["GITHUB_TOKEN", "LLM_API_KEY"],
     }
 
 

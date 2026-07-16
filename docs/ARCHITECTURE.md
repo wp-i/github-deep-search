@@ -99,16 +99,14 @@ See [ADR 0003](adr/0003-run-trace-public-contract.md).
 
 ## Public outputs
 
-`SearchReport` is the successful runtime result. `report_to_dict` adds two
-public projections without changing evidence:
-
-- `decisionBrief`: the decision tier, strongest confirmed features, gaps,
-  unconfirmed features, and next action;
-- `runTrace`: the recorded five-stage trace.
-
-Markdown stays compact. JSON carries the complete structured contract. Web and
-MCP consume the same serialization functions so interface-specific code does
-not recreate search conclusions.
+`SearchReport` is the successful runtime result. `report_to_dict` projects a
+concise user contract: summary, rendered report, public project fields, and
+token usage. `diagnostic_report_to_dict` retains the internal requirement,
+evidence, `decisionBrief`, and five-stage `runTrace` for evaluation artifacts.
+The engine is the sole owner of that trace; serializers fail if it is absent
+instead of reconstructing stage outcomes from final report fields.
+Web, CLI, and MCP consume the concise serializer so interface-specific code
+does not recreate search conclusions.
 
 ## Validation boundaries
 
