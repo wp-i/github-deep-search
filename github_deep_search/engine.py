@@ -1915,70 +1915,41 @@ class DeepSearchEngine:
         concepts = requirement.feature_concepts or {}
         core_feature = self._core_requirement_feature(requirement) or ""
         core_parts = [core_feature]
+        core_components: dict[str, list[str]] = {}
         for feature, aliases in (requirement.evidence_aliases or {}).items():
             if self._same_feature_key(feature, core_feature):
                 core_parts.extend(str(alias) for alias in aliases)
         for feature, components in (requirement.evidence_components or {}).items():
             if not self._same_feature_key(feature, core_feature):
                 continue
+            core_components = components
             for label, aliases in components.items():
                 core_parts.append(str(label))
                 core_parts.extend(str(alias) for alias in aliases)
         core_context = " ".join(core_parts)
-        action_values = self._clean_feature_aliases(
-            {str(item) for item in concepts.get("actions", [])}
-        )
-        object_values = self._clean_feature_aliases(
-            {str(item) for item in concepts.get("objects", [])}
-        )
-        core_actions = {
-            action
-            for action in action_values
-            if self._matching_terms(core_context, {action})
-        }
-        core_objects = {
-            object_
-            for object_ in object_values
-            if self._matching_terms(core_context, {object_})
-        }
-        non_object_aliases = {
-            *self._requirement_domain_aliases(requirement),
-            *action_values,
-            *self._clean_feature_aliases(
-                {str(item) for item in concepts.get("interfaces", [])}
-            ),
-        }
-        object_literals = {
-            str(item).strip()
-            for item in concepts.get("literal_keywords", [])
-            if str(item).strip()
-            and self._matching_terms(core_context, {str(item).strip().lower()})
-            and not any(
-                str(item).strip().casefold() in alias.casefold()
-                or alias.casefold() in str(item).strip().casefold()
-                for alias in non_object_aliases
+
+        def current_request_aliases(group: str) -> set[str]:
+            values = self._clean_feature_aliases(
+                {str(item) for item in concepts.get(group, [])}
             )
-        }
-        object_signal_counts: dict[str, int] = {}
-        for object_value in core_objects:
-            for signal in self._semantic_signals(object_value):
-                object_signal_counts[signal] = object_signal_counts.get(signal, 0) + 1
-        shared_object_signals = {
-            signal
-            for signal, count in object_signal_counts.items()
-            if count >= 2
-            and not any(
-                signal.casefold() in alias.casefold()
-                or alias.casefold() in signal.casefold()
-                for alias in non_object_aliases
-            )
-        }
+            core_values = {
+                value
+                for value in values
+                if self._matching_terms(core_context, {value})
+            }
+            expanded = set(core_values)
+            for label, phrases in core_components.items():
+                phrase_aliases = self._clean_feature_aliases(
+                    {str(phrase) for phrase in phrases}
+                )
+                component_text = " ".join([str(label), *phrase_aliases])
+                if core_values and self._matching_terms(component_text, core_values):
+                    expanded.update(phrase_aliases)
+            return expanded
+
         groups = {
-            "domains": self._requirement_domain_aliases(requirement),
-            "actions": core_actions,
-            "objects": self._clean_feature_aliases(
-                {*core_objects, *object_literals, *shared_object_signals}
-            ),
+            group: current_request_aliases(group)
+            for group in ("domains", "actions", "objects")
         }
         return {name: aliases for name, aliases in groups.items() if aliases}
 
@@ -2407,6 +2378,7 @@ class DeepSearchEngine:
                     "supplied README or key-file content.\n"
                     f"{json.dumps(payload, ensure_ascii=False)}"
                 ),
+                operation="repository_analysis",
             )
             if data and isinstance(data.get("projects"), list):
                 by_name = {repo.full_name.lower(): repo for repo in repos}
@@ -2525,6 +2497,7 @@ class DeepSearchEngine:
                             ensure_ascii=False,
                         )
                     ),
+                    operation="adjacent_evidence_review",
                 )
                 returned_ids: set[str] = set()
                 if data and isinstance(data.get("evidence"), list):
@@ -2805,15 +2778,7 @@ class DeepSearchEngine:
             stats["unverified_model_difference_count"] += len(
                 [finding for finding in reported_differences if finding not in evidence_differences]
             )
-            verified_components = [
-                label
-                for item in coverage
-                if item.status not in {"supported", "different", "missing"}
-                for label in item.component_evidence
-            ]
-            analysis.covered_features = list(
-                OrderedDict.fromkeys([*evidence_covered, *verified_components])
-            )[:8]
+            analysis.covered_features = list(OrderedDict.fromkeys(evidence_covered))[:8]
             analysis.different_features = list(dict.fromkeys(evidence_differences))[:8]
             analysis.unknown_features = list(dict.fromkeys(unknown))[:8]
             # A model guess is never enough to call a feature absent. Only an
@@ -3029,26 +2994,22 @@ class DeepSearchEngine:
         capabilities: Sequence[str],
         evidence_context: str = "",
     ) -> list[str]:
-        concepts = requirement.feature_concepts or {}
-        actions = self._clean_feature_aliases(
-            {str(item) for item in concepts.get("actions", [])}
-        )
-        context = self._clean_feature_aliases(
-            {
-                str(item)
-                for group in ("domains", "objects")
-                for item in concepts.get(group, [])
-            }
-        )
+        groups = self._adjacent_concept_groups(requirement)
+        actions = groups.get("actions", set())
+        context = {
+            alias
+            for group in ("domains", "objects")
+            for alias in groups.get(group, set())
+        }
         if not actions:
             return []
         return [
             capability
             for capability in capabilities
-            if self._matching_terms(capability, actions)
+            if self._literal_matching_terms(capability, actions)
             and (
                 not context
-                or self._matching_terms(
+                or self._literal_matching_terms(
                     " ".join([capability, evidence_context]),
                     context,
                 )

@@ -180,6 +180,32 @@ def test_adjacent_evidence_requires_domain_action_and_object_locally() -> None:
     assert engine._build_adjacent_evidence(requirement, scattered) is None
 
 
+def test_adjacent_evidence_uses_current_spec_component_phrases() -> None:
+    engine = DeepSearchEngine()
+    requirement = _requirement()
+    requirement.feature_concepts["literal_keywords"] = ["free"]
+    requirement.evidence_components[FEATURE]["duration condition"].append(
+        "screen by duration"
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="screen",
+        url="https://github.com/demo/screen",
+        description="An Orbit tool that can screen by duration for videos.",
+    )
+
+    groups = engine._adjacent_concept_groups(requirement)
+
+    assert "screen by duration" in groups["actions"]
+    assert "free" not in groups["objects"]
+    assert engine._build_adjacent_evidence(requirement, repo) is not None
+    assert engine._relevant_verified_capabilities(
+        requirement,
+        ["screen by duration"],
+        repo.description,
+    ) == ["screen by duration"]
+
+
 def test_topics_and_external_project_lists_do_not_prove_runtime_capability() -> None:
     engine = DeepSearchEngine()
     requirement = _requirement()
@@ -244,7 +270,13 @@ class _Reviewer:
     def __init__(self, capabilities: list[str]) -> None:
         self.capabilities = capabilities
 
-    async def json_chat(self, _system: str, _user: str) -> dict[str, object]:
+    async def json_chat(
+        self,
+        _system: str,
+        _user: str,
+        *,
+        operation: str = "chat",
+    ) -> dict[str, object]:
         return {
             "evidence": [
                 {
@@ -281,7 +313,13 @@ def test_focused_capability_review_accepts_only_exact_local_phrases() -> None:
 
 
 class _WindowReviewer:
-    async def json_chat(self, _system: str, _user: str) -> dict[str, object]:
+    async def json_chat(
+        self,
+        _system: str,
+        _user: str,
+        *,
+        operation: str = "chat",
+    ) -> dict[str, object]:
         return {
             "evidence": [
                 {

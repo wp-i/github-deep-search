@@ -33,6 +33,54 @@ identify any existing branches, helpers, or fixtures that it supersedes. If the
 design adds a downstream correction while leaving the producing stage wrong,
 reject it before editing.
 
+### Case-by-Case Locate-Converge-Freeze Gate
+
+Every reported failure must pass the following ordered gate before any runtime,
+test, prompt, configuration, or evaluation code is edited:
+
+1. **Carefully locate.** Retain the exact request, readable report, complete
+   trace, configuration fingerprint, provider outcomes, generated `SearchSpec`,
+   planned queries, discovery candidates, evidence decisions, ranking inputs,
+   and report decision. Trace the case through user input -> LLM `SearchSpec`
+   parsing -> search planning -> discovery -> repository evidence ->
+   ranking/reporting. A final empty or incorrect report is a symptom, not proof
+   that parsing, discovery, evidence, or ranking owns the failure.
+2. **Converge the scope.** State the expected behavior, actual behavior, violated
+   invariant, earliest incorrect stage, and the artifact that proves that stage
+   is incorrect. List later abnormal outputs as consequences unless independent
+   evidence proves another root cause. If required artifacts are missing, run a
+   trace-only reproduction without implementation edits and stop until the
+   earliest incorrect stage can be identified.
+3. **Freeze the permitted range.** Before editing, record an explicit allowlist
+   of owning modules, functions, tests, and behaviors that may change, plus an
+   explicit denylist of adjacent stages that must remain untouched. The frozen
+   range must be the smallest range sufficient to correct the proven root cause,
+   not the smallest range that can cosmetically change the final report.
+4. **Adjust only inside the frozen range.** Make one consolidated root-cause
+   change in the owning path. Do not perform incidental cleanup, architecture
+   expansion, prompt accumulation, new fallbacks, new retries, score tuning, or
+   report rewrites outside the frozen record. If new evidence requires another
+   owner or a wider range, stop editing, update the failure model, repeat the
+   locate and converge steps, and publish a new freeze record before resuming.
+5. **Verify the frozen invariant.** Run deterministic checks for the owning
+   stage, then rerun the same real case. Inspect intermediate artifacts as well
+   as the final report. Only after the case qualifies may independent fixed-plan
+   confirmation and any separately diagnosed case begin.
+
+Treat multiple failing requests as independent cases until their retained traces
+prove the same earliest incorrect stage and invariant. Similar final wording,
+including two empty reports, is not evidence of a shared root cause. Do not batch
+their fixes, widen the frozen range, or add their product terms to runtime logic.
+For each case, keep a separate failure model, scope freeze, acceptance rows, and
+representative artifact. A shared implementation change is allowed only after a
+cross-case comparison demonstrates one domain-neutral root cause owned by the
+same path.
+
+The working update immediately before an allowed edit must therefore include:
+case identifier, evidence paths, earliest incorrect stage, frozen allowlist,
+frozen denylist, single owning behavior, removal plan, and case-specific
+acceptance matrix. Without that record, implementation work is prohibited.
+
 ### Anti-Patch-Stack Gate
 
 Each behavior must have one owning implementation path. A new corrective branch,

@@ -21,6 +21,8 @@ def build_public_project_view(
         dict.fromkeys([*analysis.verified_capabilities, *analysis.covered_features])
     )[:5]
     description = " ".join(str(analysis.repo.description or "").split())[:280]
+    if _content_key(description) == _content_key(analysis.repo.name):
+        description = ""
     if description:
         summary = description
         normalized_capabilities = {_content_key(capability) for capability in capabilities}

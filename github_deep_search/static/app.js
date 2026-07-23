@@ -117,6 +117,7 @@ function finishProgress(success) {
 
 function explainError(response, data) {
   if (data && data.detail) return String(data.detail);
+  if (data && data.error) return String(data.error);
   if (response.status === 422) return "请输入至少 2 个字符的需求描述。";
   if (response.status === 429) return "GitHub 或上游服务限流了，请稍后重试，或配置 GITHUB_TOKEN。";
   if (response.status >= 500) return "服务端调研失败。请检查 GITHUB_TOKEN、LLM_API_KEY 和网络连接。";

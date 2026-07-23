@@ -139,6 +139,19 @@ def test_english_public_summary_uses_the_repository_description() -> None:
     assert project["summary"] not in project["covered"]
 
 
+def test_public_summary_rejects_a_description_identical_to_the_repository_name() -> None:
+    report = fake_report(language="en")
+    report.top_projects[0].repo.name = "placeholder"
+    report.top_projects[0].repo.description = "placeholder"
+
+    project = report_to_dict(report)["topProjects"][0]
+
+    assert project["summary"] == (
+        "Public project materials confirm: "
+        "Search GitHub repositories; repository search."
+    )
+
+
 def test_public_summary_remains_distinct_when_description_is_the_capability_evidence() -> None:
     report = fake_report()
     report.top_projects[0].verified_capabilities = [

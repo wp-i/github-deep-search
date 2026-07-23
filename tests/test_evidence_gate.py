@@ -191,6 +191,7 @@ def test_compound_requirement_is_not_confirmed_by_one_component() -> None:
 
     assert coverage[0].covered is False
     assert "domain" not in coverage[0].component_evidence
+    assert gated[0].covered_features == []
     assert gated[0].core_confirmed is False
     assert gated[0].match_score <= 49
 

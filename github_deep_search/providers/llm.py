@@ -31,7 +31,14 @@ class LLMClient:
     async def close(self) -> None:
         await self.client.aclose()
 
-    async def chat(self, system: str, user: str, temperature: float = 0.2) -> str:
+    async def chat(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.2,
+        *,
+        operation: str = "chat",
+    ) -> str:
         estimated_input_tokens = estimate_tokens(system) + estimate_tokens(user)
         payload = {
             "model": self.model,
@@ -68,12 +75,25 @@ class LLMClient:
         except Exception as exc:
             self.usage.llm_input_tokens += estimated_input_tokens
             self.usage.llm_token_estimated = True
-            detail = str(exc).strip() or repr(exc)
+            if isinstance(exc, httpx.HTTPStatusError):
+                response_text = " ".join(exc.response.text.split()).strip()
+                if self.api_key:
+                    response_text = response_text.replace(self.api_key, "[redacted]")
+                if len(response_text) > 1200:
+                    response_text = f"{response_text[:1200]}...[truncated]"
+                detail = (
+                    f"status={exc.response.status_code}; operation={operation}; model={self.model}; "
+                    f"input_chars={len(system) + len(user)}; "
+                    f"estimated_input_tokens={estimated_input_tokens}; "
+                    f"response={response_text or '[empty]'}"
+                )
+            else:
+                detail = str(exc).strip() or repr(exc)
             self.usage.warnings.append(
                 f"LLM request failed ({type(exc).__name__}): {detail}"
             )
             self.usage.provider_events.append(
-                ProviderEvent("llm", "chat", "failed", type(exc).__name__)
+                ProviderEvent("llm", operation, "failed", type(exc).__name__)
             )
             return ""
 
@@ -88,11 +108,17 @@ class LLMClient:
             return int(value)
         return None
 
-    async def json_chat(self, system: str, user: str) -> dict[str, Any] | None:
+    async def json_chat(
+        self,
+        system: str,
+        user: str,
+        *,
+        operation: str = "chat",
+    ) -> dict[str, Any] | None:
         # Structured planning and evidence decisions are contracts, not creative
         # prose. Use deterministic sampling so repeated runs do not start from
         # materially different search plans merely because of model temperature.
-        content = await self.chat(system, user, temperature=0.0)
+        content = await self.chat(system, user, temperature=0.0, operation=operation)
         if not content:
             return None
         cleaned = content.strip()
