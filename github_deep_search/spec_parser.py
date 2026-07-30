@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import re
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any
 
 from github_deep_search.models import SearchSpec
-from github_deep_search.providers.llm import LLMClient
+from github_deep_search.providers.llm import LLMClient, LLMProviderError
 
 
 QUERY_CHANNEL_LIMITS = {
@@ -16,6 +17,20 @@ QUERY_CHANNEL_LIMITS = {
     "issue_search_queries": 5,
     "web_search_queries": 4,
 }
+
+
+@dataclass(frozen=True)
+class _RequirementRoles:
+    core_requirement: str
+    hard_constraints: tuple[str, ...]
+    nice_to_have: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "core_requirement": self.core_requirement,
+            "hard_constraints": list(self.hard_constraints),
+            "nice_to_have": list(self.nice_to_have),
+        }
 
 
 class SearchSpecParser:
@@ -30,21 +45,69 @@ class SearchSpecParser:
         if not llm:
             return self._literal_only_spec(query)
 
+        role_data = await llm.json_chat(
+            "You assign mutually exclusive requirement roles for the current request. Return JSON only.",
+            self._role_prompt(query),
+        )
+        roles = self._roles_from_llm_data(role_data)
+        role_errors = self._role_validation_errors(roles)
+        if roles is None or role_errors:
+            provider_failure = getattr(llm, "last_failure", None)
+            if isinstance(provider_failure, LLMProviderError):
+                raise provider_failure
+            detail = "; ".join(role_errors) or "response was not a valid requirement-role object"
+            raise ValueError(f"SearchSpec role generation failed structural validation: {detail}")
+
         errors: list[str] = []
         for _attempt in range(3):
             data = await llm.json_chat(
-                "You parse the current request into one repository-search specification. Return JSON only.",
-                self._plan_prompt(query, errors),
+                "You expand fixed requirement roles into one repository-search specification. Return JSON only.",
+                self._plan_prompt(query, roles, errors),
             )
             spec = self._from_llm_data(query, data)
-            errors = self._validation_errors(spec)
+            errors = [
+                *self._validation_errors(spec),
+                *self._role_consistency_errors(spec, roles),
+            ]
             if spec is not None and not errors:
                 return spec
+        provider_failure = getattr(llm, "last_failure", None)
+        if isinstance(provider_failure, LLMProviderError):
+            raise provider_failure
         detail = "; ".join(errors) or "response was not a valid SearchSpec object"
         raise ValueError(f"SearchSpec generation failed structural validation: {detail}")
 
     @staticmethod
-    def _plan_prompt(query: str, validation_errors: list[str]) -> str:
+    def _role_prompt(query: str) -> str:
+        return (
+            "Return JSON with exactly these fields: primary_product_form, primary_user_job, adoption_constraints, "
+            "environment_preferences, and experience_preferences. This step decides requirement roles only; do not "
+            "generate queries, keywords, evidence phrases, repositories, or recommendations. primary_product_form is "
+            "one non-empty, concise, repository-searchable noun phrase naming the user-facing artifact or workflow. "
+            "primary_user_job is one non-empty string naming the complete primary action/object outcome that makes that "
+            "product useful. When several actions jointly define that same primary user job, preserve all of them together "
+            "in this one string; do not discard one merely for concision. Do not copy surrounding product-fit or secondary "
+            "feature details into either primary field. "
+            "environment_preferences contains target operating platform or version and other requested runtime "
+            "environment fit, but not the user-facing product form when that form defines the primary artifact. "
+            "experience_preferences contains placement, persistence or default state, presentation, configuration or "
+            "settings surfaces, secondary detail display or editing, convenience, and interaction style. "
+            "adoption_constraints contains only explicit rules about whether or how a project may be adopted or obtained. "
+            "Preserve every requested outcome, constraint, environment preference, and experience refinement exactly once "
+            "across the five fields. Neither primary field may mention or imply a preference assigned to either preference "
+            "list, even with different wording. Use this shape: "
+            '{"primary_product_form":"...","primary_user_job":"...","adoption_constraints":[],'
+            '"environment_preferences":[],'
+            '"experience_preferences":[]}.\n'
+            f"Current request:\n{query}"
+        )
+
+    @staticmethod
+    def _plan_prompt(
+        query: str,
+        roles: _RequirementRoles,
+        validation_errors: list[str],
+    ) -> str:
         retry_note = (
             "The previous response failed these domain-neutral structural checks: "
             + json.dumps(validation_errors, ensure_ascii=False)
@@ -55,14 +118,13 @@ class SearchSpecParser:
         return (
             retry_note
             + "Return JSON with exactly these fields: intent, literal_keywords, domains, actions, objects, outputs, "
-            "interfaces, must_have, nice_to_have, negative_filters, repo_search_queries, code_search_queries, "
-            "topic_search_queries, issue_search_queries, web_search_queries, evidence_aliases, and "
-            "evidence_components.\n"
-            "Interpret only the current request. Keep the smallest usable core outcome and explicit hard constraints "
-            "in must_have. Put preferences, refinements, thresholds described as optional, supplemental signals, and "
-            "implementation suggestions in nice_to_have. A dependent workflow must remain one complete capability; "
-            "do not turn framing text or one manual step into a standalone must-have. Preserve every requested outcome "
-            "or refinement in must_have or nice_to_have.\n"
+            "interfaces, core_requirement, hard_constraints, nice_to_have, negative_filters, repo_search_queries, "
+            "code_search_queries, topic_search_queries, issue_search_queries, web_search_queries, evidence_aliases, "
+            "and evidence_components.\n"
+            "The requirement-role decision below is fixed. Copy core_requirement, hard_constraints, and nice_to_have "
+            "exactly, including wording and order. Do not merge, split, add, remove, or reclassify any role while "
+            "generating the rest of the plan. Fixed requirement roles:\n"
+            f"{json.dumps(roles.as_dict(), ensure_ascii=False)}\n"
             "domains, actions, objects, outputs, and interfaces describe the same interpreted request. For Chinese or "
             "English input, derive both Chinese and English repository-author wording from this request and include "
             "both languages in repo_search_queries. Do not use a static translation table, fixed vocabulary, known "
@@ -73,22 +135,95 @@ class SearchSpecParser:
             "source. Topic queries are plausible short GitHub topics. Issue queries describe the requested capability "
             "or problem. Web queries support broad GitHub discovery. Every query must remain grounded in the current "
             "request; do not invent adjacent product categories merely to fill a count.\n"
-            "evidence_aliases and evidence_components must have exactly the combined must_have and nice_to_have strings "
-            "as keys. Each evidence_alias value is a non-empty array of concrete phrases that could prove that entire "
-            "feature in repository material. Each evidence_components value is a non-empty object whose labels are "
-            "current-request proof components and whose values are non-empty phrase arrays. Components must collectively "
-            "cover every named action, object, domain/interface, relationship, output, and constraint required by the "
-            "feature. Each phrase must be one contiguous repository-author expression that can independently prove its "
-            "named component in one metadata, README, path, or source location. Do not use search queries, tag bundles, "
-            "joined synonyms, or fragments that require evidence from another location.\n"
+            "evidence_aliases and evidence_components must have exactly core_requirement plus every hard_constraints "
+            "and nice_to_have string as keys. Each evidence_alias value is a non-empty array of concrete phrases that "
+            "could prove that entire feature in repository material. Each evidence_components value is a non-empty "
+            "object whose labels are current-request proof components and whose values are non-empty phrase arrays. "
+            "Components must collectively cover every named action, object, domain/interface, relationship, output, "
+            "and constraint required by the feature. Each phrase must be one contiguous repository-author expression "
+            "that can independently prove its named component in one metadata, README, path, or source location. Do "
+            "not use search queries, tag bundles, joined synonyms, or fragments that require evidence from another "
+            "location.\n"
             "Use this structural shape: "
             '{"intent":"...","literal_keywords":[],"domains":[],"actions":[],"objects":[],"outputs":[],'
-            '"interfaces":[],"must_have":[],"nice_to_have":[],"negative_filters":[],'
+            '"interfaces":[],"core_requirement":"...","hard_constraints":[],"nice_to_have":[],"negative_filters":[],'
             '"repo_search_queries":[],"code_search_queries":[],"topic_search_queries":[],'
             '"issue_search_queries":[],"web_search_queries":[],"evidence_aliases":{"<feature>":["<phrase>"]},'
             '"evidence_components":{"<feature>":{"<component>":["<phrase>"]}}}.\n'
             f"Current request:\n{query}"
         )
+
+    def _roles_from_llm_data(
+        self,
+        data: dict[str, Any] | None,
+    ) -> _RequirementRoles | None:
+        expected_fields = {
+            "primary_product_form",
+            "primary_user_job",
+            "adoption_constraints",
+            "environment_preferences",
+            "experience_preferences",
+        }
+        if not isinstance(data, dict) or set(data) != expected_fields:
+            return None
+        product_form = data.get("primary_product_form")
+        user_job = data.get("primary_user_job")
+        adoption = data.get("adoption_constraints")
+        environment = data.get("environment_preferences")
+        experience = data.get("experience_preferences")
+        if (
+            not isinstance(product_form, str)
+            or not isinstance(user_job, str)
+            or not isinstance(adoption, list)
+            or not isinstance(environment, list)
+            or not isinstance(experience, list)
+        ):
+            return None
+        product_form = product_form.strip()
+        user_job = user_job.strip()
+        if not product_form or not user_job:
+            return None
+        nice = self._merge_lists(
+            self._list(environment),
+            self._list(experience),
+            limit=16,
+        )
+        return _RequirementRoles(
+            core_requirement=f"{product_form}: {user_job}",
+            hard_constraints=tuple(self._list(adoption, limit=15)),
+            nice_to_have=tuple(self._non_redundant_features(self._list(nice))),
+        )
+
+    def _role_validation_errors(self, roles: _RequirementRoles | None) -> list[str]:
+        if roles is None:
+            return ["response must contain two non-empty primary strings and three list fields"]
+        errors: list[str] = []
+        if not roles.core_requirement:
+            errors.append("core_requirement is empty")
+        values = [roles.core_requirement, *roles.hard_constraints, *roles.nice_to_have]
+        normalized = [self._norm_key(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            errors.append("requirement roles contain an exact normalized duplicate")
+        return errors
+
+    def _role_consistency_errors(
+        self,
+        spec: SearchSpec | None,
+        roles: _RequirementRoles,
+    ) -> list[str]:
+        if spec is None:
+            return []
+        expected_must = self._merge_lists(
+            [roles.core_requirement],
+            list(roles.hard_constraints),
+            limit=16,
+        )
+        errors: list[str] = []
+        if spec.must_have != expected_must:
+            errors.append("plan must copy the fixed core_requirement and hard_constraints exactly")
+        if spec.nice_to_have != list(roles.nice_to_have):
+            errors.append("plan must copy the fixed nice_to_have list exactly")
+        return errors
 
     def _from_llm_data(
         self,
@@ -97,16 +232,15 @@ class SearchSpecParser:
     ) -> SearchSpec | None:
         if not isinstance(data, dict):
             return None
-        must_have = self._non_redundant_features(
-            self._list(data.get("must_have"))
-            or self._list(data.get("core_must_have"))
-            or self._list(data.get("core_requirements"))
+        raw_core = data.get("core_requirement")
+        core_requirement = raw_core.strip() if isinstance(raw_core, str) else ""
+        hard_constraints = self._list(data.get("hard_constraints"), limit=15)
+        must_have = (
+            self._merge_lists([core_requirement], hard_constraints, limit=16)
+            if core_requirement
+            else []
         )
-        nice_to_have = self._non_redundant_features(
-            self._list(data.get("nice_to_have"))
-            or self._list(data.get("implementation_assumptions"))
-            or self._list(data.get("extension_requirements"))
-        )
+        nice_to_have = self._non_redundant_features(self._list(data.get("nice_to_have")))
         features = [*must_have, *nice_to_have]
         repo_queries = self._list(
             data.get("repo_search_queries"),
@@ -213,6 +347,44 @@ class SearchSpecParser:
             for groups in spec.evidence_components.values()
         ):
             errors.append("every evidence component label must have a non-empty phrase array")
+        for feature, groups in spec.evidence_components.items():
+            feature_key = self._coverage_key(feature)
+            component_keys = [
+                self._coverage_key(text)
+                for text in [
+                    *groups,
+                    *(
+                        phrase
+                        for phrases in groups.values()
+                        for phrase in phrases
+                    ),
+                ]
+            ]
+            for value in spec.domains:
+                value_key = self._coverage_key(value)
+                if (
+                    value_key
+                    and value_key in feature_key
+                    and not any(value_key in component_key for component_key in component_keys)
+                ):
+                    errors.append(
+                        f"evidence_components[{feature}] does not cover named domain: {value}"
+                    )
+        plan_evidence_keys = [
+            self._coverage_key(text)
+            for feature, groups in spec.evidence_components.items()
+            for text in [
+                feature,
+                *groups,
+                *(phrase for phrases in groups.values() for phrase in phrases),
+            ]
+        ]
+        for value in spec.objects:
+            value_key = self._coverage_key(value)
+            if value_key and not any(value_key in key for key in plan_evidence_keys):
+                errors.append(
+                    f"requirement features and evidence_components do not cover named object: {value}"
+                )
 
         raw_signals = self._signals(spec.raw)
         planned_signals = self._signals(
@@ -319,6 +491,10 @@ class SearchSpecParser:
     @staticmethod
     def _norm_key(value: str) -> str:
         return re.sub(r"\s+", " ", str(value).strip().casefold())
+
+    @staticmethod
+    def _coverage_key(value: str) -> str:
+        return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(value).casefold())
 
     @staticmethod
     def _list(value: object, limit: int = 16) -> list[str]:

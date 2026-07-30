@@ -31,6 +31,7 @@ from github_deep_search.run_trace import (
     classify_failure,
 )
 from github_deep_search.providers.github import GitHubClient
+from github_deep_search.providers.llm import LLMProviderError
 from github_deep_search.serializers import (
     diagnostic_report_to_dict,
     failure_artifact_to_dict,
@@ -124,9 +125,28 @@ def test_decision_brief_exposes_the_boundary_for_adjacent_leads() -> None:
     assert brief.confirmed_features == []
     assert brief.unconfirmed_features == ["core capability", "extension"]
     assert "指定首选" in brief.headline
-    assert "并列核对" in brief.next_step
+    assert "核对该项目" in brief.next_step
+    assert "并列核对" not in brief.next_step
     assert "decisionBrief" not in report_to_dict(report)
     assert diagnostic_report_to_dict(report)["decisionBrief"]["level"] == "adjacent"
+
+
+def test_decision_brief_keeps_side_by_side_action_for_multiple_adjacent_leads() -> None:
+    report = _report()
+    first = report.top_projects[0]
+    first.confidence_level = "lead"
+    first.core_confirmed = False
+    second = _report().top_projects[0]
+    second.repo = CandidateRepository(
+        "demo", "second", "https://github.com/demo/second"
+    )
+    second.confidence_level = "lead"
+    second.core_confirmed = False
+
+    brief = build_decision_brief(report.requirement, [first, second])
+
+    assert brief is not None
+    assert "并列核对" in brief.next_step
 
 
 def test_diagnostic_report_exposes_decision_brief_and_stage_trace() -> None:
@@ -322,6 +342,21 @@ def test_engine_failure_preserves_failed_and_not_started_stages(monkeypatch) -> 
     assert "internal details" not in artifact["errorReportMarkdown"]
 
 
+def test_llm_provider_failure_is_not_misclassified_as_an_invalid_request() -> None:
+    failure = classify_failure(
+        "parse",
+        LLMProviderError(
+            "The configured LLM provider rejected the request (HTTP 402).",
+            retryable=False,
+            status_code=402,
+        ),
+    )
+
+    assert failure.kind == "provider"
+    assert failure.message == "The configured LLM provider rejected the request (HTTP 402)."
+    assert failure.retryable is False
+
+
 def test_structured_provider_event_marks_its_actual_stage_partial() -> None:
     trace = RunTraceRecorder()
     trace.begin("parse", {"query": 1})
@@ -381,6 +416,52 @@ def test_reference_tiering_replaces_unverified_model_recommendation() -> None:
     assert analysis.is_reference_candidate is True
     assert analysis.recommendation == analysis.reference_reason
     assert analysis.recommendation != "Unverified capability claim"
+
+
+def test_report_summary_preserves_reference_and_lead_tiers() -> None:
+    engine = DeepSearchEngine()
+    report = _report()
+    reliable = report.top_projects[0]
+    reliable.directly_usable = False
+    reliable.core_confirmed = True
+    reliable.confidence_level = "reliable"
+    assert engine._write_summary(report.requirement, [reliable]) == (
+        "项目 demo/project 的核心需求已有公开证据支持（相关度 72%），仍需核对未确认项。"
+    )
+
+    direct = _report().top_projects[0]
+    direct.directly_usable = True
+    direct.core_confirmed = True
+    assert engine._write_summary(report.requirement, [direct]) == (
+        "找到了可优先评估的项目：demo/project（相关度 72%）。"
+    )
+
+    report = _report()
+    reference = report.top_projects[0]
+    reference.directly_usable = False
+    reference.core_confirmed = False
+    reference.confidence_level = "reference"
+
+    assert engine._write_summary(report.requirement, [reference]) == (
+        "没有确认可直接使用的项目；保留了 1 个有证据支持的参考项目。"
+    )
+
+    lead = _report().top_projects[0]
+    lead.directly_usable = False
+    lead.core_confirmed = False
+    lead.confidence_level = "lead"
+    assert engine._write_summary(report.requirement, [lead]) == (
+        "没有确认可直接使用的项目；保留了 1 个低置信度相邻线索供参考。"
+    )
+    assert engine._write_summary(report.requirement, [reference, lead]) == (
+        "没有确认可直接使用的项目；保留了 1 个有证据支持的参考项目和 1 个低置信度相邻线索。"
+    )
+
+    report.requirement.report_language = "en"
+    assert engine._write_summary(report.requirement, [reference, lead]) == (
+        "No directly usable project was confirmed; 1 evidence-backed reference candidate(s) and "
+        "1 low-confidence adjacent lead(s) remain."
+    )
 
 
 def test_candidate_trace_distinguishes_discovery_score_from_public_score() -> None:

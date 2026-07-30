@@ -6,7 +6,7 @@ import json
 import httpx
 
 from github_deep_search.models import BudgetUsage, ProviderEvent
-from github_deep_search.providers.llm import LLMClient
+from github_deep_search.providers.llm import LLMClient, LLMProviderError
 
 
 def test_json_chat_uses_deterministic_sampling() -> None:
@@ -43,30 +43,35 @@ def test_http_error_retains_bounded_sanitized_provider_detail() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            400,
+            402,
             request=request,
             json={"error": {"message": f"invalid request test-key {'x' * 1400}"}},
         )
 
-    async def run() -> dict[str, object] | None:
+    async def run() -> tuple[dict[str, object] | None, LLMProviderError | None]:
         client = LLMClient("test-key", "https://provider.example", "model", usage)
         await client.client.aclose()
         client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         try:
-            return await client.json_chat(
+            result = await client.json_chat(
                 "system",
                 "user",
                 operation="repository_analysis",
             )
+            return result, client.last_failure
         finally:
             await client.close()
 
-    result = asyncio.run(run())
+    result, failure = asyncio.run(run())
 
     assert result is None
+    assert isinstance(failure, LLMProviderError)
+    assert str(failure) == "The configured LLM provider rejected the request (HTTP 402)."
+    assert failure.status_code == 402
+    assert failure.retryable is False
     assert len(usage.warnings) == 1
     warning = usage.warnings[0]
-    assert "status=400" in warning
+    assert "status=402" in warning
     assert "operation=repository_analysis" in warning
     assert "model=model" in warning
     assert "input_chars=10" in warning

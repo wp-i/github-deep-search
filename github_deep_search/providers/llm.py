@@ -9,6 +9,19 @@ from github_deep_search.models import BudgetUsage, ProviderEvent
 from github_deep_search.utils import estimate_tokens
 
 
+class LLMProviderError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool,
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.status_code = status_code
+
+
 class LLMClient:
     def __init__(
         self,
@@ -27,6 +40,7 @@ class LLMClient:
         self.thinking = thinking
         self.reasoning_effort = reasoning_effort
         self.client = httpx.AsyncClient(timeout=timeout)
+        self.last_failure: LLMProviderError | None = None
 
     async def close(self) -> None:
         await self.client.aclose()
@@ -39,6 +53,7 @@ class LLMClient:
         *,
         operation: str = "chat",
     ) -> str:
+        self.last_failure = None
         estimated_input_tokens = estimate_tokens(system) + estimate_tokens(user)
         payload = {
             "model": self.model,
@@ -76,19 +91,31 @@ class LLMClient:
             self.usage.llm_input_tokens += estimated_input_tokens
             self.usage.llm_token_estimated = True
             if isinstance(exc, httpx.HTTPStatusError):
+                status_code = exc.response.status_code
                 response_text = " ".join(exc.response.text.split()).strip()
                 if self.api_key:
                     response_text = response_text.replace(self.api_key, "[redacted]")
                 if len(response_text) > 1200:
                     response_text = f"{response_text[:1200]}...[truncated]"
                 detail = (
-                    f"status={exc.response.status_code}; operation={operation}; model={self.model}; "
+                    f"status={status_code}; operation={operation}; model={self.model}; "
                     f"input_chars={len(system) + len(user)}; "
                     f"estimated_input_tokens={estimated_input_tokens}; "
                     f"response={response_text or '[empty]'}"
                 )
+                retryable = status_code in {408, 409, 425, 429} or status_code >= 500
+                self.last_failure = LLMProviderError(
+                    f"The configured LLM provider rejected the request (HTTP {status_code}).",
+                    retryable=retryable,
+                    status_code=status_code,
+                )
             else:
                 detail = str(exc).strip() or repr(exc)
+                retryable = isinstance(exc, httpx.RequestError)
+                self.last_failure = LLMProviderError(
+                    f"The configured LLM provider failed during {operation}.",
+                    retryable=retryable,
+                )
             self.usage.warnings.append(
                 f"LLM request failed ({type(exc).__name__}): {detail}"
             )

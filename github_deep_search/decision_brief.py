@@ -40,6 +40,11 @@ def build_decision_brief(
     has_confirmed_core = best.core_confirmed
     if not has_confirmed_core:
         headline = f"当前保留 {len(analyses)} 个相邻或参考项目，尚无证据支持指定首选。"
+    adjacent_next_step = (
+        "核对该项目的已确认能力与适用范围，优先补查核心需求证据。"
+        if len(analyses) == 1
+        else "并列核对候选项目的已确认能力与适用范围，优先补查核心需求证据。"
+    )
     return DecisionBrief(
         level=level,
         headline=headline,
@@ -50,7 +55,7 @@ def build_decision_brief(
         next_step=(
             _next_step(best, gaps, unconfirmed)
             if has_confirmed_core
-            else "并列核对候选项目的已确认能力与适用范围，优先补查核心需求证据。"
+            else adjacent_next_step
         ),
     )
 

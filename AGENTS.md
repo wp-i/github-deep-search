@@ -8,6 +8,22 @@ These rules override local implementation convenience. If a change would make a
 sample look better by teaching the runtime a fixed phrase, wording pattern, or
 language marker, the change is forbidden even when the phrase looks generic.
 
+## Active Worktree Handoff
+
+Before modifying a dirty worktree, check whether
+`docs/evaluations/ACTIVE_CHANGE.md` exists. If it does, read it completely
+before selecting a strategy or editing any file. It is the single current
+handoff entry and must identify the base commit, intentional files, retained
+evidence, completed validation, unresolved cases, and the next permitted step.
+
+The handoff is evidence, not permission to bypass this rule gate. Compare its
+snapshot with `git status`, `git diff`, and the retained artifacts. If they do
+not match, stop and reconcile ownership before editing. An unresolved case with
+no proven earliest incorrect stage resumes at trace-only diagnosis, not at code
+implementation. Update the handoff whenever scope or validation status changes,
+and remove or mark it inactive when its worktree is committed, discarded, or
+superseded.
+
 Both new development and bug fixes must follow this sequence: trace the flow,
 locate the earliest incorrect stage, make the minimal root-cause adjustment,
 and verify with real tests. Do not use temporary compensation, fallback patches,

@@ -117,7 +117,7 @@ def test_user_json_is_concise_and_keeps_requested_public_fields() -> None:
         "lastPushedAt",
     }
     assert project["relevance"] == 82
-    assert project["summary"] == "A concise repository summary."
+    assert project["summary"] == "项目公开材料确认了 2 项与当前需求相关的能力。"
     assert project["covered"] == ["搜索 GitHub 仓库", "repository search"]
     assert project["stars"] == 12
     assert project["lastPushedAt"] == "2026-01-15T08:30:00Z"
@@ -132,36 +132,44 @@ def test_user_json_is_concise_and_keeps_requested_public_fields() -> None:
     assert "evidenceCoverage" not in project
 
 
-def test_english_public_summary_uses_the_repository_description() -> None:
+def test_english_public_summary_uses_localized_evidence_prose() -> None:
     project = report_to_dict(fake_report(language="en"))["topProjects"][0]
 
-    assert project["summary"] == "A concise repository summary."
-    assert project["summary"] not in project["covered"]
-
-
-def test_public_summary_rejects_a_description_identical_to_the_repository_name() -> None:
-    report = fake_report(language="en")
-    report.top_projects[0].repo.name = "placeholder"
-    report.top_projects[0].repo.description = "placeholder"
-
-    project = report_to_dict(report)["topProjects"][0]
-
     assert project["summary"] == (
-        "Public project materials confirm: "
-        "Search GitHub repositories; repository search."
+        "Public project materials confirm 2 capabilities related to this request."
     )
 
 
-def test_public_summary_remains_distinct_when_description_is_the_capability_evidence() -> None:
-    report = fake_report()
-    report.top_projects[0].verified_capabilities = [
-        report.top_projects[0].repo.description.rstrip(".")
-    ]
+def test_chinese_public_summary_does_not_expose_an_english_description() -> None:
+    report = fake_report(language="zh")
 
     project = report_to_dict(report)["topProjects"][0]
 
-    assert project["summary"].endswith("（主要语言：Python）")
-    assert project["summary"] != project["covered"][0]
+    assert project["summary"] == "项目公开材料确认了 2 项与当前需求相关的能力。"
+    assert report.top_projects[0].repo.description not in project["summary"]
+
+
+def test_public_summary_preserves_exact_capability_text_without_translating_it() -> None:
+    report = fake_report()
+    exact_technical_text = "KeyboardShortcut API"
+    report.top_projects[0].verified_capabilities = [exact_technical_text]
+    report.top_projects[0].covered_features = []
+
+    project = report_to_dict(report)["topProjects"][0]
+
+    assert project["summary"] == "项目公开材料确认了 1 项与当前需求相关的能力。"
+    assert project["covered"] == [exact_technical_text]
+    assert exact_technical_text not in project["summary"]
+
+
+def test_public_summary_stays_empty_without_validated_capabilities() -> None:
+    report = fake_report()
+    report.top_projects[0].verified_capabilities = []
+    report.top_projects[0].covered_features = []
+
+    project = report_to_dict(report)["topProjects"][0]
+
+    assert project["summary"] == ""
 
 
 def test_diagnostic_serializer_retains_trace_and_evidence_for_evaluation() -> None:
@@ -169,7 +177,9 @@ def test_diagnostic_serializer_retains_trace_and_evidence_for_evaluation() -> No
 
     assert data["requirement"]["repoSearchQueries"] == ["repository search", "仓库 搜索"]
     assert data["topProjects"][0]["evidenceCoverage"][0]["status"] == "supported"
-    assert data["topProjects"][0]["publicSummary"] == "A concise repository summary."
+    assert data["topProjects"][0]["publicSummary"] == (
+        "项目公开材料确认了 2 项与当前需求相关的能力。"
+    )
     assert data["topProjects"][0]["capabilityEvidence"] == []
     assert data["raw"]["candidate_count"] == 1
     assert data["runTrace"]["schema_version"] == "1"
@@ -211,7 +221,10 @@ def test_english_report_follows_the_input_language() -> None:
     assert "# Research conclusion" in markdown
     assert "## Candidate projects" in markdown
     assert "Relevance: 82%" in markdown
-    assert "Overview: A concise repository summary." in markdown
+    assert (
+        "Overview: Public project materials confirm 2 capabilities related to this request."
+        in markdown
+    )
     assert "Verified capabilities: Search GitHub repositories; repository search" in markdown
     assert "LLM tokens" in markdown
     assert "相关度" not in markdown

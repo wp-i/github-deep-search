@@ -24,10 +24,15 @@ from github_deep_search.models import (
     BudgetUsage,
     CandidateRepository,
     EvidenceCoverage,
+    EvidenceReference,
     ProjectAnalysis,
     Requirement,
+    RunTrace,
     SearchSpec,
+    SearchReport,
+    StageOutcome,
 )
+from github_deep_search.serializers import diagnostic_report_to_dict, report_to_dict
 
 
 # ---------------------------------------------------------------------------
@@ -594,6 +599,198 @@ def test_pipeline_trace_full_flow() -> None:
     print(f"Evidence: {report.evidence}")
     print(f"Analysis: {report.analysis}")
     print("===========================")
+
+
+def test_diagnostic_pipeline_snapshots_retain_stage_data_and_real_selection_reasons() -> None:
+    engine = DeepSearchEngine()
+    requirement = Requirement(
+        raw="Keep a visible control surface anchored in one location",
+        intent="Find an anchored control surface",
+        must_have_features=["keep a visible control surface anchored in one location"],
+        nice_to_have_features=[],
+        target_platforms=["desktop"],
+        search_queries=["anchored control surface"],
+        repo_search_queries=["anchored control surface"],
+        code_search_queries=["visible control surface"],
+        topic_search_queries=["control-surface"],
+        issue_search_queries=["anchored control surface"],
+        web_search_queries=["anchored control surface repository"],
+        feature_concepts={
+            "domains": ["desktop"],
+            "actions": ["keep"],
+            "objects": ["control surface"],
+        },
+        evidence_aliases={
+            "keep a visible control surface anchored in one location": [
+                "visible control surface"
+            ]
+        },
+    )
+    coverage = EvidenceCoverage(
+        feature=requirement.must_have_features[0],
+        covered=True,
+        status="supported",
+        source_evidence=["src/panel.ts: visible control surface"],
+        component_evidence={"control surface": ["src/panel.ts: visible control surface"]},
+        evidence_references=[
+            EvidenceReference(
+                kind="source",
+                locator="src/panel.ts",
+                excerpt="visible control surface",
+                matched_aliases=["visible control surface"],
+            )
+        ],
+    )
+    selected_repo = CandidateRepository(
+        owner="demo",
+        name="selected",
+        url="https://github.com/demo/selected",
+        description="A visible control surface.",
+        stars=12,
+        language="TypeScript",
+        found_by=["github:anchored control surface"],
+        evidence_coverage=[coverage],
+        raw_score=81.2,
+        core_signal_score=3.0,
+    )
+    filtered_repo = CandidateRepository(
+        owner="demo",
+        name="filtered",
+        url="https://github.com/demo/filtered",
+        description="An unrelated helper.",
+        found_by=["github_topic:control-surface"],
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=requirement.must_have_features[0],
+                covered=False,
+                status="unknown",
+                unknown_reason="Public material did not confirm the requirement.",
+            )
+        ],
+        raw_score=12.0,
+    )
+    selected_analysis = ProjectAnalysis(
+        repo=selected_repo,
+        match_score=78,
+        recommendation="Inspect this candidate.",
+        directly_usable=True,
+        covered_features=[requirement.must_have_features[0]],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=["src/panel.ts: visible control surface"],
+        functional_score=78,
+        suitability_score=78,
+        core_feature=requirement.must_have_features[0],
+        core_confirmed=True,
+        evidence_coverage=[coverage],
+        capability_citations_reviewed=True,
+        capability_object_supported=True,
+        capability_partial_components=["visible surface", "control interaction"],
+    )
+    filtered_analysis = ProjectAnalysis(
+        repo=filtered_repo,
+        match_score=4,
+        recommendation="No confirmed adjacent capability.",
+        directly_usable=False,
+        covered_features=[],
+        missing_features=[],
+        required_changes=[],
+        risks=[],
+        evidence=[],
+        functional_score=4,
+        suitability_score=4,
+        core_feature=requirement.must_have_features[0],
+        core_confirmed=False,
+        evidence_coverage=filtered_repo.evidence_coverage,
+    )
+    decisions: list[dict[str, object]] = []
+
+    selected = engine._select_report_projects(
+        requirement,
+        [filtered_analysis, selected_analysis],
+        BudgetUsage(),
+        decision_trace=decisions,
+    )
+
+    assert [item.repo.full_name for item in selected] == ["demo/selected"]
+    assert {item["repo"]: item["reason"] for item in decisions} == {
+        "demo/filtered": "no_meaningful_adjacent_evidence",
+        "demo/selected": "selected_by_verified_tier",
+    }
+
+    snapshots = {
+        "parse": {"requirement": engine._requirement_trace_item(requirement)},
+        "discovery": {
+            "candidates": [
+                engine._candidate_snapshot_item(selected_repo),
+                engine._candidate_snapshot_item(filtered_repo),
+            ]
+        },
+        "ranking": {
+            "ranked_candidates": [
+                engine._candidate_snapshot_item(selected_repo),
+                engine._candidate_snapshot_item(filtered_repo),
+            ],
+            "readme_pool": ["demo/selected", "demo/filtered"],
+        },
+        "evidence": {
+            "candidates": [
+                engine._evidence_snapshot_item(selected_repo),
+                engine._evidence_snapshot_item(filtered_repo),
+            ]
+        },
+        "analysis": {
+            "candidates": [
+                engine._analysis_snapshot_item(selected_analysis),
+                engine._analysis_snapshot_item(filtered_analysis),
+            ],
+            "selection_decisions": decisions,
+        },
+        "report_delivery": {"selected_projects": ["demo/selected"]},
+    }
+    report = SearchReport(
+        query=requirement.raw,
+        requirement=requirement,
+        top_projects=selected,
+        opportunity="",
+        summary="One candidate retained.",
+        report_markdown="# Report\n",
+        usage=BudgetUsage(),
+        raw={"pipeline_snapshots": snapshots},
+        run_trace=RunTrace(
+            "1",
+            "completed",
+            [
+                StageOutcome(name, "completed")
+                for name in ("parse", "discovery", "evidence", "analysis", "report_delivery")
+            ],
+        ),
+    )
+
+    diagnostic = diagnostic_report_to_dict(report)
+
+    assert set(diagnostic["raw"]["pipeline_snapshots"]) == {
+        "parse",
+        "discovery",
+        "ranking",
+        "evidence",
+        "analysis",
+        "report_delivery",
+    }
+    assert diagnostic["raw"]["pipeline_snapshots"]["evidence"]["candidates"][0][
+        "evidence_coverage"
+    ][0]["evidence_references"][0]["locator"] == "src/panel.ts"
+    assert diagnostic["raw"]["pipeline_snapshots"]["analysis"]["candidates"][0][
+        "capability_object_supported"
+    ] is True
+    assert diagnostic["raw"]["pipeline_snapshots"]["analysis"]["candidates"][0][
+        "capability_partial_components"
+    ] == ["visible surface", "control interaction"]
+    assert diagnostic["raw"]["pipeline_snapshots"]["analysis"][
+        "selection_decisions"
+    ][0]["reason"] == "no_meaningful_adjacent_evidence"
+    assert "raw" not in report_to_dict(report)
 
 
 def test_parser_output_quality() -> None:

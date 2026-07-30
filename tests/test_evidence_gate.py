@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from github_deep_search.engine import DeepSearchEngine
 from github_deep_search.models import (
     BudgetUsage,
@@ -22,6 +24,84 @@ def _analysis(repo: CandidateRepository, score: int = 90) -> ProjectAnalysis:
         risks=["Model says an unmentioned capability is absent"],
         evidence=["unsupported model evidence"],
     )
+
+
+class _AnalysisPromptLLM:
+    def __init__(self) -> None:
+        self.user_prompt = ""
+
+    async def json_chat(
+        self,
+        _system: str,
+        user: str,
+        *,
+        operation: str = "chat",
+    ) -> dict[str, object]:
+        assert operation == "repository_analysis"
+        self.user_prompt = user
+        return {
+            "projects": [
+                {
+                    "repo": "demo/planner",
+                    "match_score": 10,
+                    "directly_usable": False,
+                    "covered_features": [],
+                    "different_features": [],
+                    "missing_features": [],
+                    "unknown_features": ["AsterOS desktop planner"],
+                    "required_changes": [],
+                    "risks": [],
+                    "evidence": [],
+                    "component_citations": [],
+                    "difference_citations": [],
+                }
+            ]
+        }
+
+
+def test_repository_analysis_contract_distinguishes_explicit_alternatives() -> None:
+    feature = "AsterOS desktop planner"
+    requirement = Requirement(
+        raw="Find an AsterOS desktop planner.",
+        intent="Find a desktop planner",
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=["AsterOS"],
+        search_queries=["AsterOS desktop planner"],
+        evidence_components={
+            feature: {
+                "platform": ["AsterOS desktop"],
+                "artifact": ["desktop planner"],
+            }
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="planner",
+        url="https://github.com/demo/planner",
+        readme="A desktop planner available only for BorealisOS.",
+        evidence_coverage=[
+            EvidenceCoverage(
+                feature=feature,
+                covered=False,
+                status="unknown",
+                required_component_count=2,
+            )
+        ],
+    )
+    llm = _AnalysisPromptLLM()
+
+    analyses = asyncio.run(
+        DeepSearchEngine()._analyze_top_projects(  # type: ignore[arg-type]
+            requirement, [repo], llm
+        )
+    )
+
+    assert "mutually exclusive alternative to a requested constraint" in llm.user_prompt
+    assert "different, not unknown" in llm.user_prompt
+    assert "merely unmentioned or unproved remains unknown" in llm.user_prompt
+    assert '"recommendation"' not in llm.user_prompt
+    assert analyses[0].recommendation == ""
 
 
 def test_evidence_coverage_tracks_readme_and_source_locations() -> None:
@@ -65,6 +145,54 @@ def test_evidence_coverage_tracks_readme_and_source_locations() -> None:
     assert all(item.evidence_references for item in coverage)
 
 
+def test_path_name_is_provisional_until_sampled_content_proves_behavior() -> None:
+    engine = DeepSearchEngine()
+    feature = "automatic document conversion"
+    requirement = Requirement(
+        raw="Find a tool that automatically converts documents.",
+        intent="Find an automatic document converter",
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=[feature],
+        evidence_components={
+            feature: {
+                "conversion behavior": ["automatic conversion", "converts documents"],
+            }
+        },
+    )
+    path_only_repo = CandidateRepository(
+        owner="demo",
+        name="path-only",
+        url="https://github.com/demo/path-only",
+        file_paths=["planning/automatic conversion roadmap.md"],
+    )
+    sampled_repo = CandidateRepository(
+        owner="demo",
+        name="sampled",
+        url="https://github.com/demo/sampled",
+        file_paths=["src/converter.ts"],
+        key_files={
+            "src/converter.ts": (
+                "// Converts documents through automatic conversion\n"
+                "export function convert() {}"
+            ),
+        },
+    )
+
+    path_only = engine._build_evidence_coverage(path_only_repo, requirement)[0]
+    sampled = engine._build_evidence_coverage(sampled_repo, requirement)[0]
+
+    assert path_only.status == "unknown"
+    assert path_only.covered is False
+    assert path_only.path_evidence
+    assert path_only.component_evidence["conversion behavior"]
+    assert any(reference.kind == "path" for reference in path_only.evidence_references)
+    assert sampled.status == "supported"
+    assert sampled.covered is True
+    assert sampled.source_evidence
+
+
 def test_unconfirmed_feature_stays_unknown_and_is_not_reported_as_missing() -> None:
     engine = DeepSearchEngine()
     requirement = Requirement(
@@ -100,6 +228,8 @@ def test_unconfirmed_feature_stays_unknown_and_is_not_reported_as_missing() -> N
     assert gated[0].match_score <= 49
     assert gated[0].risks == []
     assert gated[0].required_changes == []
+    assert gated[0].recommendation == gated[0].score_reason
+    assert gated[0].recommendation != "Model recommendation"
     assert stats["unknown_feature_count"] == 1
 
 
@@ -251,6 +381,82 @@ def test_evidence_gate_discards_unverified_model_claims() -> None:
     assert gated[0].match_score <= 49
 
 
+def test_unconfirmed_core_scores_preserve_evidence_differences_below_ceiling() -> None:
+    engine = DeepSearchEngine()
+    core = "combine Aster records into a dashboard"
+    constraint = "available without a subscription"
+    requirement = Requirement(
+        raw=f"{core}; {constraint}",
+        intent="Find an Aster dashboard",
+        must_have_features=[core, constraint],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=["Aster dashboard"],
+        feature_concepts={
+            "domains": ["Aster"],
+            "actions": ["combine"],
+            "objects": ["records"],
+            "outputs": ["dashboard"],
+        },
+        evidence_components={
+            core: {
+                "domain": ["Aster"],
+                "action": ["combine"],
+                "output": ["dashboard"],
+            },
+            constraint: {
+                "availability": ["without a subscription"],
+            },
+        },
+    )
+    strong = _analysis(
+        CandidateRepository(
+            owner="demo",
+            name="strong",
+            url="https://github.com/demo/strong",
+            description="Aster dashboard",
+        )
+    )
+    weak = _analysis(
+        CandidateRepository(
+            owner="demo",
+            name="weak",
+            url="https://github.com/demo/weak",
+            description="Aster dashboard",
+        )
+    )
+    strong.evidence_coverage = [
+        EvidenceCoverage(
+            feature=core,
+            covered=False,
+            status="unknown",
+            component_evidence={"domain": ["Aster"], "action": ["combine"]},
+            required_component_count=3,
+        ),
+        EvidenceCoverage(feature=constraint, covered=True, status="supported"),
+    ]
+    weak.evidence_coverage = [
+        EvidenceCoverage(
+            feature=core,
+            covered=False,
+            status="unknown",
+            component_evidence={"domain": ["Aster"]},
+            required_component_count=3,
+        ),
+        EvidenceCoverage(feature=constraint, covered=True, status="supported"),
+    ]
+
+    gated, stats = engine._apply_evidence_gate(
+        requirement,
+        [strong, weak],
+        BudgetUsage(),
+    )
+    scores = {analysis.repo.name: analysis.match_score for analysis in gated}
+
+    assert 0 <= scores["weak"] < scores["strong"] <= 49
+    assert stats["score_capped_count"] == 2
+
+
 def test_verified_component_citation_must_match_repository_material_and_alias() -> None:
     engine = DeepSearchEngine()
     feature = "combine Aster and Boreal measurements"
@@ -300,6 +506,57 @@ def test_verified_component_citation_must_match_repository_material_and_alias() 
 
     assert list(verified[0].component_evidence) == ["Aster input"]
     assert verified[0].covered is False
+
+
+def test_readme_component_match_requires_verified_repository_local_citation() -> None:
+    engine = DeepSearchEngine()
+    feature = "operate without a subscription"
+    excerpt = "This repository operates without a subscription."
+    requirement = Requirement(
+        raw=feature,
+        intent=feature,
+        must_have_features=[feature],
+        nice_to_have_features=[],
+        target_platforms=[],
+        search_queries=[feature],
+        evidence_aliases={feature: ["without a subscription"]},
+        evidence_components={
+            feature: {
+                "availability": ["without a subscription"],
+            }
+        },
+    )
+    repo = CandidateRepository(
+        owner="demo",
+        name="local-runtime",
+        url="https://github.com/demo/local-runtime",
+        readme=excerpt,
+    )
+
+    provisional = engine._build_evidence_coverage(repo, requirement)
+
+    assert provisional[0].status == "unknown"
+    assert provisional[0].covered is False
+    assert provisional[0].readme_evidence == []
+    assert "availability" in provisional[0].component_evidence
+
+    verified = engine._apply_verified_component_citations(
+        repo,
+        requirement,
+        provisional,
+        [
+            {
+                "feature": feature,
+                "component": "availability",
+                "locator": "README",
+                "excerpt": excerpt,
+            }
+        ],
+    )
+
+    assert verified[0].status == "supported"
+    assert verified[0].covered is True
+    assert verified[0].readme_evidence == [f"README: {excerpt}"]
 
 
 def test_source_evidence_scores_above_readme_only_evidence() -> None:

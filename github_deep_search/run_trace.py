@@ -11,6 +11,7 @@ from github_deep_search.models import (
     StageOutcome,
 )
 from github_deep_search.providers.github import GitHubProviderError
+from github_deep_search.providers.llm import LLMProviderError
 
 
 STAGE_NAMES = ("parse", "discovery", "evidence", "analysis", "report_delivery")
@@ -119,6 +120,10 @@ def classify_failure(stage: str, exc: Exception) -> RunFailure:
         kind = "report_delivery"
         message = "Report delivery failed."
         retryable = False
+    elif isinstance(exc, LLMProviderError):
+        kind = "provider"
+        message = str(exc)
+        retryable = exc.retryable
     elif stage == "parse" and isinstance(exc, (TypeError, ValueError)):
         kind = "invalid_request"
         message = str(exc).strip() or "The request could not be parsed."

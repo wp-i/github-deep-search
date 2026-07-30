@@ -229,6 +229,8 @@ class ProjectAnalysis:
     verified_capabilities: list[str] = field(default_factory=list)
     capability_evidence: list[EvidenceReference] = field(default_factory=list)
     capability_citations_reviewed: bool = False
+    capability_object_supported: bool = False
+    capability_partial_components: list[str] = field(default_factory=list)
     adjacent_evidence: AdjacentEvidence | None = None
 
 
