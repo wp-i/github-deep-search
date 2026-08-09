@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "qualification_type": "expected_parser_failure",
+  "case_id": "boss-active-recruitment-filter",
+  "run_id": "post-fix-no-llm-01",
+  "expected_stage": "parse",
+  "observed_stage": "parse",
+  "failure_kind": "invalid_request",
+  "search_report_qualified": false,
+  "eligible_as_fixed_plan_source": false,
+  "open_findings_in_frozen_range": 0,
+  "llm_used_for_review": false
+}

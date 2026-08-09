@@ -1,0 +1,57 @@
+{
+  "run_id": "role-regression-06",
+  "status": "failed_projection_review",
+  "model": "deepseek-v4-flash",
+  "role_prompt_sha256": "07eb7be3e4e0fa6ba334845e97d6cf887ace3c5994c9a31497495cd3f256c5e9",
+  "stage": "llm_role_parsing_only",
+  "downstream_started": false,
+  "usage": {"input_tokens": 1960, "output_tokens": 618, "estimated": false, "warnings": []},
+  "semantic_summary": {
+    "correct_first_core": 5,
+    "complete_non_core_coverage": 5,
+    "zero_hard_constraints": 5,
+    "clean_projected_core_wording": 2
+  },
+  "cases": [
+    {
+      "case_id": "case-01-long-feature-list",
+      "first_capability": {"scope": "抖音", "action": "搜索热门视频", "primary_object": "视频"},
+      "secondary_count": 3,
+      "project_preference_count": 4,
+      "semantic_verdict": "pass",
+      "projection_verdict": "fail: action/object repetition"
+    },
+    {
+      "case_id": "case-02-background-narrative",
+      "first_capability": {"scope": "企业微信", "action": "统一搜索", "primary_object": "历史消息"},
+      "secondary_count": 3,
+      "project_preference_count": 2,
+      "semantic_verdict": "pass",
+      "projection_verdict": "pass"
+    },
+    {
+      "case_id": "case-03-numbered-workflow",
+      "first_capability": {"scope": "政府采购", "action": "汇总公开招标公告", "primary_object": "招标公告"},
+      "secondary_count": 3,
+      "project_preference_count": 0,
+      "semantic_verdict": "pass",
+      "projection_verdict": "fail: action/object repetition"
+    },
+    {
+      "case_id": "case-04-question-style",
+      "first_capability": {"scope": "会议录音", "action": "识别说话人", "primary_object": "说话人身份"},
+      "secondary_count": 2,
+      "project_preference_count": 2,
+      "semantic_verdict": "pass",
+      "projection_verdict": "fail: action/object repetition"
+    },
+    {
+      "case_id": "case-05-fragmented-mixed",
+      "first_capability": {"scope": "PDF/图片", "action": "OCR识别", "primary_object": "票据内容"},
+      "secondary_count": 4,
+      "project_preference_count": 3,
+      "semantic_verdict": "pass",
+      "projection_verdict": "pass"
+    }
+  ]
+}

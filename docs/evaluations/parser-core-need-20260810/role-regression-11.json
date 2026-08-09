@@ -1,0 +1,80 @@
+{
+  "run_id": "role-regression-11",
+  "status": "qualified",
+  "model": "deepseek-v4-flash",
+  "role_prompt_sha256": "d4e55d99b763e39b63bc75f00a7c02bb1e879672dbb01ea7bb2aa5b964d7797d",
+  "stage": "llm_role_parsing_only",
+  "downstream_started": false,
+  "usage": {"input_tokens": 2430, "output_tokens": 771, "estimated": false, "warnings": []},
+  "cases": [
+    {
+      "case_id": "case-01-long-feature-list",
+      "requirement_items": [
+        {"kind": "capability", "statement": "搜索抖音热门视频", "scope": "抖音", "action": "搜索", "primary_object": "热门视频"},
+        {"kind": "capability", "statement": "搜索抖音热门评论", "scope": "抖音", "action": "搜索", "primary_object": "热门评论"},
+        {"kind": "capability", "statement": "对视频标题进行截图", "scope": "抖音视频", "action": "截图", "primary_object": "视频标题"},
+        {"kind": "capability", "statement": "对评论区进行截图", "scope": "抖音评论区", "action": "截图", "primary_object": "评论区"},
+        {"kind": "capability", "statement": "交付一个文件", "scope": "", "action": "交付", "primary_object": "文件"},
+        {"kind": "preference", "statement": "免费使用"},
+        {"kind": "preference", "statement": "支持MCP通过OpenClaw操作"}
+      ],
+      "projected_roles": {"core_requirement": "搜索抖音热门视频", "hard_constraints": [], "nice_to_have": ["搜索抖音热门评论", "对视频标题进行截图", "对评论区进行截图", "交付一个文件", "免费使用", "支持MCP通过OpenClaw操作"]},
+      "structural_errors": [],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-02-background-narrative",
+      "requirement_items": [
+        {"kind": "capability", "statement": "统一搜索企业微信历史消息", "scope": "企业微信", "action": "搜索", "primary_object": "历史消息"},
+        {"kind": "capability", "statement": "按联系人缩小搜索范围", "scope": "企业微信", "action": "筛选", "primary_object": "联系人"},
+        {"kind": "capability", "statement": "按日期缩小搜索范围", "scope": "企业微信", "action": "筛选", "primary_object": "日期"},
+        {"kind": "capability", "statement": "导出搜索结果", "scope": "企业微信", "action": "导出", "primary_object": "搜索结果"},
+        {"kind": "preference", "statement": "开源项目"},
+        {"kind": "preference", "statement": "部署在内网"}
+      ],
+      "projected_roles": {"core_requirement": "统一搜索企业微信历史消息", "hard_constraints": [], "nice_to_have": ["按联系人缩小搜索范围", "按日期缩小搜索范围", "导出搜索结果", "开源项目", "部署在内网"]},
+      "structural_errors": [],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-03-numbered-workflow",
+      "requirement_items": [
+        {"kind": "capability", "statement": "汇总公开招标公告", "scope": "政府采购", "action": "汇总", "primary_object": "公开招标公告"},
+        {"kind": "capability", "statement": "用行业和地区缩小范围", "scope": "政府采购", "action": "筛选", "primary_object": "招标公告"},
+        {"kind": "capability", "statement": "到期前提醒", "scope": "政府采购", "action": "提醒", "primary_object": "招标截止日期"},
+        {"kind": "capability", "statement": "生成Excel周报", "scope": "政府采购", "action": "生成", "primary_object": "Excel周报"}
+      ],
+      "projected_roles": {"core_requirement": "汇总公开招标公告", "hard_constraints": [], "nice_to_have": ["用行业和地区缩小范围", "到期前提醒", "生成Excel周报"]},
+      "structural_errors": [],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-04-question-style",
+      "requirement_items": [
+        {"kind": "capability", "statement": "识别会议录音中说话人身份", "scope": "会议录音", "action": "识别", "primary_object": "说话人"},
+        {"kind": "capability", "statement": "生成说话人时间轴", "scope": "会议录音", "action": "生成", "primary_object": "时间轴"},
+        {"kind": "capability", "statement": "导出会议摘要", "scope": "会议录音", "action": "导出", "primary_object": "摘要"},
+        {"kind": "preference", "statement": "中文识别准确"},
+        {"kind": "preference", "statement": "可在普通笔记本上运行"}
+      ],
+      "projected_roles": {"core_requirement": "识别会议录音中说话人身份", "hard_constraints": [], "nice_to_have": ["生成说话人时间轴", "导出会议摘要", "中文识别准确", "可在普通笔记本上运行"]},
+      "structural_errors": [],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-05-fragmented-mixed",
+      "requirement_items": [
+        {"kind": "capability", "statement": "OCR the content of receipts from PDF and image files", "scope": "receipts", "action": "OCR", "primary_object": "receipt content"},
+        {"kind": "capability", "statement": "Categorize the OCRed receipt content", "scope": "receipts", "action": "categorize", "primary_object": "receipt content"},
+        {"kind": "capability", "statement": "Deduplicate the OCRed receipt content", "scope": "receipts", "action": "deduplicate", "primary_object": "receipt content"},
+        {"kind": "capability", "statement": "Output the OCRed receipt content to CSV", "scope": "receipts", "action": "output to CSV", "primary_object": "receipt content"},
+        {"kind": "capability", "statement": "Provide a REST API for the receipt OCR processing", "scope": "receipts", "action": "provide REST API", "primary_object": "receipt OCR processing"},
+        {"kind": "preference", "statement": "Run locally on Mac without uploading to cloud"},
+        {"kind": "preference", "statement": "Handle both PDF and image files as input"}
+      ],
+      "projected_roles": {"core_requirement": "OCR the content of receipts from PDF and image files", "hard_constraints": [], "nice_to_have": ["Categorize the OCRed receipt content", "Deduplicate the OCRed receipt content", "Output the OCRed receipt content to CSV", "Provide a REST API for the receipt OCR processing", "Run locally on Mac without uploading to cloud", "Handle both PDF and image files as input"]},
+      "structural_errors": [],
+      "verdict": "pass"
+    }
+  ]
+}

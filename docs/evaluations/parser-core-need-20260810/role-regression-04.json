@@ -1,0 +1,53 @@
+{
+  "run_id": "role-regression-04",
+  "status": "failed_review",
+  "model": "deepseek-v4-flash",
+  "role_prompt_sha256": "f0a567b436548dab2ef8cf9f09e54ba02b1abdb48fa3d50b1a483062148dd7c5",
+  "stage": "llm_role_parsing_only",
+  "downstream_started": false,
+  "usage": {
+    "input_tokens": 1945,
+    "output_tokens": 329,
+    "estimated": false,
+    "warnings": []
+  },
+  "cases": [
+    {
+      "case_id": "case-01-long-feature-list",
+      "core_need": {"scope": "抖音", "action": "搜索", "primary_object": "热门视频和评论"},
+      "secondary_capabilities": ["截图视频标题", "截图评论区"],
+      "project_preferences": ["免费", "输出文件", "支持MCP", "通过OpenClaw操作"],
+      "verdict": "fail",
+      "finding": "the provider combined two competing primary objects instead of choosing one and ranking the other"
+    },
+    {
+      "case_id": "case-02-background-narrative",
+      "core_need": {"scope": "企业微信", "action": "搜索", "primary_object": "历史消息"},
+      "secondary_capabilities": ["按联系人筛选", "按日期筛选", "导出结果"],
+      "project_preferences": ["开源", "内网部署"],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-03-numbered-workflow",
+      "core_need": {"scope": "政府采购公告", "action": "汇总", "primary_object": "公开招标公告"},
+      "secondary_capabilities": ["按行业筛选", "按地区筛选", "到期前提醒", "生成Excel周报"],
+      "project_preferences": [],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-04-question-style",
+      "core_need": {"scope": "会议录音", "action": "识别说话人", "primary_object": "说话人"},
+      "secondary_capabilities": ["生成时间轴", "生成摘要"],
+      "project_preferences": ["中文准确", "普通笔记本可运行"],
+      "verdict": "fail",
+      "finding": "the action repeated the primary object, producing a duplicated projected core"
+    },
+    {
+      "case_id": "case-05-fragmented-mixed",
+      "core_need": {"scope": "票据", "action": "OCR识别", "primary_object": "票据内容"},
+      "secondary_capabilities": ["归类", "去重", "输出CSV", "REST API"],
+      "project_preferences": ["Mac本地运行", "不上传云端", "支持PDF和图片"],
+      "verdict": "pass"
+    }
+  ]
+}

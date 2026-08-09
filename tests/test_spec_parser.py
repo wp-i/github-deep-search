@@ -10,27 +10,40 @@ from github_deep_search.providers.llm import LLMProviderError
 
 
 REQUEST = "Find software that classifies sensor readings; exporting a dashboard is optional."
-CORE = "sensor-reading classifier: classify sensor readings"
+CORE = "classify sensor readings"
 
 
 def _valid_roles() -> dict[str, object]:
     return {
-        "primary_product_form": "sensor-reading classifier",
-        "primary_user_job": "classify sensor readings",
-        "adoption_constraints": [],
-        "environment_preferences": [],
-        "experience_preferences": ["export a dashboard"],
+        "requirement_items": [
+            {
+                "kind": "capability",
+                "statement": CORE,
+                "scope": "",
+                "action": "classify",
+                "primary_object": "sensor readings",
+            },
+            {"kind": "preference", "statement": "export a dashboard"},
+        ],
     }
 
 
 def _roles_for_plan(plan: dict[str, object]) -> dict[str, object]:
-    product_form, user_job = str(plan["core_requirement"]).split(": ", 1)
+    core = str(plan["core_requirement"])
     return {
-        "primary_product_form": product_form,
-        "primary_user_job": user_job,
-        "adoption_constraints": plan["hard_constraints"],
-        "environment_preferences": [],
-        "experience_preferences": plan["nice_to_have"],
+        "requirement_items": [
+            {
+                "kind": "capability",
+                "statement": core,
+                "scope": "",
+                "action": "represent",
+                "primary_object": core,
+            },
+            *[
+                {"kind": "preference", "statement": item}
+                for item in plan["nice_to_have"]
+            ],
+        ],
     }
 
 
@@ -130,23 +143,14 @@ def test_parser_accepts_one_complete_plan_without_downstream_stages() -> None:
     }
 
 
-def test_parser_projects_core_and_hard_constraints_to_existing_contract() -> None:
-    plan = _valid_plan()
-    constraint = "available under a permissive license"
-    plan["hard_constraints"] = [constraint]
-    plan["evidence_aliases"][constraint] = ["permissive license"]  # type: ignore[index]
-    plan["evidence_components"][constraint] = {  # type: ignore[index]
-        "license eligibility": ["permissive license"]
-    }
+def test_role_stage_projects_exactly_one_core_and_no_hard_constraints() -> None:
+    roles = SearchSpecParser()._roles_from_llm_data(_valid_roles())
 
-    spec = SearchSpecParser()._from_llm_data(REQUEST, plan)
-
-    assert spec is not None
-    assert spec.must_have == [CORE, constraint]
-    assert set(spec.evidence_aliases) == {
-        CORE,
-        constraint,
-        "export a dashboard",
+    assert roles is not None
+    assert roles.as_dict() == {
+        "core_requirement": CORE,
+        "hard_constraints": [],
+        "nice_to_have": ["export a dashboard"],
     }
 
 
@@ -164,9 +168,29 @@ def test_role_stage_rejects_a_malformed_shape_before_plan_generation() -> None:
     assert len(llm.prompts) == 1
 
 
+def test_role_stage_rejects_the_superseded_five_slot_shape() -> None:
+    llm = _QueuedLLM(
+        {
+            "primary_product_form": "sensor-reading classifier",
+            "primary_user_job": "classify sensor readings",
+            "adoption_constraints": [],
+            "environment_preferences": [],
+            "experience_preferences": ["export a dashboard"],
+        }
+    )
+
+    with pytest.raises(ValueError, match="role generation failed structural validation"):
+        asyncio.run(SearchSpecParser().parse(REQUEST, llm))  # type: ignore[arg-type]
+
+    assert len(llm.prompts) == 1
+
+
 def test_role_stage_rejects_an_exact_cross_role_duplicate() -> None:
     duplicate = _valid_roles()
-    duplicate["experience_preferences"] = [CORE]
+    duplicate["requirement_items"] = [
+        *duplicate["requirement_items"],  # type: ignore[list-item]
+        {"kind": "preference", "statement": CORE},
+    ]
     llm = _QueuedLLM(duplicate)
 
     with pytest.raises(ValueError, match="exact normalized duplicate"):
@@ -175,18 +199,29 @@ def test_role_stage_rejects_an_exact_cross_role_duplicate() -> None:
 
 def test_role_slots_project_to_canonical_roles_without_semantic_reclassification() -> None:
     data = _valid_roles()
-    data["adoption_constraints"] = ["available under a permissive license"]
-    data["environment_preferences"] = ["available in a portable runtime"]
+    data["requirement_items"] = [
+        data["requirement_items"][0],  # type: ignore[index]
+        {
+            "kind": "capability",
+            "statement": "export a dashboard",
+            "scope": "",
+            "action": "export",
+            "primary_object": "a dashboard",
+        },
+        {"kind": "preference", "statement": "available under a permissive license"},
+        {"kind": "preference", "statement": "available in a portable runtime"},
+    ]
     parser = SearchSpecParser()
 
     roles = parser._roles_from_llm_data(data)
 
     assert roles is not None
     assert roles.core_requirement == CORE
-    assert roles.hard_constraints == ("available under a permissive license",)
+    assert roles.hard_constraints == ()
     assert roles.nice_to_have == (
-        "available in a portable runtime",
         "export a dashboard",
+        "available under a permissive license",
+        "available in a portable runtime",
     )
 
 
@@ -203,6 +238,23 @@ def test_complete_plan_retries_if_it_reclassifies_the_frozen_roles() -> None:
     assert len(llm.prompts) == 3
     assert "plan must copy the fixed core_requirement" in llm.prompts[2]
     assert "plan must copy the fixed nice_to_have list exactly" in llm.prompts[2]
+
+
+def test_complete_plan_retries_if_it_adds_a_positive_hard_constraint() -> None:
+    invalid = _valid_plan()
+    added = "available under a permissive license"
+    invalid["hard_constraints"] = [added]
+    invalid["evidence_aliases"][added] = ["permissive license"]  # type: ignore[index]
+    invalid["evidence_components"][added] = {  # type: ignore[index]
+        "license": ["permissive license"]
+    }
+    llm = _QueuedLLM(_valid_roles(), invalid, _valid_plan())
+
+    spec = asyncio.run(SearchSpecParser().parse(REQUEST, llm))  # type: ignore[arg-type]
+
+    assert spec.must_have == [CORE]
+    assert len(llm.prompts) == 3
+    assert "plan must copy the fixed core_requirement and hard_constraints exactly" in llm.prompts[2]
 
 
 def test_parser_rejects_missing_core_and_legacy_requirement_fields() -> None:
@@ -429,23 +481,11 @@ def test_unrelated_plan_is_rejected_as_ungrounded() -> None:
     assert "the plan is not grounded in the current request" in SearchSpecParser()._validation_errors(spec)
 
 
-def test_numbered_workflow_is_preserved_as_structural_anchors() -> None:
-    clauses = SearchSpecParser()._explicit_requirement_clauses(
-        "1. collect readings 2. classify anomalies 3. export results"
-    )
-
-    assert clauses == ["collect readings", "classify anomalies", "export results"]
-
-
-def test_no_llm_path_preserves_request_and_language() -> None:
+def test_no_llm_path_rejects_an_unqualified_semantic_plan() -> None:
     parser = SearchSpecParser()
 
-    spec = asyncio.run(parser.parse("查找可以分析传感器读数的项目", None))
-
-    assert spec.raw == "查找可以分析传感器读数的项目"
-    assert spec.report_language == "zh"
-    assert spec.must_have
-    assert set(spec.evidence_aliases) == set(spec.must_have)
+    with pytest.raises(ValueError, match="requires a configured LLM"):
+        asyncio.run(parser.parse("A current user request", None))
 
 
 def test_prompt_contains_no_fixed_translation_or_repository_examples() -> None:
@@ -458,20 +498,23 @@ def test_prompt_contains_no_fixed_translation_or_repository_examples() -> None:
 
     assert REQUEST in role_prompt
     assert "requirement roles only" in role_prompt
-    assert "primary_product_form" in role_prompt
-    assert "primary_user_job" in role_prompt
-    assert "adoption_constraints" in role_prompt
-    assert "environment_preferences" in role_prompt
-    assert "experience_preferences" in role_prompt
-    assert "repository-searchable noun phrase" in role_prompt
-    assert "complete primary action/object outcome" in role_prompt
-    assert "several actions jointly define that same primary user job" in role_prompt
-    assert "do not discard one merely for concision" in role_prompt
-    assert "target operating platform or version" in role_prompt
-    assert "persistence or default state" in role_prompt
-    assert "secondary detail display or editing" in role_prompt
-    assert "Neither primary field may mention or imply a preference" in role_prompt
-    assert "even with different wording" in role_prompt
+    assert "requirement_items" in role_prompt
+    assert "one non-empty ordered array" in role_prompt
+    assert "exactly kind, statement, scope, action, and primary_object" in role_prompt
+    assert "self-contained, repository-searchable expression" in role_prompt
+    assert "must not add or repeat a capability or property" in role_prompt
+    assert "Create a separate array entry" in role_prompt
+    assert "use only the first item as core" in role_prompt
+    assert "All non-core content is ranking-only" in role_prompt
+    assert "both a capability and a preference" in role_prompt
+    assert "subject entity, business or content domain, or product platform" in role_prompt
+    assert "file or media format" in role_prompt
+    assert "unless transforming that format is itself the request's primary job" in role_prompt
+    assert "containing every desired detail exactly once" in role_prompt
+    assert "Ignore pure problem narration" in role_prompt
+    assert "background_context" not in role_prompt
+    assert "primary_product_form" not in role_prompt
+    assert "adoption_constraints" not in role_prompt
     assert "queries, keywords, evidence phrases" in role_prompt
     assert "Fixed requirement roles" in plan_prompt
     assert f'"core_requirement": "{CORE}"' in plan_prompt

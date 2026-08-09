@@ -1,0 +1,49 @@
+{
+  "run_id": "role-regression-03",
+  "status": "failed_review",
+  "model": "deepseek-v4-flash",
+  "role_prompt_sha256": "3308608f9c8a951bdbf720b351fc7bbf290d611e55481ba9d4d2613eba4adeff",
+  "stage": "llm_role_parsing_only",
+  "downstream_started": false,
+  "usage": {
+    "input_tokens": 1800,
+    "output_tokens": 229,
+    "estimated": false,
+    "warnings": []
+  },
+  "cases": [
+    {
+      "case_id": "case-01-long-feature-list",
+      "core_need": {"scope": "抖音", "action": "搜索", "primary_object": "热门视频和评论"},
+      "ranking_preferences": ["免费", "对视频标题和评论区截图", "交付一个文件", "支持MCP通过OpenClaw操作"],
+      "verdict": "fail",
+      "finding": "the primary object still contains two independent content objects and comment search is not ranked separately"
+    },
+    {
+      "case_id": "case-02-background-narrative",
+      "core_need": {"scope": "企业微信", "action": "统一搜索", "primary_object": "历史消息"},
+      "ranking_preferences": ["按联系人缩小范围", "按日期缩小范围", "导出结果", "部署在内网"],
+      "verdict": "fail",
+      "finding": "the explicit open-source preference was omitted"
+    },
+    {
+      "case_id": "case-03-numbered-workflow",
+      "core_need": {"scope": "政府采购", "action": "汇总", "primary_object": "公开招标公告"},
+      "ranking_preferences": ["用行业和地区缩小范围", "到期前提醒", "生成Excel周报"],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-04-question-style",
+      "core_need": {"scope": "会议录音", "action": "识别", "primary_object": "说话人"},
+      "ranking_preferences": ["中文准确", "导出时间轴", "导出摘要", "普通笔记本可运行"],
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-05-fragmented-mixed",
+      "core_need": {"scope": "Mac 本地", "action": "OCR", "primary_object": "票据内容"},
+      "ranking_preferences": ["PDF/图片都可能有", "能归类", "去重", "输出CSV", "接REST API"],
+      "verdict": "fail",
+      "finding": "the operating environment was used as search scope and the no-cloud preference was omitted"
+    }
+  ]
+}

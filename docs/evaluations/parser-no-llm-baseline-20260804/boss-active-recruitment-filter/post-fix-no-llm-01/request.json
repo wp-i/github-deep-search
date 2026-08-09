@@ -1,0 +1,22 @@
+{
+  "case_id": "boss-active-recruitment-filter",
+  "raw_request": "Boss直聘中没有时间筛选和关键词筛选，我需要筛选一周内活跃的招聘需求，最好还能通过指定关键词在搜索结果中进一步搜索",
+  "language": "zh",
+  "scenario_family": "conversational-background-core-and-optional-split",
+  "configuration": {
+    "fingerprint": "1df4ee8eb414a09287404e4fe681da521da4be3eaf8e0cefbc6ba4fd5df7363e",
+    "public": {
+      "github_configured": true,
+      "llm_configured": false,
+      "tavily_configured": true,
+      "llm_base_url": "https://api.deepseek.com",
+      "llm_model": "deepseek-v4-flash",
+      "llm_thinking": "disabled",
+      "llm_reasoning_effort": null,
+      "max_github_requests": 200,
+      "max_tavily_credits": 4,
+      "max_candidates": 80,
+      "max_deep_analyze_repos": 3
+    }
+  }
+}

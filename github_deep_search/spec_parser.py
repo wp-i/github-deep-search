@@ -22,13 +22,16 @@ QUERY_CHANNEL_LIMITS = {
 @dataclass(frozen=True)
 class _RequirementRoles:
     core_requirement: str
-    hard_constraints: tuple[str, ...]
     nice_to_have: tuple[str, ...]
+
+    @property
+    def hard_constraints(self) -> tuple[str, ...]:
+        return ()
 
     def as_dict(self) -> dict[str, object]:
         return {
             "core_requirement": self.core_requirement,
-            "hard_constraints": list(self.hard_constraints),
+            "hard_constraints": [],
             "nice_to_have": list(self.nice_to_have),
         }
 
@@ -43,7 +46,10 @@ class SearchSpecParser:
 
     async def parse(self, query: str, llm: LLMClient | None) -> SearchSpec:
         if not llm:
-            return self._literal_only_spec(query)
+            raise ValueError(
+                "SearchSpec parsing requires a configured LLM; use an audited fixed "
+                "requirement plan when running without one."
+            )
 
         role_data = await llm.json_chat(
             "You assign mutually exclusive requirement roles for the current request. Return JSON only.",
@@ -80,25 +86,30 @@ class SearchSpecParser:
     @staticmethod
     def _role_prompt(query: str) -> str:
         return (
-            "Return JSON with exactly these fields: primary_product_form, primary_user_job, adoption_constraints, "
-            "environment_preferences, and experience_preferences. This step decides requirement roles only; do not "
-            "generate queries, keywords, evidence phrases, repositories, or recommendations. primary_product_form is "
-            "one non-empty, concise, repository-searchable noun phrase naming the user-facing artifact or workflow. "
-            "primary_user_job is one non-empty string naming the complete primary action/object outcome that makes that "
-            "product useful. When several actions jointly define that same primary user job, preserve all of them together "
-            "in this one string; do not discard one merely for concision. Do not copy surrounding product-fit or secondary "
-            "feature details into either primary field. "
-            "environment_preferences contains target operating platform or version and other requested runtime "
-            "environment fit, but not the user-facing product form when that form defines the primary artifact. "
-            "experience_preferences contains placement, persistence or default state, presentation, configuration or "
-            "settings surfaces, secondary detail display or editing, convenience, and interaction style. "
-            "adoption_constraints contains only explicit rules about whether or how a project may be adopted or obtained. "
-            "Preserve every requested outcome, constraint, environment preference, and experience refinement exactly once "
-            "across the five fields. Neither primary field may mention or imply a preference assigned to either preference "
-            "list, even with different wording. Use this shape: "
-            '{"primary_product_form":"...","primary_user_job":"...","adoption_constraints":[],'
-            '"environment_preferences":[],'
-            '"experience_preferences":[]}.\n'
+            "Return JSON with exactly one field: requirement_items. "
+            "This step decides requirement roles only; do not generate queries, keywords, evidence phrases, "
+            "repositories, or recommendations. requirement_items is one non-empty ordered array containing every desired "
+            "detail exactly once. The first item is the sole core and must be a capability object with exactly kind, "
+            "statement, scope, action, and primary_object, where kind is capability. Every later independently useful "
+            "repository action/object pair uses the same capability shape. scope is one concise explicitly named subject "
+            "entity, business or content domain, or product platform, or an empty string when none is named. An input or "
+            "output container, file or media format, machine, runtime, deployment place, or delivery environment is a "
+            "preference, unless transforming that format is itself the request's primary job. "
+            "action contains one operation. primary_object contains one primary object. statement is one concise, "
+            "self-contained, repository-searchable expression of that same scope, action, and object; it must not add or "
+            "repeat a capability or property. Create a separate array entry for every independently useful requested "
+            "action/object pair, even when entries share a scope or action; never combine them in one entry. Every desired "
+            "adoption, operating, deployment, language, input/output, integration, delivery, quality, or convenience "
+            "property is a preference object with exactly kind and statement, where kind is preference. Order capability "
+            "items by: an explicitly stated main, core, or primary capability; "
+            "otherwise the requested tool or workflow's overall purpose; otherwise the first capability in the user's "
+            "ordering. The parser will use only the first item as core and rank every later item regardless of kind. "
+            "All non-core content is ranking-only and never a hard constraint. Do not emit the same requested detail as "
+            "both a capability and a preference, and do not duplicate or paraphrase one detail in multiple items. "
+            "Ignore pure problem narration or current limitations that do not ask a repository to provide behavior. "
+            "Use this shape: "
+            '{"requirement_items":[{"kind":"capability","statement":"...","scope":"...",'
+            '"action":"...","primary_object":"..."},{"kind":"preference","statement":"..."}]}.\n'
             f"Current request:\n{query}"
         )
 
@@ -157,50 +168,50 @@ class SearchSpecParser:
         self,
         data: dict[str, Any] | None,
     ) -> _RequirementRoles | None:
-        expected_fields = {
-            "primary_product_form",
-            "primary_user_job",
-            "adoption_constraints",
-            "environment_preferences",
-            "experience_preferences",
-        }
+        expected_fields = {"requirement_items"}
         if not isinstance(data, dict) or set(data) != expected_fields:
             return None
-        product_form = data.get("primary_product_form")
-        user_job = data.get("primary_user_job")
-        adoption = data.get("adoption_constraints")
-        environment = data.get("environment_preferences")
-        experience = data.get("experience_preferences")
-        if (
-            not isinstance(product_form, str)
-            or not isinstance(user_job, str)
-            or not isinstance(adoption, list)
-            or not isinstance(environment, list)
-            or not isinstance(experience, list)
-        ):
+        items = data.get("requirement_items")
+        if not isinstance(items, list) or not items:
             return None
-        product_form = product_form.strip()
-        user_job = user_job.strip()
-        if not product_form or not user_job:
-            return None
-        nice = self._merge_lists(
-            self._list(environment),
-            self._list(experience),
-            limit=16,
-        )
+        statements: list[str] = []
+        for index, item in enumerate(items[:16]):
+            if not isinstance(item, dict):
+                return None
+            kind = item.get("kind")
+            if kind == "capability":
+                if (
+                    set(item) != {"kind", "statement", "scope", "action", "primary_object"}
+                    or not all(isinstance(value, str) for value in item.values())
+                    or not item["action"].strip()
+                    or not item["primary_object"].strip()
+                ):
+                    return None
+            elif kind == "preference":
+                if set(item) != {"kind", "statement"} or not isinstance(item.get("statement"), str):
+                    return None
+            else:
+                return None
+            statement = item["statement"].strip()
+            if not statement or (index == 0 and kind != "capability"):
+                return None
+            statements.append(statement)
         return _RequirementRoles(
-            core_requirement=f"{product_form}: {user_job}",
-            hard_constraints=tuple(self._list(adoption, limit=15)),
-            nice_to_have=tuple(self._non_redundant_features(self._list(nice))),
+            core_requirement=statements[0],
+            nice_to_have=tuple(
+                self._non_redundant_features(statements[1:])
+            ),
         )
 
     def _role_validation_errors(self, roles: _RequirementRoles | None) -> list[str]:
         if roles is None:
-            return ["response must contain two non-empty primary strings and three list fields"]
+            return [
+                "response must contain one non-empty discriminated requirement-item array starting with a capability"
+            ]
         errors: list[str] = []
         if not roles.core_requirement:
             errors.append("core_requirement is empty")
-        values = [roles.core_requirement, *roles.hard_constraints, *roles.nice_to_have]
+        values = [roles.core_requirement, *roles.nice_to_have]
         normalized = [self._norm_key(value) for value in values]
         if len(normalized) != len(set(normalized)):
             errors.append("requirement roles contain an exact normalized duplicate")
@@ -213,11 +224,7 @@ class SearchSpecParser:
     ) -> list[str]:
         if spec is None:
             return []
-        expected_must = self._merge_lists(
-            [roles.core_requirement],
-            list(roles.hard_constraints),
-            limit=16,
-        )
+        expected_must = [roles.core_requirement]
         errors: list[str] = []
         if spec.must_have != expected_must:
             errors.append("plan must copy the fixed core_requirement and hard_constraints exactly")
@@ -414,79 +421,9 @@ class SearchSpecParser:
             re.search(r"[A-Za-z]{2,}", query) for query in spec.repo_search_queries
         )
 
-    def _literal_only_spec(self, query: str) -> SearchSpec:
-        literal = self._literal_terms(query)
-        clauses = self._explicit_requirement_clauses(query)
-        features = self._non_redundant_features(clauses) or literal[:8] or [query.strip()]
-        literal_keywords = self._merge_lists(clauses, literal, limit=16)
-        repo_queries = self._literal_queries(literal_keywords, query, features)
-        code_queries = self._literal_code_queries(literal_keywords)
-        topic_queries = self._topic_queries(literal_keywords)
-        issue_queries = repo_queries[:5]
-        web_queries = [f"site:github.com {item}" for item in repo_queries[:4]]
-        evidence_aliases = {feature: self._literal_aliases(feature) for feature in features}
-        return SearchSpec(
-            raw=query,
-            intent=query[:120],
-            literal_keywords=literal_keywords,
-            domains=[],
-            actions=[],
-            objects=[],
-            outputs=[],
-            interfaces=[],
-            must_have=features,
-            nice_to_have=[],
-            negative_filters=[],
-            search_queries=self._merge_lists(
-                repo_queries,
-                code_queries,
-                topic_queries,
-                issue_queries,
-                web_queries,
-                limit=20,
-            ),
-            report_language=self._request_language(query),
-            repo_search_queries=repo_queries,
-            code_search_queries=code_queries,
-            topic_search_queries=topic_queries,
-            issue_search_queries=issue_queries,
-            web_search_queries=web_queries,
-            evidence_aliases=evidence_aliases,
-            evidence_components={
-                feature: {feature: self._literal_aliases(feature)}
-                for feature in features
-            },
-        )
-
     @staticmethod
     def _request_language(query: str) -> str:
         return "zh" if re.search(r"[\u4e00-\u9fff]", str(query or "")) else "en"
-
-    def _explicit_requirement_clauses(self, query: str) -> list[str]:
-        text = re.sub(r"\s+", " ", str(query or "")).strip()
-        if not text:
-            return []
-        numbered = self._numbered_requirement_clauses(text)
-        if numbered:
-            return numbered
-        parts = re.split(r"[,，、;；。！？?\n]", text)
-        clauses = [
-            re.sub(r"^\d+[.)、]\s*", "", part.strip(" .。；;，,"))
-            for part in parts
-        ]
-        return list(OrderedDict.fromkeys(item for item in clauses if len(item) >= 2))[:10]
-
-    @staticmethod
-    def _numbered_requirement_clauses(text: str) -> list[str]:
-        markers = list(re.finditer(r"(?:^|[\s，,；;。])\d+[.)、]\s*", text))
-        clauses: list[str] = []
-        for index, marker in enumerate(markers):
-            start = marker.end()
-            end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
-            clause = text[start:end].strip(" \t\r\n，,；;。")
-            if len(clause) >= 2:
-                clauses.append(clause)
-        return list(OrderedDict.fromkeys(clauses))[:10]
 
     @staticmethod
     def _norm_key(value: str) -> str:
@@ -570,44 +507,6 @@ class SearchSpecParser:
         for values in lists:
             merged.extend(values)
         return list(OrderedDict.fromkeys(item for item in merged if item))[:limit]
-
-    @staticmethod
-    def _topic_queries(values: list[str]) -> list[str]:
-        topics: list[str] = []
-        for value in values:
-            text = re.sub(r"\s+", "-", str(value).strip().casefold())
-            text = re.sub(r"[^a-z0-9_.\-\u4e00-\u9fff]", "", text).strip(".-_")
-            if text:
-                topics.append(text[:50])
-        return list(OrderedDict.fromkeys(topics))[:8]
-
-    def _literal_aliases(self, text: str) -> list[str]:
-        exact = str(text).strip()
-        if not exact:
-            return []
-        return list(OrderedDict.fromkeys([exact, *self._literal_terms(exact)]))[:8]
-
-    @staticmethod
-    def _literal_terms(text: str) -> list[str]:
-        chunks = re.findall(
-            r"[A-Za-z][A-Za-z0-9_.-]{2,}|[\u4e00-\u9fff]{2,}",
-            text.casefold(),
-        )
-        return list(OrderedDict.fromkeys(chunks))[:10]
-
-    def _literal_queries(
-        self,
-        literal: list[str],
-        query: str,
-        features: list[str],
-    ) -> list[str]:
-        if literal:
-            return list(OrderedDict.fromkeys([*features[:4], " ".join(literal[:6])]))[:10]
-        return [query]
-
-    @staticmethod
-    def _literal_code_queries(literal: list[str]) -> list[str]:
-        return list(OrderedDict.fromkeys(item for item in literal if item))[:5]
 
     @staticmethod
     def _signals(text: str) -> set[str]:

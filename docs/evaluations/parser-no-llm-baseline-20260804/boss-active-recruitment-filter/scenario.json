@@ -1,0 +1,15 @@
+{
+  "case_id": "boss-active-recruitment-filter",
+  "raw_request": "Boss直聘中没有时间筛选和关键词筛选，我需要筛选一周内活跃的招聘需求，最好还能通过指定关键词在搜索结果中进一步搜索",
+  "language": "zh",
+  "scenario_family": "conversational-background-core-and-optional-split",
+  "core_outcome_direction": "筛选一周内活跃的招聘需求",
+  "optional_constraints": [
+    "通过指定关键词在搜索结果中进一步搜索"
+  ],
+  "risk_level": "high",
+  "evaluation_date": "2026-08-04",
+  "reviewer": "pending-independent-review",
+  "source": "User-reported parsing failure reproduced without LLM",
+  "redaction": "No sensitive data present"
+}

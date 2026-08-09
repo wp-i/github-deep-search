@@ -1,0 +1,39 @@
+{
+  "run_id": "role-regression-07",
+  "status": "failed_review",
+  "model": "deepseek-v4-flash",
+  "role_prompt_sha256": "f451416791a23bb7ba64efdbc27331c7855ea525ec1435cd01be23062b0c56d4",
+  "stage": "llm_role_parsing_only",
+  "downstream_started": false,
+  "usage": {"input_tokens": 1700, "output_tokens": 276, "estimated": false, "warnings": []},
+  "cases": [
+    {
+      "case_id": "case-01-long-feature-list",
+      "core_requirement": "search Douyin trending videos and comments",
+      "verdict": "fail",
+      "finding": "the atomic string combined video and comment search and omitted comment search from ranking"
+    },
+    {
+      "case_id": "case-02-background-narrative",
+      "core_requirement": "search enterprise WeChat historical messages",
+      "verdict": "pass"
+    },
+    {
+      "case_id": "case-03-numbered-workflow",
+      "core_requirement": "汇总公开招标公告",
+      "verdict": "fail",
+      "finding": "the core string omitted the explicitly named government-procurement scope"
+    },
+    {
+      "case_id": "case-04-question-style",
+      "core_requirement": "识别会议录音中的说话人身份",
+      "verdict": "fail",
+      "finding": "an unrequested meeting-transcription capability was invented as a ranking item"
+    },
+    {
+      "case_id": "case-05-fragmented-mixed",
+      "core_requirement": "OCR票据内容从PDF或图片",
+      "verdict": "pass"
+    }
+  ]
+}

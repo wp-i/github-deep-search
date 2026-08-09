@@ -1,0 +1,63 @@
+{
+  "schema_version": "1",
+  "status": "failed",
+  "stages": [
+    {
+      "name": "parse",
+      "status": "failed",
+      "inputs": {
+        "query": 1
+      },
+      "outputs": {},
+      "notes": [
+        "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one."
+      ],
+      "failure": {
+        "kind": "invalid_request",
+        "stage": "parse",
+        "exception_type": "ValueError",
+        "message": "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.",
+        "retryable": false
+      }
+    },
+    {
+      "name": "discovery",
+      "status": "not_started",
+      "inputs": {},
+      "outputs": {},
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "evidence",
+      "status": "not_started",
+      "inputs": {},
+      "outputs": {},
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "analysis",
+      "status": "not_started",
+      "inputs": {},
+      "outputs": {},
+      "notes": [],
+      "failure": null
+    },
+    {
+      "name": "report_delivery",
+      "status": "not_started",
+      "inputs": {},
+      "outputs": {},
+      "notes": [],
+      "failure": null
+    }
+  ],
+  "failure": {
+    "kind": "invalid_request",
+    "stage": "parse",
+    "exception_type": "ValueError",
+    "message": "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.",
+    "retryable": false
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1",
+  "status": "failed",
+  "query": "Boss直聘中没有时间筛选和关键词筛选，我需要筛选一周内活跃的招聘需求，最好还能通过指定关键词在搜索结果中进一步搜索",
+  "errorReportMarkdown": "# Search run failed\n\n- Failed stage: parse\n- Failure kind: invalid_request\n- Reason: SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.\n- Retryable: no\n- Completed stages: none\n- Not started: discovery, evidence, analysis, report_delivery",
+  "failure": {
+    "kind": "invalid_request",
+    "stage": "parse",
+    "exceptionType": "ValueError",
+    "message": "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.",
+    "retryable": false
+  },
+  "usage": {
+    "githubRequests": 1,
+    "githubSearchRequests": 0,
+    "githubCodeSearchRequests": 0,
+    "githubTopicSearchRequests": 0,
+    "githubIssueSearchRequests": 0,
+    "tavilyCredits": 0,
+    "llmInputTokens": 0,
+    "llmOutputTokens": 0,
+    "llmTokenEstimated": false,
+    "estimatedUsd": 0.0,
+    "estimatedUsdComplete": true,
+    "missingPriceComponents": [],
+    "elapsedMs": 1966,
+    "warnings": [],
+    "providerEvents": []
+  },
+  "runTrace": {
+    "schema_version": "1",
+    "status": "failed",
+    "stages": [
+      {
+        "name": "parse",
+        "status": "failed",
+        "inputs": {
+          "query": 1
+        },
+        "outputs": {},
+        "notes": [
+          "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one."
+        ],
+        "failure": {
+          "kind": "invalid_request",
+          "stage": "parse",
+          "exception_type": "ValueError",
+          "message": "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.",
+          "retryable": false
+        }
+      },
+      {
+        "name": "discovery",
+        "status": "not_started",
+        "inputs": {},
+        "outputs": {},
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "evidence",
+        "status": "not_started",
+        "inputs": {},
+        "outputs": {},
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "analysis",
+        "status": "not_started",
+        "inputs": {},
+        "outputs": {},
+        "notes": [],
+        "failure": null
+      },
+      {
+        "name": "report_delivery",
+        "status": "not_started",
+        "inputs": {},
+        "outputs": {},
+        "notes": [],
+        "failure": null
+      }
+    ],
+    "failure": {
+      "kind": "invalid_request",
+      "stage": "parse",
+      "exception_type": "ValueError",
+      "message": "SearchSpec parsing requires a configured LLM; use an audited fixed requirement plan when running without one.",
+      "retryable": false
+    }
+  }
+}
