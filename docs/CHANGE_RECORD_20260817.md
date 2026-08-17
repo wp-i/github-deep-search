@@ -82,7 +82,7 @@ Git 历史没有重写。原本受 Git 跟踪的删除内容仍可从历史提�
 
 ## 当前验证结果
 
-- `pytest -q`：16 项通过；
+- `pytest -q`：18 项通过；
 - `python -m compileall -q github_deep_search tests scripts`：通过；
 - `git diff --check`：通过；
 - 旧运行入口和旧 Provider 关键字扫描：通过；
