@@ -5,80 +5,119 @@ import json
 
 import httpx
 
-from github_deep_search.models import BudgetUsage, ProviderEvent
-from github_deep_search.providers.llm import LLMClient, LLMProviderError
+from github_deep_search.models import Usage
+from github_deep_search.providers.llm import LLMClient
 
 
-def test_json_chat_uses_deterministic_sampling() -> None:
-    observed: dict[str, object] = {}
+def test_chat_uses_openai_compatible_endpoint_and_real_usage() -> None:
+    captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        observed.update(json.loads(request.content))
+        captured["path"] = request.url.path
+        captured["authorization"] = request.headers["Authorization"]
+        captured["payload"] = json.loads(request.content)
         return httpx.Response(
             200,
-            request=request,
             json={
-                "choices": [{"message": {"content": '{"ok":true}'}}],
-                "usage": {"prompt_tokens": 4, "completion_tokens": 2},
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 3},
             },
         )
 
-    async def run() -> dict[str, object] | None:
-        client = LLMClient("test-key", "https://provider.example", "model", BudgetUsage())
+    async def run() -> None:
+        usage = Usage()
+        client = LLMClient("test-key", "https://provider.example/v1", "model", usage)
         await client.client.aclose()
         client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         try:
-            return await client.json_chat("system", "user")
+            result = await client.chat("system", "user", operation="baseline")
         finally:
             await client.close()
 
-    result = asyncio.run(run())
+        assert result == "ok"
+        assert usage.llm_input_tokens == 12
+        assert usage.llm_output_tokens == 3
+        assert usage.llm_total_tokens == 15
 
-    assert result == {"ok": True}
-    assert observed["temperature"] == 0.0
+    asyncio.run(run())
+    assert captured["path"] == "/v1/chat/completions"
+    assert captured["authorization"] == "Bearer test-key"
+    assert captured["payload"] == {
+        "model": "model",
+        "messages": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "user"},
+        ],
+        "temperature": 0.2,
+    }
 
 
-def test_http_error_retains_bounded_sanitized_provider_detail() -> None:
-    usage = BudgetUsage()
+def test_json_chat_extracts_fenced_json_without_semantic_retry() -> None:
+    calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(
-            402,
-            request=request,
-            json={"error": {"message": f"invalid request test-key {'x' * 1400}"}},
+            200,
+            json={"choices": [{"message": {"content": "json: {\"value\": 1}"}}]},
         )
 
-    async def run() -> tuple[dict[str, object] | None, LLMProviderError | None]:
-        client = LLMClient("test-key", "https://provider.example", "model", usage)
+    async def run() -> None:
+        usage = Usage()
+        client = LLMClient("test-key", "https://provider.example/v1", "model", usage)
         await client.client.aclose()
         client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         try:
-            result = await client.json_chat(
-                "system",
-                "user",
-                operation="repository_analysis",
-            )
-            return result, client.last_failure
+            result = await client.json_chat("system", "user")
+        finally:
+            await client.close()
+        assert result == {"value": 1}
+
+    asyncio.run(run())
+    assert calls == 1
+
+
+def test_invalid_json_fails_without_literal_fallback() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "not json"}}]},
+        )
+
+    async def run() -> None:
+        usage = Usage()
+        client = LLMClient("test-key", "https://provider.example/v1", "model", usage)
+        await client.client.aclose()
+        client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            result = await client.json_chat("system", "user")
+        finally:
+            await client.close()
+        assert result is None
+        assert usage.provider_events[-1].kind == "invalid_response"
+        assert all("literal" not in warning.lower() for warning in usage.warnings)
+
+    asyncio.run(run())
+
+
+def test_provider_error_redacts_api_key() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, text="rejected test-secret")
+
+    async def run() -> None:
+        usage = Usage()
+        client = LLMClient("test-secret", "https://provider.example/v1", "model", usage)
+        await client.client.aclose()
+        client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            result = await client.chat("system", "user")
         finally:
             await client.close()
 
-    result, failure = asyncio.run(run())
+        assert result == ""
+        assert client.last_failure is not None
+        assert "test-secret" not in "\n".join(usage.warnings)
+        assert "[redacted]" in "\n".join(usage.warnings)
 
-    assert result is None
-    assert isinstance(failure, LLMProviderError)
-    assert str(failure) == "The configured LLM provider rejected the request (HTTP 402)."
-    assert failure.status_code == 402
-    assert failure.retryable is False
-    assert len(usage.warnings) == 1
-    warning = usage.warnings[0]
-    assert "status=402" in warning
-    assert "operation=repository_analysis" in warning
-    assert "model=model" in warning
-    assert "input_chars=10" in warning
-    assert "estimated_input_tokens=3" in warning
-    assert 'response={"error":{"message":"invalid request [redacted]' in warning
-    assert "...[truncated]" in warning
-    assert "test-key" not in warning
-    assert usage.provider_events == [
-        ProviderEvent("llm", "repository_analysis", "failed", "HTTPStatusError")
-    ]
+    asyncio.run(run())

@@ -74,7 +74,7 @@ def ensure_local_env() -> None:
         return
     shutil.copyfile(EXAMPLE_ENV, LOCAL_ENV)
     log("created config/user_keys.env from the example file")
-    log("you can add API keys there later for better search quality")
+    log("configure GITHUB_TOKEN and LLM_API_KEY before search becomes available")
 
 
 def port_is_open(host: str, port: int) -> bool:

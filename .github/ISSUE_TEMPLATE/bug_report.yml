@@ -34,4 +34,5 @@ body:
     id: logs
     attributes:
       label: Relevant logs
+      description: Remove API keys, tokens, authorization headers, and private user input before submitting.
       render: shell

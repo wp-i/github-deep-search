@@ -163,7 +163,7 @@ class LLMClient:
                     return json.loads(cleaned[start : end + 1])
                 except json.JSONDecodeError:
                     pass
-        self.usage.warnings.append("LLM did not return valid JSON; using the literal request plan.")
+        self.usage.warnings.append("LLM did not return valid JSON.")
         self.usage.provider_events.append(
             ProviderEvent("llm", "json_chat", "failed", "invalid_response")
         )

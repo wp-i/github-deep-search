@@ -1,122 +1,139 @@
-# GitHub Deep Search Architecture
+# GitHub Deep Search 架构
 
-This document describes the repository as it exists in V1. It is a map for
-reviewing data ownership, evidence boundaries, failure semantics, and public
-outputs; it is not a target-state redesign.
+本文定义 `0.1.0` 的目标架构和依赖边界。当前运行时代码必须向本文收敛；旧引擎、
+旧入口或旧测试不构成兼容要求。
 
-## Runtime flow
+## 总体数据流
 
 ```text
-user input
-  -> SearchSpecParser / SearchSpec
-  -> channel-specific discovery plan
-  -> GitHub and optional Tavily candidates
-  -> README, path, and source evidence
-  -> deterministic evidence gate and tiering
-  -> SearchReport
-  -> Markdown / JSON / Web / MCP projections
+Web
+  ↓
+RunManager
+  ↓
+Pipeline
+  ├─ InputStage
+  ├─ ParseStage ───────────→ LLM Provider
+  ├─ DiscoveryStage ───────→ GitHub Provider
+  ├─ EvidenceStage ────────→ GitHub Provider
+  ├─ AnalysisStage ────────→ LLM Provider
+  └─ ReportStage
 ```
 
-`DeepSearchEngine.run` is the orchestrator. It owns the five public trace
-stages: `parse`, `discovery`, `evidence`, `analysis`, and `report_delivery`.
-Each stage is opened before work begins and closed from the work actually
-observed in that stage.
+依赖只能从入口指向运行管理、流水线、阶段和 Provider。Provider 不得依赖 Web、报告、
+测试或产品语义。报告阶段不得调用 Provider，也不得更改分析阶段的排序。
 
-## Ownership and dependency direction
+## 模块所有权
 
-| Owner | Responsibility | Must not own |
+| 模块 | 唯一职责 | 不得负责 |
 | --- | --- | --- |
-| `spec_parser.py` | Interpret the current request into `SearchSpec`, including channel queries, must-have/nice-to-have separation, evidence aliases, and compositional evidence components | Repository ranking or fixed product-domain dictionaries |
-| `providers/` | Perform external requests and record usage, warnings, and structured `ProviderEvent` outcomes | Requirement meaning, evidence conclusions, or candidate tiering |
-| `engine.py` discovery | Execute the current `SearchSpec` plan and merge candidates | Capability claims derived only from metadata or popularity |
-| `engine.py` evidence gate | Collect local repository material and classify supplied requirements as supported, different, missing, or unknown | Product-specific synonyms, translation rescue, or sample-specific branches |
-| `engine.py` tiering/reporting | Separate reliable, reference, and adjacent results while retaining meaningful low-confidence leads | Promoting an unconfirmed core capability or deleting every uncertain result |
-| `serializers.py`, `web.py`, `mcp_server.py` | Project the same report or failure artifact into public interfaces | Reinterpreting evidence or rescuing a failed upstream decision |
-| `tests/` and release evaluation artifacts | Verify domain-neutral contracts and real-provider behavior | Runtime input, hidden prompts, repository allowlists, or expected sample answers |
+| `models.py` | 阶段间的数据契约 | 搜索、评分或渲染判断 |
+| `config.py` | Provider、预算、超时配置 | 产品模式或报告策略 |
+| `run_manager.py` | 单活动任务、内存状态、订阅、取消 | 需求理解和候选排序 |
+| `pipeline.py` | 六阶段编排、资源关闭、取消传播 | 阶段内部业务逻辑 |
+| `stages/input.py` | 输入、凭据和报告语言验证 | 需求语义解释 |
+| `stages/parse.py` | LLM 需求理解和双语查询规划 | GitHub 请求和最终评分 |
+| `stages/discovery.py` | GitHub 搜索、候选合并和公开性 | 能力声明和最终排序 |
+| `stages/evidence.py` | 仓库有效性和证据采集 | 根据流行度决定相关性 |
+| `stages/analysis.py` | 全局比较、唯一排序和前三名 | 报告排版和 Provider 传输 |
+| `stages/report.py` | 确定性 Markdown 投影 | 新推断、重新评分或重排 |
+| `providers/github.py` | 认证 GitHub API 调用 | 匿名降级和产品判断 |
+| `providers/llm.py` | OpenAI-compatible Chat Completions | 字面搜索降级和报告保存 |
+| `web.py` | HTTP、SSE 和静态页面 | 搜索、证据和评分逻辑 |
+| `serializers.py` | 内部对象到 Web JSON 的映射 | 修正上游结论 |
 
-Dependencies point from orchestration toward domain models and provider
-adapters. Evaluation assets are consumers of public artifacts and are never
-read by the runtime search path.
+一个行为只能有一个所有者。新实现替代旧实现时，必须同时删除旧路径和相关测试。
 
-## Semantic boundary
+## 六阶段契约
 
-Product meaning comes only from the current user input, the generated
-`SearchSpec`, and repository evidence. The parser owns interpretation. The
-engine may normalize, deduplicate, collect, compare, score, and classify the
-parser-supplied structure, but it must not add business meaning through static
-keyword packs or fixture knowledge.
+### 输入
 
-See [ADR 0001](adr/0001-search-spec-semantic-ownership.md).
+验证不超过 2000 字符的原始输入、GitHub Token 和 LLM 配置。原始输入不可改写或
+截断。只要输入中存在中文，报告语言就是中文，否则为英文。
 
-## Evidence and public claims
+### 解析
 
-`EvidenceCoverage` is the current compatibility contract for each requested
-feature. `EvidenceReference` is its additive, repository-local observation record:
-it identifies the evidence kind, README/path/source locator, bounded excerpt,
-matched aliases, and line position when the material is line-addressable. The
-existing evidence string fields remain the backward-compatible projection. Its
-status is one of:
+LLM 从完整输入生成核心目标、功能、约束、偏好、合理解释、双语查询组合和证据目标。
+确定性代码只验证结构、字段和去重，不通过静态词表解释产品含义。无效 LLM 结构使
+解析阶段失败，不降级为字面关键词搜索。
 
-- `supported`: repository material confirms the capability;
-- `different`: repository material supports a materially different workflow;
-- `missing`: repository material explicitly says the capability is absent;
-- `unknown`: the collected material does not establish a conclusion.
+### 发现
 
-The evidence gate caps scores and determines `core_confirmed`. A project with
-an unconfirmed core requirement may remain visible only as a reference or
-adjacent lead. When tiering marks a project as reference/lead, its public
-`recommendation` is replaced by the evidence-derived `reference_reason`; raw
-LLM recommendation prose cannot cross that boundary.
+执行认证 GitHub 查询并合并 LLM 提出的候选。所有候选都必须重新通过 GitHub 验证，
+且只能是公开仓库。单条无效查询产生用户可见警告；鉴权、限流或 GitHub 整体失败使
+运行失败。
 
-See [ADR 0002](adr/0002-evidence-status-and-report-claims.md) and
-[evidence-gating.md](evidence-gating.md).
+### 证据
 
-## Run trace and failure semantics
+采集仓库元数据、README、目录、搜索命中的文件、必要源码和配置，并记录更新时间、
+归档、许可证、Release、fork 和同源关系。每个需求的状态是支持、部分支持、明确不符
+或无法确认，并关联实际仓库证据。
 
-The stable public trace schema is defined by `RunTrace`, `StageOutcome`, and
-`RunFailure` in `models.py` and recorded by `RunTraceRecorder`.
+证据不足时可以回到发现阶段补充一次或在运行预算内进行受限补充；不得无限循环。
 
-Stage status has four values:
+### 分析
 
-- `completed`: the stage finished without a structured provider limitation;
-- `partial`: the stage produced usable output but one or more provider events
-  were failed or limited;
-- `failed`: execution stopped in this stage;
-- `not_started`: an earlier failure prevented the stage from running.
+分析 LLM 在共享上下文中比较有效候选，唯一决定三个独立项目、0～100 整数关联度、
+满足内容、不符内容和风险。核心功能覆盖占主导，用户明确约束具有较高影响；功能接近
+时再重点考虑开箱即用程度、证据完整性和最近代码更新时间。
 
-Run status is `completed`, `partial`, or `failed`. A failed run raises
-`SearchRunFailed`, which carries a serializable `SearchFailureArtifact` with a
-readable error report, usage, failure classification, completed stages, and
-not-started stages. CLI, Web, and MCP project this same artifact. A normal
-no-match result is not a runtime failure: it remains a completed or partial
-`SearchReport` with zero or adjacent results and an explanation.
+该结果是唯一排序事实。其他模块不得追加分数、阈值、tier 或重排逻辑。
 
-Structured `ProviderEvent` records are assigned to the stage in which they
-occur. Trace status and search completeness use these events directly rather
-than parsing human-readable warning text.
+### 报告
 
-See [ADR 0003](adr/0003-run-trace-public-contract.md).
+将分析结果确定性转换成网页数据和 Markdown。报告不调用 LLM，不生成市场机会、建设
+建议或其他分析阶段没有产出的结论。
 
-## Public outputs
+## 运行管理
 
-`SearchReport` is the successful runtime result. `report_to_dict` projects a
-concise user contract: summary, rendered report, public project fields, and
-token usage. `diagnostic_report_to_dict` retains the internal requirement,
-evidence, `decisionBrief`, and five-stage `runTrace` for evaluation artifacts.
-The engine is the sole owner of that trace; serializers fail if it is absent
-instead of reconstructing stage outcomes from final report fields.
-Web, CLI, and MCP consume the concise serializer so interface-specific code
-does not recreate search conclusions.
+每个进程只允许一个活动任务。Web API 的目标语义为：
 
-## Validation boundaries
+- `POST /api/runs`：创建任务；已有任务时返回 `409`。
+- `GET /api/runs/{id}/events`：SSE 真实进度事件。
+- `GET /api/runs/{id}`：当前状态或最终报告。
+- `GET /api/runs/active`：页面刷新后连接当前任务。
+- `DELETE /api/runs/{id}`：取消任务。
+- `GET /api/status`：凭据状态和是否存在活动任务。
 
-Deterministic checks run with `pytest -q` and Python compilation. Browser
-rendering checks are explicit `e2e` tests. Real-provider runs are release
-evaluation artifacts, not ordinary unit tests; they retain the request, a
-secret-free configuration fingerprint, report, trace, provider events, and
-invariant assessment. A confirmed LLM-assisted failure requires two independent
-real runs after the final fix.
+阶段状态只有未开始、进行中、已完成、失败和已取消。前端不生成虚假百分比。补充发现
+通过真实事件和迭代编号呈现。
 
-The current failure-trace validation package is under
-`tmp/test-engineering-validation/20260710-failure-trace/`. It includes the
-pre-fix comparison and the final two-run summary.
+浏览器断开不会取消任务。运行继续到完成、主动取消或全局超时；默认超时为 600 秒并
+可通过环境变量调整。完成结果只保留在内存中，直到新任务开始或服务重启。
+
+## 候选与证据边界
+
+有效候选必须是公开、可访问且包含真实实现的仓库，可以是应用、库、插件、模板、SDK
+或参考实现。空仓库、纯链接集合、awesome list、只有论文或宣传而无实现的仓库无效。
+
+普通 fork、镜像和没有实质差异的同源仓库不能重复占据三个结果。归档、缺少许可证或
+长期未更新不会直接淘汰项目，但必须进入分析上下文并在报告中展示。
+
+README、路径、源码和配置都是可引用证据；仓库简介、Stars 和 LLM 记忆不能独立证明
+能力。证据数量不是独立评分指标，证据只用于支撑与完整输入相关的判断。
+
+## 排序边界
+
+- 成功运行必须返回三个有效、独立项目。
+- 无法验证三个项目时运行失败，不以无关或重复仓库凑数。
+- 用户强约束不作硬过滤，也不为免费、移动端、MCP 等特定内容设置特殊逻辑。
+- 功能覆盖差距明显时，覆盖更多的项目可以排在违反某项约束的项目之前。
+- 功能接近时，满足明确约束且近期有实际代码更新的项目优先。
+- Stars 和 Fork 数默认不影响排序，除非用户输入明确提出流行度要求。
+- 关联度只在单次运行内比较，不承诺跨运行校准。
+
+## 报告与持久化
+
+报告是分析结果的投影，只存在于 Web 页面。服务端不自动保存报告、Markdown、JSON、
+trace 或评估工件。用户主动复制或下载 Markdown 时，由浏览器使用当前页面内容生成。
+
+公开用量只包含 LLM 输入 token、输出 token 和总 token。内部阶段状态用于当前任务的
+进度和错误定位，不作为可下载诊断报告。
+
+## 失败与安全
+
+缺少凭据、鉴权失败、限流、Provider 整体不可用、无效 LLM 结构、无法验证三个项目、
+超时或报告生成失败都会产生明确的阶段错误。部分 GitHub 查询失败但其余搜索能够完成
+时可以继续，不过必须向用户显示警告。
+
+错误、日志、SSE、JSON 和 Markdown 都不得包含 Token、API Key 或 Authorization
+Header。运行时只访问公开仓库，不因用户 Token 拥有额外权限而读取私有仓库。

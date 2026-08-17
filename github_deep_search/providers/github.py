@@ -42,7 +42,7 @@ class GitHubClient:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "github-deep-search-prototype",
+            "User-Agent": "github-deep-search/0.1.0",
         }
         headers["Authorization"] = f"Bearer {token}"
         self.paused = False
@@ -322,6 +322,12 @@ class GitHubClient:
             last_pushed_at=data.get("pushed_at"),
             license=license_info.get("spdx_id") if isinstance(license_info, dict) else None,
             default_branch=data.get("default_branch") or "main",
+            is_private=bool(data.get("private", False)),
+            is_archived=bool(data.get("archived", False)),
+            is_fork=bool(data.get("fork", False)),
+            parent_full_name=(
+                str((data.get("parent") or {}).get("full_name") or "") or None
+            ),
             found_by=[found_by],
         )
         return repo

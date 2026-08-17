@@ -1,7 +1,0 @@
-{
-  "status": "action_required",
-  "case_id": "boss-active-recruitment-filter",
-  "run_id": "baseline-no-llm-01",
-  "earliest_incorrect_stage": "parse",
-  "finding": "The no-LLM parser projected structural clauses as required capabilities and completed the parse stage with an unqualified semantic plan."
-}

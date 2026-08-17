@@ -9,20 +9,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from github_deep_search import __version__
 from github_deep_search.config import get_settings
-from github_deep_search.engine import deep_search
-from github_deep_search.run_trace import SearchRunFailed
-from github_deep_search.serializers import failure_artifact_to_dict, report_to_dict
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-app = FastAPI(title="GitHub Deep Search", version="0.2.0")
+app = FastAPI(title="GitHub Deep Search", version=__version__)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(min_length=2, max_length=2000)
+    query: str = Field(min_length=1, max_length=2000)
 
 
 @app.get("/", response_class=FileResponse)
@@ -35,29 +33,27 @@ async def api_status() -> JSONResponse:
     settings = get_settings()
     return JSONResponse(
         {
-            "hasGithubToken": bool(settings.github_token),
+            "version": __version__,
+            "hasGithubToken": settings.has_github,
             "hasLlmKey": settings.has_llm,
-            "hasTavilyKey": settings.has_tavily,
-            "requiredKeys": ["GITHUB_TOKEN", "LLM_API_KEY"],
+            "searchAvailable": False,
+            "hasActiveRun": False,
         }
     )
 
 
-@app.post("/api/search")
-async def api_search(request: SearchRequest) -> JSONResponse:
-    try:
-        report = await deep_search(request.query)
-    except SearchRunFailed as exc:
-        artifact = failure_artifact_to_dict(exc.artifact)
-        status_code = 400 if exc.artifact.failure.kind == "invalid_request" else 502 if exc.artifact.failure.kind == "provider" else 500
-        return JSONResponse(
-            {
-                "error": exc.artifact.failure.message,
-                "failureArtifact": artifact,
-            },
-            status_code=status_code,
-        )
-    return JSONResponse(report_to_dict(report, include_html=True))
+@app.post("/api/runs", status_code=503)
+async def create_run(request: SearchRequest) -> JSONResponse:
+    del request
+    return JSONResponse(
+        {
+            "error": {
+                "code": "development_baseline",
+                "message": "The six-stage search pipeline is being rebuilt and is not available yet.",
+            }
+        },
+        status_code=503,
+    )
 
 
 def run() -> None:

@@ -21,15 +21,13 @@ body:
     id: actual
     attributes:
       label: What did GitHub Deep Search return?
-      description: Include the Top results or the exported Markdown/JSON if possible.
-  - type: dropdown
-    id: keys
+      description: Include the three results, failure message, or copied Markdown without credentials or private input.
+  - type: checkboxes
+    id: credentials
     attributes:
-      label: Which providers were configured?
+      label: Required configuration
       options:
-        - GitHub token and LLM key
-        - GitHub token only
-        - LLM key only
-        - No external keys
+        - label: The run used both a GitHub token and an LLM API key.
+          required: true
     validations:
       required: true

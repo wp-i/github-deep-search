@@ -1,268 +1,110 @@
 <h1 align="center">GitHub Deep Search</h1>
 
 <p align="center">
-  用一句产品想法，真实搜索 GitHub，判断哪些开源项目值得复用、借鉴或避开。
+  根据一段想法或需求，从公开 GitHub 仓库中找出与完整输入最相关的三个开源项目。
 </p>
 
-<p align="center">
-  <a href="https://github.com/wp-i/github-deep-search/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/wp-i/github-deep-search?style=social"></a>
-  <a href="https://github.com/wp-i/github-deep-search/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/wp-i/github-deep-search/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB">
-  <img alt="FastAPI" src="https://img.shields.io/badge/Web-FastAPI-009688">
-  <img alt="License" src="https://img.shields.io/github/license/wp-i/github-deep-search">
-  <img alt="No demo data" src="https://img.shields.io/badge/No%20Demo%20Data-Real%20Search-111827">
-</p>
+## 当前状态
 
-<p align="center">
-  <a href="#一分钟跑起来">一分钟跑起来</a>
-  · <a href="#真实运行效果">真实运行效果</a>
-  · <a href="#api-key-与消耗">API Key 与消耗</a>
-  · <a href="#信任边界">信任边界</a>
-</p>
+项目版本统一为 `0.1.0`，当前只用于开发和测试，不进行发布。
 
-<p align="center">
-  <strong>默认打开页面</strong><br>
-  <img alt="GitHub Deep Search Web 工作台" src="docs/assets/web-workbench-20260702.png">
-</p>
+产品契约已经完成重新设计，运行时正在按新契约清理和重建。在新的六阶段流水线全部
+完成并通过验证前，仓库中的旧搜索结果不能作为产品质量背书。
 
-<p align="center">
-  <strong>搜索后结果页</strong><br>
-  <img alt="GitHub Deep Search 搜索结果页" src="docs/assets/web-result-20260702.png">
-</p>
+## 产品目标
 
-> 上图展示当前 Web 工作台的默认状态和搜索完成后的报告状态；报告仍来自真实搜索，不是内置 Demo、预置报告或假仓库排行。
-
-## 它解决什么
-
-| 你原本要手动做的事 | GitHub Deep Search 做的事 |
-| --- | --- |
-| 在 GitHub 反复换关键词 | 把自然语言需求拆成结构化搜索角度 |
-| 点开仓库看 README 和源码 | 采集 README、文件树、关键源码路径证据 |
-| 判断项目能不能复用 | 输出匹配理由、差异、缺口和风险 |
-| 估算一次调研花了多少成本 | 展示 GitHub 请求数、LLM tokens 和可选美元估算 |
-
-## 15 秒看懂
+用户可以输入不超过 2000 个字符的自然语言描述，例如“我想要一个……”“我需要……”
+“我的设计是……”或对某个现状的描述。系统不向用户追问，而是独立完成：
 
 ```text
-我想做一个浏览器插件，可以总结网页内容，并把摘要同步到 Notion。
+输入 → 解析 → 发现 → 证据 → 分析 → 报告
 ```
 
-| 输出块 | 你会看到什么 |
-| --- | --- |
-| Top 项目 | 最相关仓库、star、更新时间、关联度 |
-| 复用判断 | 直接可用 / 参考项目 / 相邻参考 |
-| 证据来源 | README、源码、路径、Topic、Issue 线索 |
-| 差异缺口 | 缺什么、哪里不匹配、需要改造什么 |
-| 消耗记录 | 本次 GitHub 请求数、LLM 输入/输出 tokens |
+一次成功执行必须返回三个经过 GitHub 验证、相互独立的公开仓库：
 
-## 一分钟跑起来
+- 优先寻找能够完整覆盖核心功能的项目；
+- 没有完整匹配时，降级为覆盖部分需求的项目；
+- 再没有时，保留至少覆盖一个重要需求点的相邻项目；
+- 无法验证三个有效项目时明确失败，不使用重复、无实现或无证据的仓库凑数。
 
-Clone 后进入项目目录，只需要这一行启动 Web：
+最终只展示一个 0～100 的关联度分数。分数只在本次运行中用于排序，不跨运行比较。
+
+完整规则见 [产品契约](docs/PRODUCT_CONTRACT.md)。
+
+## 运行边界
+
+- 唯一用户入口是 Web。
+- 搜索数据只来自认证 GitHub API；不使用通用网页搜索。
+- 需求理解和最终分析使用 OpenAI-compatible Chat Completions。
+- `GITHUB_TOKEN` 和 `LLM_API_KEY` 都是必需配置。
+- 只搜索公开仓库，不读取或展示私有仓库。
+- 每个本地实例同一时间只运行一个任务。
+- 用户关闭或刷新页面不会自动取消任务；任务可重新连接、主动取消或等待超时。
+- 报告只在网页中显示，不自动保存到磁盘。
+- 用户可以主动复制 Markdown 或下载 Markdown；下载完全由浏览器基于当前页面生成。
+
+## 本地启动
 
 ```bash
 python scripts/start_web.py
 ```
 
-启动器会自动创建 `.venv`、安装依赖、创建 `config/user_keys.env`，然后启动 Web 服务。打开终端输出的地址，通常是 http://127.0.0.1:8001。
+启动器会准备本地 Python 环境并启动 Web，默认地址为
+`http://127.0.0.1:8001`。
 
-### 真实运行前提
-
-这个项目不是离线 demo。Web 可以无 key 打开，但真实调研必须能访问 GitHub API 和一个 OpenAI-compatible LLM：
-
-- `GITHUB_TOKEN`：必需，用于真实 GitHub 搜索、README 和源码证据采集；缺失、失效或限额阻断时直接失败，不降级到匿名公共 API。
-- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：必需，用于把自然语言需求解析成 `SearchSpec`，再做查询规划、比较和报告。
-- 中国大陆网络下通常不需要“项目内置 VPN”，但 GitHub API 和 LLM 服务的可达性取决于实际网络。OpenAI 官方接口在部分环境不可直连；超时、连接重置或长期无结果时，优先配置代理或使用可直连的兼容服务商。
-
-详细 key 获取和网络说明见 [API Key 与消耗](#api-key-与消耗)。
-
-当前 Web 入口由 FastAPI 直接服务静态文件：
-
-- `github_deep_search/static/index.html`
-- `github_deep_search/static/styles.css`
-- `github_deep_search/static/app.js`
-
-仓库运行时不需要单独的 React/Tailwind 构建步骤，也不提交设计稿工程或 `node_modules` 产物。
-
-## 真实运行效果
-
-| 项目 | 本次真实记录 |
-| --- | --- |
-| 查询 | `找一个开源 Python 终端 UI 库，支持表格、进度条、Markdown 渲染和富文本样式。` |
-| Top 结果 | `Textualize/rich` |
-| 报告消耗 | 输入 `38,236` tokens，输出 `3,386` tokens |
-| 完整记录 | [docs/REAL_RUNS.md](docs/REAL_RUNS.md) |
-
-## API Key 与消耗
-
-没有 key 可以打开界面，但不会得到可信的真实调研报告。
-
-### Clone 后最快配置
-
-1. 运行 `python scripts/start_web.py`，启动器会自动创建 `config/user_keys.env`。
-2. 打开 [GitHub fine-grained token 页面](https://github.com/settings/tokens?type=beta)，生成一个本地只读 token：
-   - Repository access：Public repositories only
-   - Permissions：Metadata Read-only；Contents Read-only
-   - 不要授予写权限，也不要授予私有仓库权限，除非你明确要调研私有仓库
-3. 把 token 填到 `config/user_keys.env` 的 `GITHUB_TOKEN=`。
-4. 填入一个 OpenAI-compatible LLM：
-   - 国内网络优先选择可直连的兼容服务商，例如 DeepSeek/OpenRouter/自建网关
-   - 使用 OpenAI 官方接口时，按所在地网络情况配置代理或网关
-5. 重启 Web 服务或重新运行 CLI。
+在 `config/user_keys.env` 中配置：
 
 ```env
 GITHUB_TOKEN=your_public_read_token
 LLM_API_KEY=your_openai_compatible_key
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=your-model-name
-TAVILY_API_KEY=
 ```
 
-| Key | 是否必需 | 用途 |
-| --- | --- | --- |
-| `GITHUB_TOKEN` | 必需 | 执行认证的 GitHub 搜索与证据采集；不使用匿名公共 API 降级，建议只授予公开仓库只读权限 |
-| `LLM_API_KEY` | 必需 | 需求解析、查询规划、项目比较、最终报告 |
-| `TAVILY_API_KEY` | 可选 | Web 交叉验证和补充发现 |
+建议 GitHub Token 只授予公开仓库的 Metadata Read-only 和 Contents
+Read-only 权限。缺少凭据、鉴权失败或限流时，运行明确失败，不降级到匿名 API。
 
-### 网络可达性
-
-项目本身不要求 VPN，但真实搜索依赖外部服务：
-
-- GitHub API：必须可访问 `https://api.github.com`。中国大陆网络通常可以访问但稳定性因运营商和时段而异，若频繁超时、连接重置或速率异常，建议配置稳定代理。
-- LLM API：取决于 `LLM_BASE_URL`。OpenAI 官方接口在部分网络环境下不可直连；DeepSeek、OpenRouter、公司网关或本地兼容网关可按实际网络选择。
-- Tavily：可选；不可访问时只影响网页交叉发现，不应阻止 GitHub 主流程。
-
-底层 HTTP 客户端会遵循常见环境代理变量；需要代理时可在启动前设置：
-
-```bash
-HTTPS_PROXY=http://127.0.0.1:7890
-HTTP_PROXY=http://127.0.0.1:7890
-```
-
-Web 默认使用 `detailed + continue`，优先保证召回质量。
-
-| 模式 | GitHub 请求上限 | 候选项目上限 | Tavily 上限 | 典型 LLM tokens |
-| --- | ---: | ---: | ---: | ---: |
-| `standard` | 40 | 30 | 最多 4 credits | 15k-45k |
-| `high` | 72 | 54 | 最多 4 credits | 30k-80k |
-| `continue` | 92 | 69 | 最多 4 credits | 40k-110k |
-
-<details>
-<summary>查看美元估算配置</summary>
-
-```env
-LLM_INPUT_USD_PER_1M=0
-LLM_OUTPUT_USD_PER_1M=0
-TAVILY_USD_PER_CREDIT=0.008
-```
-
-```text
-input_tokens / 1,000,000 * LLM_INPUT_USD_PER_1M
-+ output_tokens / 1,000,000 * LLM_OUTPUT_USD_PER_1M
-+ tavily_credits * TAVILY_USD_PER_CREDIT
-```
-
-价格和限额会变化，批量运行前请以自己的服务商控制台为准。
-
-</details>
-
-## 为什么不是普通搜索
-
-```text
-自然语言需求
-=> LLM 解析成结构化 SearchSpec
-=> GitHub repo / code / topic / issue 搜索
-=> README、文件树、关键源码证据采集
-=> 证据覆盖排序
-=> 项目对比报告
-```
-
-普通 GitHub 搜索容易漏掉 README、代码路径、Issue 和 Topic 里的线索。直接问 LLM 很快，但常见问题是结果过时、证据不足、把“看起来像”的项目说成可用。
-
-`SearchSpec` 是流程第一步：用户输入可能很长、很口语化，也可能是多步骤手动流程，所以必须先由 LLM 把当前需求理解成仓库可搜索的能力、对象、动作、平台和输出。后续搜索、证据和报告只能使用这个当前请求的结构化结果与真实仓库证据，不能靠静态词组、固定同义词表或样例专用补丁修正某一次输出。
-
-开发、调试和测试也遵守同一条路径：追溯流程、定位最早错误阶段、做最小根因修改、用真实测试验证。不要用临时补偿、下游救援分支或测试专用重写来让某个样例通过。
-
-## 信任边界
-
-| 不做什么 | 为什么重要 |
-| --- | --- |
-| 不内置 Demo 报告 | 首次体验不会被预置结果误导 |
-| 不内置假仓库、假排行或 seeded result data | 排名来自当前输入和实时 provider 响应 |
-| 不使用静态产品同义词表、业务关键词包、仓库白名单或黑名单排序捷径 | 搜索语义必须来自当前需求和真实仓库证据 |
-| 不用静态删词、静态替换或固定正则修解析 | 多样化用户输入必须由当前 LLM 解析和结构校验处理 |
-| 测试夹具不会被 Web、CLI、MCP server 或搜索引擎运行时加载 | 测试数据不会混入真实运行 |
-| 不把弱证据包装成高置信结果 | 未确认核心能力时只保留低置信参考或相邻线索 |
-
-每份真实报告都来自当前用户输入、实时 provider 响应、仓库证据和配置的 LLM。
-
-## CLI
-
-```bash
-python -m github_deep_search "找一个可自部署的 AI Agent 可视化工作流编排工具，最好有插件机制"
-python -m github_deep_search "your requirement" --format markdown
-python -m github_deep_search "your requirement" --format json
-```
-
-## Docker
+也可以使用 Docker：
 
 ```bash
 docker compose up --build
 ```
 
-然后打开 http://127.0.0.1:8001。
+## 用户会看到什么
 
-## Web 体验
+Web 会展示真实六阶段进度，不显示虚假百分比。完成后，每个项目包含：
 
-| 能力 | 状态 |
-| --- | --- |
-| 一行命令启动 | 已支持 |
-| API key 配置状态提示 | 已支持 |
-| 解析、搜索、证据采集、分析、报告生成进度 | 已支持 |
-| 可靠匹配、参考项目、相邻线索分层 | 已支持 |
-| 复制 Markdown、下载 JSON | 已支持 |
-| LLM token、GitHub 请求数、可选美元估算 | 已支持 |
-| MCP tool | 已支持 |
+- GitHub 仓库链接和本次关联度分数；
+- 与用户需求相关的原因；
+- 已确认满足的内容；
+- 明确不满足或尚未确认的内容；
+- 来自 README、目录、源码或配置的证据；
+- 最后代码更新时间、归档状态、许可证和 Release 情况；
+- 必要的采用风险。
 
-## 项目状态
+报告只公开 LLM 输入、输出和总 token，不展示费用估算或内部调试 trace。
 
-这是一个早期开源原型，目标是让产品想法和技术选型阶段的 GitHub 调研更快、更有证据感。后续会继续围绕召回质量、报告可读性和成本控制迭代。
+## 文档
 
-Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md) · [V1 delivery status](docs/V1_DELIVERY_STATUS.md) · [architecture](docs/ARCHITECTURE.md) · [AI-assisted engineering governance](docs/AI_ASSISTED_ENGINEERING_GOVERNANCE.md) · [V1 delivery test plan](docs/V1_DELIVERY_TEST_PLAN.md)
+- [产品契约](docs/PRODUCT_CONTRACT.md)
+- [架构](docs/ARCHITECTURE.md)
+- [测试标准](docs/TESTING.md)
+- [本轮重建设计与清理记录](docs/CHANGE_RECORD_20260817.md)
+- [贡献指南](CONTRIBUTING.md)
+- [开发与测试约束](AGENTS.md)
 
-## MCP
-
-```bash
-pip install -r requirements-mcp.txt
-python -m github_deep_search.mcp_server
-```
-
-MCP tool 名称：`github_deep_search`。
-
-## 测试
+## 开发
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest -q
-python -m compileall github_deep_search tests
+python -m compileall github_deep_search tests scripts
 ```
 
-Web 渲染回归：
+修改代码前必须先确认测试仍然代表当前产品契约。普通 UI、序列化和内部重构不要求
+额外调用独立评审 LLM；涉及解析、发现、证据或排序语义时，确定性测试通过后再执行
+最小必要的真实 Provider 验证。
 
-```powershell
-pip install -r requirements-e2e.txt
-python -m playwright install chromium
-pytest -q -m e2e
-```
+## License
 
-Live eval 默认跳过：
-
-```powershell
-$env:RUN_LIVE_EVAL = "1"
-pytest -q -m live
-```
-
-## 贡献
-
-欢迎提交真实搜索 miss、复现 query、UX 反馈、Provider 兼容性修复和聚焦的 PR。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-如果这个项目帮你节省了调研时间，给一个 star 会让更多正在做产品想法验证的人看到它。
+本项目使用仓库根目录中的 [LICENSE](LICENSE)。
