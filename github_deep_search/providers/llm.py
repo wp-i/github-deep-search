@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from github_deep_search.models import BudgetUsage, ProviderEvent
+from github_deep_search.models import Usage
 from github_deep_search.utils import estimate_tokens
 
 
@@ -28,7 +28,7 @@ class LLMClient:
         api_key: str,
         base_url: str,
         model: str,
-        usage: BudgetUsage,
+        usage: Usage,
         timeout: float = 45.0,
         thinking: str | None = None,
         reasoning_effort: str | None = None,
@@ -82,14 +82,12 @@ class LLMClient:
             if prompt_tokens is None or completion_tokens is None:
                 self.usage.llm_input_tokens += estimated_input_tokens
                 self.usage.llm_output_tokens += estimate_tokens(content)
-                self.usage.llm_token_estimated = True
             else:
                 self.usage.llm_input_tokens += prompt_tokens
                 self.usage.llm_output_tokens += completion_tokens
             return content
         except Exception as exc:
             self.usage.llm_input_tokens += estimated_input_tokens
-            self.usage.llm_token_estimated = True
             if isinstance(exc, httpx.HTTPStatusError):
                 status_code = exc.response.status_code
                 response_text = " ".join(exc.response.text.split()).strip()
@@ -118,9 +116,6 @@ class LLMClient:
                 )
             self.usage.warnings.append(
                 f"LLM request failed ({type(exc).__name__}): {detail}"
-            )
-            self.usage.provider_events.append(
-                ProviderEvent("llm", operation, "failed", type(exc).__name__)
             )
             return ""
 
@@ -164,7 +159,4 @@ class LLMClient:
                 except json.JSONDecodeError:
                     pass
         self.usage.warnings.append("LLM did not return valid JSON.")
-        self.usage.provider_events.append(
-            ProviderEvent("llm", "json_chat", "failed", "invalid_response")
-        )
         return None

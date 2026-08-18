@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="GitHub Deep Search 本地 Web 开发基线">
+  <meta name="description" content="GitHub Deep Search 本地 Web 开发界面">
   <title>GitHub Deep Search</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
@@ -13,7 +13,7 @@
       <p class="eyebrow">GitHub Deep Search · 0.1.0</p>
       <h1>从完整需求中，找到最相关的三个开源项目</h1>
       <p class="lead">
-        产品契约已经完成重设。六阶段搜索正在重建，当前页面只用于确认本地服务和凭据配置。
+        描述完整需求，系统会从公开 GitHub 仓库中核验证据并返回最相关的三个项目。
       </p>
     </header>
 
@@ -37,7 +37,7 @@
         </article>
         <article class="status-card">
           <span>搜索流水线</span>
-          <strong id="search-status">重建中</strong>
+          <strong id="search-status">检查中</strong>
         </article>
       </div>
     </section>
@@ -51,15 +51,54 @@
         <span class="badge">最多 2000 字符</span>
       </div>
       <textarea
+        id="query-input"
         aria-label="需求描述"
         maxlength="2000"
-        placeholder="六阶段搜索完成后可在这里输入需求"
+        placeholder="描述你想实现的功能、约束或当前问题"
         disabled
       ></textarea>
-      <button type="button" disabled>搜索功能重建中</button>
-      <p class="notice">
-        当前基线不会调用旧搜索引擎，也不会生成或保存报告。
+      <button id="start-run" type="button" disabled>正在检查配置</button>
+      <p id="search-notice" class="notice">
+        正在检查本地凭据和搜索服务。
       </p>
+    </section>
+
+    <section id="run-panel" class="panel" aria-labelledby="run-heading" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">当前任务</p>
+          <h2 id="run-heading">六阶段进度</h2>
+        </div>
+        <span id="run-state" class="badge badge-pending" aria-live="polite">准备中</span>
+      </div>
+      <ol id="stage-list" class="stage-list" aria-label="任务阶段">
+        <li data-stage="input"><span>输入</span><strong>未开始</strong></li>
+        <li data-stage="parse"><span>解析</span><strong>未开始</strong></li>
+        <li data-stage="discovery"><span>发现</span><strong>未开始</strong></li>
+        <li data-stage="evidence"><span>证据</span><strong>未开始</strong></li>
+        <li data-stage="analysis"><span>分析</span><strong>未开始</strong></li>
+        <li data-stage="report"><span>报告</span><strong>未开始</strong></li>
+      </ol>
+      <div id="run-activity" class="run-message" role="status" hidden></div>
+      <div id="run-warnings" class="run-message" role="status" hidden></div>
+      <div id="run-error" class="run-message run-message-error" role="alert" hidden></div>
+      <button id="cancel-run" class="button-secondary" type="button" hidden>取消任务</button>
+    </section>
+
+    <section id="report" class="panel report-panel" aria-labelledby="report-heading" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">结果</p>
+          <h2 id="report-heading">最相关的三个项目</h2>
+        </div>
+        <div class="report-actions">
+          <button id="copy-report" class="button-secondary" type="button">复制 Markdown</button>
+          <button id="download-report" class="button-secondary" type="button">下载 Markdown</button>
+        </div>
+      </div>
+      <p id="report-action-status" class="notice" role="status" aria-live="polite"></p>
+      <div id="report-projects" class="report-projects"></div>
+      <dl id="report-usage" class="report-usage"></dl>
     </section>
   </main>
 

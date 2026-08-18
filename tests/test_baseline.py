@@ -53,3 +53,6 @@ def test_ci_installs_test_dependencies() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "pip install -r requirements-dev.txt" in workflow
+    assert "pip install -r requirements-e2e.txt" in workflow
+    assert "python -m playwright install --with-deps chromium" in workflow
+    assert "pytest -q -m e2e tests/test_web_e2e.py" in workflow

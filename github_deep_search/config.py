@@ -44,11 +44,11 @@ class Settings:
 
     @property
     def has_github(self) -> bool:
-        return bool(self.github_token)
+        return bool(self.github_token and self.github_token.strip())
 
     @property
     def has_llm(self) -> bool:
-        return bool(self.llm_api_key)
+        return bool(self.llm_api_key and self.llm_api_key.strip())
 
 
 def get_settings() -> Settings:

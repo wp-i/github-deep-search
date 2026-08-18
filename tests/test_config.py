@@ -30,3 +30,21 @@ def test_invalid_positive_limits_use_contract_defaults(monkeypatch) -> None:
 
     assert settings.run_timeout_seconds == 600
     assert settings.max_candidates == 80
+
+
+def test_whitespace_only_credentials_are_not_configured() -> None:
+    configured = config.Settings(
+        github_token="  ",
+        llm_api_key="\t",
+        llm_base_url="https://provider.example/v1",
+        llm_model="model",
+        llm_thinking=None,
+        llm_reasoning_effort=None,
+        max_github_requests=200,
+        max_candidates=80,
+        max_evidence_repositories=12,
+        run_timeout_seconds=600,
+    )
+
+    assert configured.has_github is False
+    assert configured.has_llm is False

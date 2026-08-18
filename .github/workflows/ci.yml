@@ -20,3 +20,17 @@ jobs:
         run: pytest -q -m "not e2e and not live"
       - name: Compile Python sources
         run: python -m compileall github_deep_search tests scripts
+
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test dependencies
+        run: pip install -r requirements-e2e.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run browser acceptance tests
+        run: pytest -q -m e2e tests/test_web_e2e.py

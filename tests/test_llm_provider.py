@@ -95,7 +95,6 @@ def test_invalid_json_fails_without_literal_fallback() -> None:
         finally:
             await client.close()
         assert result is None
-        assert usage.provider_events[-1].kind == "invalid_response"
         assert all("literal" not in warning.lower() for warning in usage.warnings)
 
     asyncio.run(run())

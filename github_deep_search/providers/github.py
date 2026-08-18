@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
-from typing import Any
+from typing import Any, NoReturn
+from urllib.parse import quote
 
 import httpx
 
-from github_deep_search.models import BudgetUsage, CandidateRepository, ProviderEvent
+from github_deep_search.models import CandidateRepository, Usage
 
 
 class GitHubProviderError(RuntimeError):
@@ -20,7 +21,19 @@ class GitHubAuthenticationError(GitHubProviderError):
     pass
 
 
+class GitHubAuthorizationError(GitHubProviderError):
+    pass
+
+
 class GitHubRateLimitError(GitHubProviderError):
+    pass
+
+
+class GitHubQueryError(GitHubProviderError):
+    pass
+
+
+class GitHubRequestLimitError(GitHubProviderError):
     pass
 
 
@@ -28,7 +41,7 @@ class GitHubClient:
     def __init__(
         self,
         token: str,
-        usage: BudgetUsage,
+        usage: Usage,
         timeout: float = 20.0,
         request_limit: int | None = None,
     ) -> None:
@@ -67,15 +80,18 @@ class GitHubClient:
 
     async def _get(self, path: str, **params: Any) -> dict[str, Any] | None:
         if self.paused:
-            return None
+            raise GitHubRequestLimitError(
+                "The configured GitHub request budget has been exhausted.",
+                retryable=False,
+            )
         for attempt in range(2):
             if self.request_limit is not None and self.usage.github_requests >= self.request_limit:
                 self.paused = True
                 self.usage.warnings.append("GitHub request limit reached; further GitHub calls were stopped.")
-                self.usage.provider_events.append(
-                    ProviderEvent("github", path, "limited", "request_limit")
+                raise GitHubRequestLimitError(
+                    "The configured GitHub request budget has been exhausted.",
+                    retryable=False,
                 )
-                return None
             self.usage.github_requests += 1
             try:
                 response = await self.client.get(path, params=params)
@@ -83,9 +99,6 @@ class GitHubClient:
                     await asyncio.sleep(0.2)
                     continue
                 if response.status_code == 401:
-                    self.usage.provider_events.append(
-                        ProviderEvent("github", path, "failed", "authentication")
-                    )
                     raise GitHubAuthenticationError(
                         "GitHub rejected the configured GITHUB_TOKEN (HTTP 401). "
                         "Replace or re-authorize the token; anonymous fallback is disabled.",
@@ -100,10 +113,7 @@ class GitHubClient:
                         or retry_after is not None
                     )
                     if not is_rate_limit:
-                        self.usage.provider_events.append(
-                            ProviderEvent("github", path, "failed", "authorization")
-                        )
-                        raise GitHubProviderError(
+                        raise GitHubAuthorizationError(
                             "GitHub rejected the authenticated request (HTTP 403). "
                             "Verify token repository access and read permissions; anonymous fallback is disabled.",
                             retryable=False,
@@ -122,32 +132,59 @@ class GitHubClient:
                     )
                     if retry_after:
                         message += f" Retry-after: {retry_after}s."
-                    self.usage.provider_events.append(
-                        ProviderEvent("github", path, "limited", "rate_limit")
-                    )
                     raise GitHubRateLimitError(message, retryable=True)
+                if response.status_code == 422 and path.startswith("/search/"):
+                    raise GitHubQueryError(
+                        "GitHub rejected one planned search query (HTTP 422).",
+                        retryable=False,
+                    )
                 if response.status_code == 404:
                     # Search results can outlive a repository, branch, README, or file.
                     # That candidate has no usable material at this endpoint, but the
                     # provider and the surrounding search stage are still healthy.
                     return None
+                if response.status_code == 409 and "/git/trees/" in path:
+                    # GitHub reports an empty repository as a tree conflict. This is
+                    # a candidate-level absence of material, not a provider failure.
+                    return None
                 response.raise_for_status()
                 remaining = response.headers.get("x-ratelimit-remaining")
                 if remaining is not None and remaining.isdigit() and int(remaining) < 10:
                     self.usage.warnings.append(f"GitHub remaining quota is low: {remaining}")
-                return response.json()
+                try:
+                    data = response.json()
+                except ValueError:
+                    self._raise_invalid_response(path)
+                if not isinstance(data, dict):
+                    self._raise_invalid_response(path)
+                return data
             except GitHubProviderError:
                 raise
             except httpx.HTTPError as exc:
                 if attempt == 0 and not isinstance(exc, httpx.HTTPStatusError):
                     await asyncio.sleep(0.2)
                     continue
-                self.usage.warnings.append(f"GitHub request failed: {exc}")
-                self.usage.provider_events.append(
-                    ProviderEvent("github", path, "failed", type(exc).__name__)
+                self.usage.warnings.append(
+                    "GitHub authenticated request failed; no anonymous fallback was attempted."
                 )
-                return None
-        return None
+                retryable = not isinstance(exc, httpx.HTTPStatusError)
+                if isinstance(exc, httpx.HTTPStatusError):
+                    retryable = exc.response.status_code >= 500
+                raise GitHubProviderError(
+                    "GitHub could not complete an authenticated API request.",
+                    retryable=retryable,
+                ) from None
+        raise GitHubProviderError(
+            "GitHub could not complete an authenticated API request.",
+            retryable=True,
+        )
+
+    def _raise_invalid_response(self, operation: str) -> NoReturn:
+        self.usage.warnings.append("GitHub returned an invalid response structure.")
+        raise GitHubProviderError(
+            "GitHub returned an invalid response structure.",
+            retryable=False,
+        )
 
     @staticmethod
     def _rate_limit_delay(headers: httpx.Headers) -> float | None:
@@ -165,119 +202,81 @@ class GitHubClient:
         except ValueError:
             return None
 
-    async def search_repositories(self, query: str, per_page: int = 10) -> list[CandidateRepository]:
-        self.usage.github_search_requests += 1
+    async def search_repositories(
+        self,
+        query: str,
+        per_page: int = 10,
+        page: int = 1,
+    ) -> list[CandidateRepository]:
         data = await self._get(
             "/search/repositories",
-            q=query,
+            q=f"{query} in:name,description,readme is:public",
             per_page=min(per_page, 30),
+            page=max(1, page),
         )
         if not data:
             return []
-        return [self._repo_from_json(item, found_by=f"github:{query}") for item in data.get("items", [])]
-
-    async def search_code_repositories(self, query: str, per_page: int = 10) -> list[tuple[str, str, str]]:
-        self.usage.github_search_requests += 1
-        self.usage.github_code_search_requests += 1
-        data = await self._get(
-            "/search/code",
-            q=query,
-            per_page=min(per_page, 30),
-        )
-        if not data:
-            return []
-        repos: list[tuple[str, str, str]] = []
-        seen: set[tuple[str, str]] = set()
-        for item in data.get("items", []):
-            repo_data = item.get("repository") or {}
-            owner_data = repo_data.get("owner") or {}
-            owner = str(owner_data.get("login") or "")
-            name = str(repo_data.get("name") or "")
-            path = str(item.get("path") or "")
-            if not owner or not name:
-                continue
-            key = (owner.lower(), name.lower())
-            if key in seen:
-                continue
-            seen.add(key)
-            repos.append((owner, name, path))
-        return repos
-
-    async def search_topic_repositories(self, topic: str, per_page: int = 10) -> list[CandidateRepository]:
-        self.usage.github_search_requests += 1
-        self.usage.github_topic_search_requests += 1
-        data = await self._get(
-            "/search/repositories",
-            q=f"topic:{topic}",
-            per_page=min(per_page, 30),
-        )
-        if not data:
-            return []
-        return [self._repo_from_json(item, found_by=f"github_topic:{topic}") for item in data.get("items", [])]
-
-    async def search_issue_repositories(self, query: str, per_page: int = 10) -> list[tuple[str, str]]:
-        self.usage.github_search_requests += 1
-        self.usage.github_issue_search_requests += 1
-        data = await self._get(
-            "/search/issues",
-            q=f"{query} type:issue",
-            per_page=min(per_page, 30),
-        )
-        if not data:
-            return []
-        repos: list[tuple[str, str]] = []
-        seen: set[tuple[str, str]] = set()
-        for item in data.get("items", []):
-            repo_url = str(item.get("repository_url") or "")
-            marker = "/repos/"
-            if marker not in repo_url:
-                continue
-            owner_name = repo_url.rsplit(marker, 1)[-1].strip("/")
-            parts = owner_name.split("/")
-            if len(parts) < 2:
-                continue
-            owner, name = parts[0], parts[1]
-            if not owner or not name:
-                continue
-            key = (owner.lower(), name.lower())
-            if key in seen:
-                continue
-            seen.add(key)
-            repos.append((owner, name))
-        return repos
+        items = data.get("items")
+        if not isinstance(items, list):
+            self._raise_invalid_response("/search/repositories")
+        repositories: list[CandidateRepository] = []
+        for item in items:
+            if not isinstance(item, dict):
+                self._raise_invalid_response("/search/repositories")
+            try:
+                repository = self._repo_from_json(item, found_by=f"github:{query}")
+            except (AttributeError, TypeError, ValueError):
+                self._raise_invalid_response("/search/repositories")
+            if not repository.owner or not repository.name:
+                self._raise_invalid_response("/search/repositories")
+            repositories.append(repository)
+        return repositories
 
     async def get_repository(self, owner: str, name: str, found_by: str = "github:url") -> CandidateRepository | None:
         data = await self._get(f"/repos/{owner}/{name}")
         if not data:
             return None
-        return self._repo_from_json(data, found_by=found_by)
+        try:
+            repository = self._repo_from_json(data, found_by=found_by)
+        except (AttributeError, TypeError, ValueError):
+            self._raise_invalid_response(f"/repos/{owner}/{name}")
+        if not repository.owner or not repository.name:
+            self._raise_invalid_response(f"/repos/{owner}/{name}")
+        return repository
 
     async def fetch_readme(self, repo: CandidateRepository) -> str:
         data = await self._get(f"/repos/{repo.owner}/{repo.name}/readme")
         if not data:
             return ""
         encoded = data.get("content") or ""
+        if not isinstance(encoded, str):
+            self._raise_invalid_response(f"/repos/{repo.owner}/{repo.name}/readme")
         try:
             return base64.b64decode(encoded, validate=False).decode("utf-8", errors="replace")
         except Exception as exc:
             self.usage.warnings.append(f"README decode failed for {repo.full_name}: {exc}")
-            self.usage.provider_events.append(
-                ProviderEvent("github", f"readme:{repo.full_name}", "failed", "decode_error")
-            )
             return ""
 
     async def fetch_tree_paths(self, repo: CandidateRepository, limit: int = 1200) -> list[str]:
         branch = repo.default_branch or "main"
-        data = await self._get(f"/repos/{repo.owner}/{repo.name}/git/trees/{branch}", recursive=1)
+        encoded_branch = quote(branch, safe="")
+        data = await self._get(
+            f"/repos/{repo.owner}/{repo.name}/git/trees/{encoded_branch}",
+            recursive=1,
+        )
         if not data:
             return []
         if data.get("truncated"):
             self.usage.warnings.append(f"GitHub tree truncated for {repo.full_name}; source evidence is partial.")
-            self.usage.provider_events.append(
-                ProviderEvent("github", f"tree:{repo.full_name}", "limited", "truncated_response")
-            )
+        tree = data.get("tree")
+        if not isinstance(tree, list):
+            self._raise_invalid_response(f"/repos/{repo.owner}/{repo.name}/git/trees/{branch}")
         paths: list[str] = []
-        for item in data.get("tree", []):
+        for item in tree:
+            if not isinstance(item, dict):
+                self._raise_invalid_response(
+                    f"/repos/{repo.owner}/{repo.name}/git/trees/{branch}"
+                )
             if item.get("type") != "blob":
                 continue
             path = str(item.get("path") or "")
@@ -288,24 +287,38 @@ class GitHubClient:
         return paths
 
     async def fetch_file_text(self, repo: CandidateRepository, path: str, max_chars: int = 10000) -> str:
-        data = await self._get(f"/repos/{repo.owner}/{repo.name}/contents/{path}")
+        encoded_path = quote(path, safe="/")
+        data = await self._get(
+            f"/repos/{repo.owner}/{repo.name}/contents/{encoded_path}"
+        )
         if not data or data.get("type") != "file":
             return ""
-        size = int(data.get("size") or 0)
+        try:
+            size = int(data.get("size") or 0)
+        except (TypeError, ValueError):
+            self._raise_invalid_response(f"/repos/{repo.owner}/{repo.name}/contents/{path}")
         if size > 180_000:
             return ""
         encoded = data.get("content") or ""
         if not encoded:
             return ""
+        if not isinstance(encoded, str):
+            self._raise_invalid_response(f"/repos/{repo.owner}/{repo.name}/contents/{path}")
         try:
             decoded = base64.b64decode(encoded, validate=False).decode("utf-8", errors="replace")
         except Exception as exc:
             self.usage.warnings.append(f"File decode failed for {repo.full_name}/{path}: {exc}")
-            self.usage.provider_events.append(
-                ProviderEvent("github", f"file:{repo.full_name}/{path}", "failed", "decode_error")
-            )
             return ""
         return decoded[:max_chars]
+
+    async def fetch_latest_release_at(self, repo: CandidateRepository) -> str | None:
+        data = await self._get(f"/repos/{repo.owner}/{repo.name}/releases/latest")
+        if not data:
+            return None
+        released_at = data.get("published_at") or data.get("created_at")
+        if released_at is not None and not isinstance(released_at, str):
+            self._raise_invalid_response(f"/repos/{repo.owner}/{repo.name}/releases/latest")
+        return released_at
 
     def _repo_from_json(self, data: dict[str, Any], found_by: str) -> CandidateRepository:
         owner = (data.get("owner") or {}).get("login") or ""
@@ -328,6 +341,8 @@ class GitHubClient:
             parent_full_name=(
                 str((data.get("parent") or {}).get("full_name") or "") or None
             ),
+            mirror_url=str(data.get("mirror_url") or "") or None,
+            size_kb=int(data.get("size") or 0),
             found_by=[found_by],
         )
         return repo
