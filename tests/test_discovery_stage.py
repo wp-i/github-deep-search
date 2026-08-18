@@ -359,7 +359,7 @@ async def test_candidate_limit_does_not_skip_planned_queries() -> None:
 
 
 @pytest.mark.asyncio
-async def test_candidate_limit_is_shared_fairly_across_suggestions_and_queries() -> None:
+async def test_candidate_limit_reserves_verified_suggestions_and_query_results() -> None:
     client = FakeGitHubClient()
     client.repository_results = {
         "suggested/one": repository("suggested", "one"),
@@ -393,11 +393,53 @@ async def test_candidate_limit_is_shared_fairly_across_suggestions_and_queries()
     assert context.discovery_result is not None
     assert [candidate.full_name for candidate in context.discovery_result.candidates] == [
         "suggested/one",
+        "suggested/two",
         "zh/one",
         "en/one",
-        "suggested/two",
         "zh/two",
     ]
+
+
+@pytest.mark.asyncio
+async def test_evidence_window_does_not_starve_later_verified_suggestions() -> None:
+    client = FakeGitHubClient()
+    suggestions = tuple(f"suggested/project-{index}" for index in range(8))
+    client.repository_results = {
+        name: repository(*name.split("/", 1)) for name in suggestions
+    }
+    pairs = tuple(
+        SearchQueryPair(
+            purpose=f"direction {index}",
+            zh=f"zh query {index}",
+            en=f"en query {index}",
+        )
+        for index in range(4)
+    )
+    for pair_index, pair in enumerate(pairs):
+        client.search_results[pair.zh] = [
+            repository("zh", f"direction-{pair_index}-result-{item_index}")
+            for item_index in range(2)
+        ]
+        client.search_results[pair.en] = [
+            repository("en", f"direction-{pair_index}-result-{item_index}")
+            for item_index in range(2)
+        ]
+    parsed = replace(
+        parsed_requirement("unused zh", "unused en", suggestions=suggestions),
+        search_query_pairs=pairs,
+    )
+    context, _ = context_for("Find a project", parsed)
+
+    await DiscoveryStage(client=client).execute(context)
+
+    assert context.discovery_result is not None
+    evidence_window = context.discovery_result.candidates[:12]
+    assert [candidate.full_name for candidate in evidence_window[:8]] == list(suggestions)
+    assert len(evidence_window) == 12
+    assert all(
+        candidate.full_name.startswith(("zh/", "en/"))
+        for candidate in evidence_window[8:]
+    )
 
 
 @pytest.mark.asyncio

@@ -81,7 +81,7 @@ class DiscoveryStage:
 
         successful_queries: list[str] = []
         failed_queries: list[str] = []
-        candidate_batches: list[list[CandidateRepository]] = [suggestion_candidates]
+        query_candidate_batches: list[list[CandidateRepository]] = []
         seen_queries: set[str] = set()
         per_page = min(10, context.settings.max_candidates)
         for purpose, language, query in _planned_queries(parsed):
@@ -107,7 +107,7 @@ class DiscoveryStage:
                 raise _pipeline_failure(exc) from None
 
             successful_queries.append(query)
-            candidate_batches.append(repositories)
+            query_candidate_batches.append(repositories)
 
         if not successful_queries:
             raise PipelineFailure(
@@ -116,10 +116,42 @@ class DiscoveryStage:
             )
         candidates: list[CandidateRepository] = []
         candidate_indexes: dict[str, int] = {}
+        evidence_window = min(
+            context.settings.max_candidates,
+            context.settings.max_evidence_repositories,
+        )
+        query_reserve = min(len(parsed.search_query_pairs), evidence_window)
+        suggestion_prefix_count = min(
+            len(suggestion_candidates),
+            max(0, evidence_window - query_reserve),
+        )
+        for repository in suggestion_candidates[:suggestion_prefix_count]:
+            _merge_candidate(
+                candidates,
+                candidate_indexes,
+                repository,
+                limit=context.settings.max_candidates,
+            )
+
+        seeded_queries = 0
+        for repository in _candidate_batch_items(query_candidate_batches):
+            if _merge_candidate(
+                candidates,
+                candidate_indexes,
+                repository,
+                limit=context.settings.max_candidates,
+            ):
+                seeded_queries += 1
+                if seeded_queries >= query_reserve:
+                    break
+
         _merge_candidate_batches(
             candidates,
             candidate_indexes,
-            candidate_batches,
+            [
+                suggestion_candidates[suggestion_prefix_count:],
+                *query_candidate_batches,
+            ],
             limit=context.settings.max_candidates,
         )
         if not candidates:
@@ -280,19 +312,26 @@ def _merge_candidate_batches(
     limit: int,
 ) -> int:
     added = 0
+    for repository in _candidate_batch_items(batches):
+        if _merge_candidate(
+            candidates,
+            candidate_indexes,
+            repository,
+            limit=limit,
+        ):
+            added += 1
+    return added
+
+
+def _candidate_batch_items(
+    batches: list[list[CandidateRepository]],
+) -> Iterator[CandidateRepository]:
     longest_batch = max((len(batch) for batch in batches), default=0)
     for item_index in range(longest_batch):
         for batch in batches:
             if item_index >= len(batch):
                 continue
-            if _merge_candidate(
-                candidates,
-                candidate_indexes,
-                batch[item_index],
-                limit=limit,
-            ):
-                added += 1
-    return added
+            yield batch[item_index]
 
 
 def _pipeline_failure(error: GitHubProviderError) -> PipelineFailure:
